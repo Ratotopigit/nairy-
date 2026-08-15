@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   ChevronRight,
   Clock3,
@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
   Star,
   Users,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -64,6 +65,24 @@ export default function ProviderDirectoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("All specialties");
   const [hoveredIndex, setHoveredIndex] = useState(null as number | null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterSearch, setFilterSearch] = useState("");
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+        setFilterSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredFilters = filters.filter((f) =>
+    f.toLowerCase().includes(filterSearch.toLowerCase())
+  );
 
   const filteredProviders = useMemo(() => {
     return providers.filter((provider) => {
@@ -95,53 +114,118 @@ export default function ProviderDirectoryPage() {
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#587166] dark:text-[#90a89c]">
             Provider directory
           </p>
-          <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[#183d30] dark:text-[#ebf7f1] sm:text-4xl">
-              Explore our providers
-            </h2>
-            <div className="inline-flex items-center rounded-full border border-[#bfd8c8]/40 bg-[#edf8f1]/80 dark:border-[#2d564b]/40 dark:bg-[#122a1e]/40 px-3.5 py-1.5 text-xs font-semibold text-[#183d30] dark:text-[#40916c] w-fit">
-              {filteredProviders.length} {filteredProviders.length === 1 ? "specialist" : "specialists"}
-            </div>
-          </div>
+          <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[#183d30] dark:text-[#ebf7f1] sm:text-4xl">
+            Explore our providers
+          </h2>
         </div>
 
-        {/* Search & Filters block */}
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative block w-full lg:max-w-[480px]">
-            <Search className="pointer-events-none absolute left-4.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#587166] dark:text-[#90a89c]" />
+        {/* Search & Filter bar */}
+        <div className="flex items-center gap-2.5 max-w-sm sm:max-w-md w-full">
+          <div className="relative flex-1">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search providers..."
-              className="w-full rounded-2xl border border-[#bfd8c8]/60 bg-[#f4faf6]/50 dark:border-[#204437]/50 dark:bg-[#12251d]/40 py-3.5 pl-12 pr-4 text-sm text-[#183d30] dark:text-[#ebf7f1] placeholder-[#587166]/70 dark:placeholder-[#90a89c]/60 outline-none transition-all duration-300 focus:border-[#183d30] dark:focus:border-[#40916c] focus:bg-white dark:focus:bg-[#12251d]"
+              className="w-full rounded-2xl border border-[#bfd8c8]/60 bg-[#f4faf6]/50 dark:border-[#204437]/50 dark:bg-[#12251d]/40 py-3 pl-4 pr-11 text-sm text-[#183d30] dark:text-[#ebf7f1] placeholder-[#587166]/70 dark:placeholder-[#90a89c]/60 outline-none transition-all duration-300 focus:border-[#183d30] dark:focus:border-[#40916c] focus:bg-white dark:focus:bg-[#12251d]"
             />
+            <Search className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#587166] dark:text-[#90a89c]" />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="inline-flex items-center gap-2 rounded-xl border border-[#bfd8c8]/50 bg-white/40 dark:border-[#2d564b]/40 dark:bg-[#12251d]/30 px-3.5 py-2 text-sm text-[#587166] dark:text-[#90a89c]">
-              <SlidersHorizontal className="h-4 w-4 text-[#183d30] dark:text-[#40916c]" />
-              <span>Filter:</span>
-            </div>
+          {/* Filter icon with dropdown */}
+          <div className="relative" ref={filterRef}>
+            <button
+              type="button"
+              onClick={() => setFilterOpen(!filterOpen)}
+              className={`flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-2xl border transition-all duration-200 ${
+                filterOpen || selectedSpecialty !== "All specialties"
+                  ? "border-[#183d30] bg-[#183d30] text-white dark:border-[#40916c] dark:bg-[#40916c]"
+                  : "border-[#bfd8c8]/60 bg-[#f4faf6]/50 text-[#587166] hover:bg-[#edf8f1] dark:border-[#204437]/50 dark:bg-[#12251d]/40 dark:text-[#90a89c] dark:hover:bg-[#17392f]"
+              }`}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
 
-            {filters.map((filter) => {
-              const isSelected = selectedSpecialty === filter;
-              return (
-                <button
-                  key={filter}
-                  type="button"
-                  onClick={() => setSelectedSpecialty(filter)}
-                  className={`rounded-full border px-4.5 py-2 text-sm font-medium transition-all duration-200 ${isSelected
-                      ? "border-[#183d30] bg-[#183d30] text-white dark:border-[#40916c] dark:bg-[#40916c]"
-                      : "border-[#bfd8c8]/40 bg-transparent text-[#587166] hover:bg-[#edf8f1]/50 dark:border-[#2d564b]/40 dark:text-[#90a89c] dark:hover:bg-[#17392f]/40"
-                    }`}
+            <AnimatePresence>
+              {filterOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                  className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 overflow-hidden rounded-2xl border border-[#bfd8c8]/50 bg-white shadow-[0_16px_48px_rgba(24,61,48,0.12)] dark:border-[#2d564b]/50 dark:bg-[#12251d] dark:shadow-[0_16px_48px_rgba(0,0,0,0.3)]"
                 >
-                  {filter}
-                </button>
-              );
-            })}
+                  <div className="p-3">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={filterSearch}
+                        onChange={(e) => setFilterSearch(e.target.value)}
+                        placeholder="Search specialties..."
+                        autoFocus
+                        className="w-full rounded-xl border border-[#bfd8c8]/40 bg-[#f4faf6]/50 dark:border-[#2d564b]/40 dark:bg-[#0d1f17]/50 py-2 pl-3 pr-8 text-xs text-[#183d30] dark:text-[#ebf7f1] placeholder-[#587166]/60 dark:placeholder-[#90a89c]/50 outline-none transition-colors focus:border-[#183d30] dark:focus:border-[#40916c]"
+                      />
+                      {filterSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setFilterSearch("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#587166] dark:text-[#90a89c] hover:text-[#183d30] dark:hover:text-[#ebf7f1]"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="max-h-52 overflow-y-auto px-1.5 pb-2">
+                    {filteredFilters.length > 0 ? (
+                      filteredFilters.map((filter) => {
+                        const isSelected = selectedSpecialty === filter;
+                        return (
+                          <button
+                            key={filter}
+                            type="button"
+                            onClick={() => {
+                              setSelectedSpecialty(filter);
+                              setFilterOpen(false);
+                              setFilterSearch("");
+                            }}
+                            className={`flex w-full items-center rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 ${
+                              isSelected
+                                ? "bg-[#183d30] text-white dark:bg-[#40916c]"
+                                : "text-[#4d6158] hover:bg-[#edf8f1] dark:text-[#90a89c] dark:hover:bg-[#17392f]/60"
+                            }`}
+                          >
+                            {filter}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <p className="px-3 py-4 text-center text-xs text-[#587166] dark:text-[#90a89c]">
+                        No specialties found
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
+
+        {/* Active filter tag */}
+        {selectedSpecialty !== "All specialties" && (
+          <div className="mt-4 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#183d30]/20 bg-[#edf8f1] dark:border-[#40916c]/30 dark:bg-[#17392f]/40 px-3 py-1 text-xs font-semibold text-[#183d30] dark:text-[#40916c]">
+              {selectedSpecialty}
+              <button
+                type="button"
+                onClick={() => setSelectedSpecialty("All specialties")}
+                className="ml-0.5 rounded-full hover:bg-[#183d30]/10 dark:hover:bg-[#40916c]/20 p-0.5 transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          </div>
+        )}
 
         {/* Providers grid layout */}
         <div className="mt-12">
@@ -195,7 +279,7 @@ export default function ProviderDirectoryPage() {
 
                           <div className="flex h-44 items-end justify-between p-4.5">
                             {/* Profile initials */}
-                            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-white/80 dark:border-[#2d564b]/80 dark:bg-[#12251d]/80 text-[1.1rem] font-bold text-[#183d30] dark:text-[#ebf7f1] shadow-[0_4px_12px_rgba(24,61,48,0.04)] transition-transform duration-300 group-hover:scale-105">
+                            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-white/80 dark:border-[#2d564b]/80 dark:bg-[#12251d]/80 text-[1.1rem] font-bold text-[#183d30] dark:text-[#ebf7f1] shadow-[0_4px_12px_rgba(24,61,48,0.04)]">
                               {provider.initials}
                             </div>
 

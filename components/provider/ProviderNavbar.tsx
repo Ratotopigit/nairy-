@@ -104,7 +104,7 @@ export default function ProviderNavbar() {
 
   return (
     <header className="sticky top-0 z-40 bg-[#ebf7f1]/85 dark:bg-[#12251d]/85 backdrop-blur-xl border-b border-[#bfd8c8]/35 dark:border-[#204437]/45 transition-colors duration-300">
-      <div className="mx-auto flex min-h-[76px] max-w-[1320px] items-center justify-between gap-4 px-4 py-3 md:h-[76px] md:gap-8 md:px-6 md:py-0">
+      <div className="w-full flex min-h-[72px] items-center justify-between gap-4 px-6 sm:px-8 md:px-10 lg:px-12 py-3 md:h-[72px] md:gap-8 md:py-0">
         {/* Left side: Brand Title */}
         <Link
           href="/provider"

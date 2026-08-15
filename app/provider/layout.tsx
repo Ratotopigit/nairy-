@@ -24,7 +24,7 @@ export default function ProviderLayout({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="mx-auto w-full max-w-[1320px] px-4 pb-16 pt-6 md:px-6"
+          className="w-full px-6 sm:px-8 md:px-10 lg:px-12 pb-16 pt-6"
         >
           {children}
         </motion.main>
