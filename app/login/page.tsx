@@ -1,18 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 
-// Imports from assets directory
-import logo from "@/assets/AstraCraft-logo.jpeg";
-import girlImg from "@/assets/login-img/girl.png";
-import ideaImg from "@/assets/login-img/idea.png";
-import pptImg from "@/assets/login-img/ppt.png";
-import chartImg from "@/assets/login-img/chart.png";
-import planImg from "@/assets/login-img/plan.png";
+// Image paths served from public directory (not bundled into worker)
+const logo = "/assets/AstraCraft-logo.jpeg";
+const girlImg = "/assets/login-img/girl.png";
+const ideaImg = "/assets/login-img/idea.png";
+const pptImg = "/assets/login-img/ppt.png";
+const chartImg = "/assets/login-img/chart.png";
+const planImg = "/assets/login-img/plan.png";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -78,12 +77,11 @@ export default function LoginPage() {
 
           {/* Character Container nudged left */}
           <div className="relative w-full max-w-lg aspect-square flex items-end justify-start">
-            <Image
+            <img
               src={girlImg}
               alt="AstroCraft assistant at desk"
               width={520}
               height={520}
-              priority
               className="object-contain w-auto h-auto max-h-[500px] drop-shadow-2xl translate-y-3"
             />
 
@@ -104,7 +102,7 @@ export default function LoginPage() {
                 {/* Ambient background aura that flares on hover */}
                 <div className="absolute inset-0 bg-amber-300/0 hover:bg-amber-400/30 rounded-full blur-2xl transition-all duration-300 scale-150 pointer-events-none" />
 
-                <Image
+                <img
                   src={ideaImg}
                   alt="Idea lightbulb"
                   width={70}
@@ -122,7 +120,7 @@ export default function LoginPage() {
               whileHover={{ scale: 1.08 }}
               className="absolute top-[18%] right-1 lg:right-6 z-20 cursor-pointer"
             >
-              <Image
+              <img
                 src={pptImg}
                 alt="Presentation slide"
                 width={50}
@@ -139,7 +137,7 @@ export default function LoginPage() {
               whileHover={{ scale: 1.08 }}
               className="absolute top-[40%] -right-2 lg:-right-10 z-20 cursor-pointer"
             >
-              <Image
+              <img
                 src={chartImg}
                 alt="Analytics chart"
                 width={60}
@@ -156,7 +154,7 @@ export default function LoginPage() {
               whileHover={{ scale: 1.08 }}
               className="absolute top-[14%] left-0 lg:left-4 z-20 cursor-pointer"
             >
-              <Image
+              <img
                 src={planImg}
                 alt="Project plan"
                 width={60}
@@ -182,7 +180,7 @@ export default function LoginPage() {
             {/* Logo + Brand */}
             <div className="flex items-center justify-center gap-3 mb-8">
               <div className="h-10 w-10 rounded-xl overflow-hidden bg-emerald-50 border border-emerald-100 flex items-center justify-center">
-                <Image
+                <img
                   src={logo}
                   alt="AstroCraft Logo"
                   width={40}
