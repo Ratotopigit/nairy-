@@ -3,12 +3,61 @@
 @tailwind utilities;
 
 @layer base {
+  /* Light Mode Palette (Soft Sage Mint) */
   :root {
     color-scheme: light;
+    --background: 147 42% 81%; /* #B8E3CD */
+    --surface: 147 48% 94%; /* #E8F7F0 */
+    --foreground: 153 45% 11%; /* #0F281C */
+    --card: 0 0% 100%;
+    --card-foreground: 153 45% 11%;
+    --primary: 153 40% 30%; /* #2D6A4F */
+    --primary-foreground: 0 0% 100%;
+    --border: 147 38% 75%; /* #A3D9BE */
+  }
+
+  /* Dark Mode Palette (Deep Forest Green) */
+  .dark {
+    color-scheme: dark;
+    --background: 150 37% 17%; /* #1B3B2B */
+    --surface: 150 40% 12%; /* #122A1E */
+    --foreground: 147 48% 94%; /* #E8F7F0 */
+    --card: 150 40% 14%;
+    --card-foreground: 147 48% 94%;
+    --primary: 150 39% 41%; /* #40916C */
+    --primary-foreground: 0 0% 100%;
+    --border: 150 36% 23%; /* #26523C */
+  }
+
+  html {
+    background-color: #e8f7f0;
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    min-height: 100vh;
+    background-color: #ebf7f1;
+    background-image:
+      radial-gradient(
+        circle at 50% 24%,
+        rgba(255, 255, 255, 0.96),
+        rgba(255, 255, 255, 0.32) 24%,
+        rgba(255, 255, 255, 0) 46%
+      ),
+      url("/assets/luxury-saas-bg.svg");
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    color: #0f281c;
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease,
+      border-color 0.3s ease;
+    @apply antialiased;
+  }
+
+  .dark body {
+    background-color: #1b3b2b;
+    color: #e8f7f0;
   }
 
   img {

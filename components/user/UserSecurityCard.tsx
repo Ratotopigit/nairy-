@@ -51,12 +51,12 @@ export default function UserSecurityCard() {
     newPassword: "",
     confirmPassword: "",
   });
-  const [passwordErrors, setPasswordErrors] = useState<typeof passwordForm>({});
+  const [passwordErrors, setPasswordErrors] = useState<Partial<typeof passwordForm>>({});
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [sessionFeedback, setSessionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const validatePasswordForm = () => {
-    const errors: typeof passwordForm = {};
+    const errors: Partial<typeof passwordForm> = {};
     if (!passwordForm.currentPassword) errors.currentPassword = "Current password is required";
     if (!passwordForm.newPassword) errors.newPassword = "New password is required";
     else if (passwordForm.newPassword.length < 8) errors.newPassword = "Password must be at least 8 characters";

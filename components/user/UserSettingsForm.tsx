@@ -12,7 +12,7 @@ interface UserSettingsFormProps {
     location: string;
     bio: string;
   };
-  onSave?: (data: typeof initialData) => Promise<void> | void;
+  onSave?: (data: UserSettingsFormProps["initialData"]) => Promise<void> | void;
 }
 
 export default function UserSettingsForm({ initialData, onSave }: UserSettingsFormProps) {
