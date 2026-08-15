@@ -4,9 +4,8 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, User, ArrowRight } from "lucide-react";
 
-// Image paths served from public directory (not bundled into worker)
 const logo = "/assets/AstraCraft-logo.jpeg";
 const girlImg = "/assets/login-img/girl.png";
 const ideaImg = "/assets/login-img/idea.png";
@@ -14,14 +13,15 @@ const pptImg = "/assets/login-img/ppt.png";
 const chartImg = "/assets/login-img/chart.png";
 const planImg = "/assets/login-img/plan.png";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
 
-  // Form States
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -88,7 +88,7 @@ export default function LoginPage() {
               className="select-none pointer-events-none object-contain w-auto h-auto max-h-[500px] drop-shadow-2xl translate-y-3"
             />
 
-                        {/* Idea Lightbulb - static, hover golden glow retained */}
+            {/* Idea Lightbulb - static, hover golden glow retained */}
             <motion.div
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -174,7 +174,7 @@ export default function LoginPage() {
 
         {/* 
           ----------------------------------------------------------------------
-          RIGHT SIDE: Login Form Card
+          RIGHT SIDE: Sign Up Form Card
           On mobile: centered, max-w-md
           ----------------------------------------------------------------------
         */}
@@ -204,15 +204,34 @@ export default function LoginPage() {
 
             <div className="mb-8 text-center">
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                Welcome back
+                Create your account
               </h1>
               <p className="text-sm text-slate-500 mt-1">
-                Enter your credentials to access the AstroCraft Provider
-                Workspace.
+                Join the AstroCraft Provider Workspace today.
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Full Name Input */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="John Doe"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600 transition-all"
+                  />
+                </div>
+              </div>
+
               {/* Email Input */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
@@ -264,23 +283,35 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between text-xs">
-                <label className="flex items-center gap-2 cursor-pointer text-slate-600 hover:text-slate-900 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/30"
-                  />
-                  <span>Remember me</span>
+              {/* Confirm Password Input */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                  Confirm Password
                 </label>
-                <a
-                  href="#"
-                  className="font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
-                >
-                  Forgot password?
-                </a>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               {/* Submit Button */}
@@ -295,7 +326,7 @@ export default function LoginPage() {
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <>
-                    <span>Sign In to Dashboard</span>
+                    <span>Create AstroCraft Account</span>
                     <ArrowRight className="w-4 h-4 text-emerald-400" />
                   </>
                 )}
@@ -348,14 +379,14 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* Footer Sign Up Link */}
+            {/* Footer Sign In Link */}
             <p className="mt-8 text-center text-xs text-slate-500">
-              Don't have an account?{" "}
+              Already have an account?{" "}
               <Link
-                href="/signup"
+                href="/login"
                 className="font-semibold text-emerald-700 hover:underline"
               >
-                Sign Up
+                Sign In
               </Link>
             </p>
           </div>

@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Rato Topi — Provider Portal",
-  description: "Provider workspace sign in for the Rato Topi platform.",
+  title: "AstroCraft ",
+  description: "Provider workspace sign in for the AstroCraft platform.",
 };
 
 export default function RootLayout({
