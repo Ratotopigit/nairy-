@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 
 type OAuthProvider = "google" | "apple";
 
@@ -16,16 +16,33 @@ export function OAuthButtons({ onError }: Props) {
     setLoadingProvider(provider);
     onError(null);
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/provider`,
-      },
-    });
-
-    if (error) {
+    if (!isSupabaseConfigured) {
       setLoadingProvider(null);
-      onError(error.message);
+      window.location.assign("/provider");
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/provider`,
+        },
+      });
+
+      if (error) {
+        setLoadingProvider(null);
+        const msg = error.message?.toLowerCase().includes("fetch failed")
+          ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
+          : error.message;
+        onError(msg);
+      }
+    } catch (err: any) {
+      setLoadingProvider(null);
+      const msg = err?.message?.toLowerCase().includes("fetch failed")
+        ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
+        : (err?.message || "OAuth sign in failed.");
+      onError(msg);
     }
   }
 

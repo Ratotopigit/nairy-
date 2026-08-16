@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, User, ArrowRight } from "lucide-react";
-import { supabase } from "@/lib/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
 
 const logo = "/assets/AstraCraft-logo.jpeg";
@@ -38,24 +38,41 @@ export default function SignupPage() {
     }
     setIsLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/login`,
-      },
-    });
-    setIsLoading(false);
-    if (error) {
-      setAuthError(error.message);
-      return;
-    }
-    if (data.session) {
+    if (!isSupabaseConfigured) {
+      setIsLoading(false);
       router.replace("/provider");
       return;
     }
-    setAuthMessage("Check your email to confirm your account, then sign in.");
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName },
+          emailRedirectTo: `${window.location.origin}/login`,
+        },
+      });
+      setIsLoading(false);
+      if (error) {
+        const msg = error.message?.toLowerCase().includes("fetch failed")
+          ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
+          : error.message;
+        setAuthError(msg);
+        return;
+      }
+      if (data.session) {
+        router.replace("/provider");
+        return;
+      }
+      setAuthMessage("Check your email to confirm your account, then sign in.");
+    } catch (err: any) {
+      setIsLoading(false);
+      const msg = err?.message?.toLowerCase().includes("fetch failed")
+        ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
+        : (err?.message || "An unexpected error occurred during sign up.");
+      setAuthError(msg);
+    }
   };
 
   return (

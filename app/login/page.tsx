@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
-import { supabase } from "@/lib/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
 
 // Image paths served from public directory (not bundled into worker)
@@ -32,13 +32,30 @@ export default function LoginPage() {
     setIsLoading(true);
     setAuthError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setIsLoading(false);
-    if (error) {
-      setAuthError(error.message);
+    if (!isSupabaseConfigured) {
+      setIsLoading(false);
+      router.replace("/provider");
       return;
     }
-    router.replace("/provider");
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setIsLoading(false);
+      if (error) {
+        const msg = error.message?.toLowerCase().includes("fetch failed")
+          ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
+          : error.message;
+        setAuthError(msg);
+        return;
+      }
+      router.replace("/provider");
+    } catch (err: any) {
+      setIsLoading(false);
+      const msg = err?.message?.toLowerCase().includes("fetch failed")
+        ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
+        : (err?.message || "An unexpected error occurred during sign in.");
+      setAuthError(msg);
+    }
   };
 
   return (
