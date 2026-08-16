@@ -6,6 +6,14 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 
 export const runtime = "nodejs";
 
+export function generateStaticParams() {
+  return [
+    { workflow: "avatar-iq" },
+    { workflow: "offer-iq" },
+    { workflow: "content-maker" },
+  ];
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { workflow: string } },
