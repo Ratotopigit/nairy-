@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, User, ArrowRight } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
+import { OAuthButtons } from "@/components/auth/OAuthButtons";
 
 const logo = "/assets/AstraCraft-logo.jpeg";
 const girlImg = "/assets/login-img/girl.png";
@@ -23,39 +25,47 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError(null);
+    setAuthMessage(null);
+    if (password !== confirmPassword) {
+      setAuthError("Passwords do not match.");
+      return;
+    }
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push("/dashboard");
-    }, 1000);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
+    });
+    setIsLoading(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    if (data.session) {
+      router.replace("/provider");
+      return;
+    }
+    setAuthMessage("Check your email to confirm your account, then sign in.");
   };
 
   return (
-    <main className="min-h-screen w-full relative overflow-hidden flex items-center justify-center p-4 sm:p-6 bg-slate-900 font-sans">
+    <main className="min-h-screen w-full relative overflow-hidden flex items-center justify-center p-4 sm:p-6 font-sans">
       {/* 
         ========================================================================
         1. TWO-TONE ROOM BACKGROUND (Wall + Horizontal Ground)
         ========================================================================
       */}
       {/* Light Sage Wall Section */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#c1dfc4] via-[#b4d8b8] to-[#98c9a3] z-0" />
-
-      {/* Deep Green Ground Floor (Straight horizontal split at 72%) */}
-      <div
-        className="absolute inset-0 bg-gradient-to-br from-[#2d5a3f] via-[#1e3e2b] to-[#14281c] z-0"
-        style={{
-          clipPath: "polygon(0 72%, 100% 72%, 100% 100%, 0% 100%)",
-        }}
-      />
-
-      {/* Soft Ambient Glow Overlay */}
-      <div className="absolute top-1/4 left-10 w-96 h-96 bg-emerald-200/30 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-[30rem] h-[30rem] bg-emerald-900/20 rounded-full blur-3xl pointer-events-none" />
-
       {/* 
         ========================================================================
         2. CONTENT GRID
@@ -331,53 +341,19 @@ export default function SignupPage() {
                   </>
                 )}
               </motion.button>
+              {authError && (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {authError}
+                </p>
+              )}
+              {authMessage && (
+                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                  {authMessage}
+                </p>
+              )}
             </form>
 
-            {/* Social SSO Divider */}
-            <div className="my-6 relative flex items-center justify-center">
-              <div className="border-t border-slate-200 w-full" />
-              <span className="bg-white px-3 text-xs text-slate-400 uppercase tracking-wider font-medium absolute">
-                Or continue with
-              </span>
-            </div>
-
-            {/* SSO Buttons */}
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                className="py-2.5 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-center gap-2 transition-all"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#EA4335"
-                    d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z"
-                  />
-                  <path
-                    fill="#4285F4"
-                    d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 10.8 0 12s.7 2.3 1.9 4.7l3.7-2.9z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"
-                  />
-                </svg>
-                <span>Google</span>
-              </button>
-
-              <button
-                type="button"
-                className="py-2.5 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-center gap-2 transition-all"
-              >
-                <svg className="w-4 h-4 fill-current text-slate-900 mb-0.5" viewBox="0 0 24 24">
-                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.85c.66-.8 1.11-1.92.99-3.04-.95.04-2.1.64-2.78 1.43-.61.71-1.14 1.86-1 2.97 1.07.08 2.13-.56 2.79-1.36z" />
-                </svg>
-                <span>Apple</span>
-              </button>
-            </div>
+            <OAuthButtons onError={setAuthError} />
 
             {/* Footer Sign In Link */}
             <p className="mt-8 text-center text-xs text-slate-500">

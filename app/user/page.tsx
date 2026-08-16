@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import UserVideoPlayer from "@/components/user/UserVideoPlayer";
-import { Play, Clock, Sparkles, CheckCircle, Calendar, X } from "lucide-react";
+import { Play, Clock, CheckCircle, Calendar, X } from "lucide-react";
 
 const videoSrc = "/assets/masterclass-sample.mp4";
 
@@ -81,12 +81,6 @@ export default function UserPage() {
 
   return (
     <div className="min-h-screen w-full relative">
-      <div className="absolute inset-x-0 top-0 h-[72%] bg-[#c8e6c9]" />
-      <div
-        className="absolute inset-x-0 bottom-0 h-[28%] bg-[#0c2417]"
-        style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%, 0% 100%)" }}
-      />
-
       <header className="relative z-10 flex items-center justify-between px-6 py-4 lg:px-8">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">

@@ -1,7 +1,6 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: "class",
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
@@ -10,13 +9,34 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        background: "var(--background)",
+        foreground: "var(--foreground)",
+        card: "var(--card)",
+        "card-foreground": "var(--card-foreground)",
+        primary: "var(--primary)",
+        "primary-foreground": "var(--primary-foreground)",
+        secondary: "var(--secondary)",
+        "secondary-foreground": "var(--secondary-foreground)",
+        muted: "var(--muted)",
+        "muted-foreground": "var(--muted-foreground)",
+        accent: "var(--accent)",
+        "accent-foreground": "var(--accent-foreground)",
+        "accent-soft": "var(--accent-soft)",
+        border: "var(--border)",
+        "border-strong": "var(--border-strong)",
+        input: "var(--input)",
+        ring: "var(--ring)",
+        surface: "var(--surface)",
+        ink: "var(--ink)",
+        "ink-foreground": "var(--ink-foreground)",
+        clay: "var(--clay)",
+        "clay-foreground": "var(--clay-foreground)",
+        ochre: "var(--ochre)",
         brand: {
-          light: "#B8E3CD", // Soft Sage Mint (Light mode primary)
-          lightSurface: "#E8F7F0",
-          dark: "#1B3B2B", // Deep Forest Green (Dark mode primary)
-          darkSurface: "#122A1E",
-          accent: "#2D6A4F", // Light mode accent
-          accentHover: "#40916C", // Dark mode accent
+          light: "#F4F1E8",
+          lightSurface: "#FFFEFB",
+          accent: "#1F4D3D",
+          accentHover: "#173C31",
         },
       },
       fontFamily: {

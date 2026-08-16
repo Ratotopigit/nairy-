@@ -1,15 +1,14 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
 export const metadata: Metadata = {
-  title: "AstroCraft ",
-  description: "Provider workspace sign in for the AstroCraft platform.",
+  title: "AstroCraft",
+  description: "Buyer intelligence, offer strategy, and presentation creation in one workspace.",
+};
+
+export const viewport: Viewport = {
+  colorScheme: "light",
+  themeColor: "#f4f1e8",
 };
 
 export default function RootLayout({
@@ -18,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className="light" style={{ colorScheme: "light" }}>
       <body className="font-sans">{children}</body>
     </html>
   );

@@ -1,0 +1,118 @@
+{
+  "name": "02 - Offer IQ - Native Gemini + Postgres Memory",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "offer-iq", "authentication": "jwtAuth", "responseMode": "responseNode", "options": {} },
+      "id": "offer-webhook", "name": "Offer IQ Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2,
+      "position": [0, 0], "webhookId": "offer-iq",
+      "credentials": { "jwtAuth": { "id": "SUPABASE_JWT_CREDENTIAL", "name": "Supabase JWT" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? {};\nconst claims = $json.jwtPayload ?? {};\nconst expectedIssuer = $vars.SUPABASE_JWT_ISSUER;\nif (!expectedIssuer) throw new Error('Missing n8n variable: SUPABASE_JWT_ISSUER');\nif (!claims.sub) throw new Error('Verified Supabase JWT is missing sub');\nif (claims.iss !== expectedIssuer || claims.role !== 'authenticated') throw new Error('JWT was not issued for this Supabase project');\nif (body.user_id && body.user_id !== claims.sub) throw new Error('JWT user does not match request user');\nfor (const field of ['session_id','focus','delivery','paid_traffic','timeline','pricing']) if (!body[field]) throw new Error('Missing required field: ' + field);\nreturn [{ json: { session_id: body.session_id, user_id: claims.sub, focus: body.focus, delivery: body.delivery, paid_traffic: body.paid_traffic, timeline: body.timeline, pricing: body.pricing } }];"
+      },
+      "id": "normalize-offer", "name": "Verify User and Normalize", "type": "n8n-nodes-base.code", "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select blueprint from public.blueprint_sessions where session_id = $1::uuid and owner_id = $2::uuid and status = 'completed' limit 1;",
+        "options": { "queryReplacement": "={{ [ $('Verify User and Normalize').first().json.session_id, $('Verify User and Normalize').first().json.user_id ] }}" }
+      },
+      "id": "load-offer", "name": "Load Buyer Project", "type": "n8n-nodes-base.postgres", "typeVersion": 2.7,
+      "position": [460, 0], "alwaysOutputData": true,
+      "credentials": { "postgres": { "id": "SUPABASE_POSTGRES_CREDENTIAL", "name": "Supabase Postgres" } }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Create a complete offer strategy.\n\nSAVED BUYER PROJECT\n{{ JSON.stringify($json.blueprint ?? null) }}\n\nPRIMARY OUTCOME\n{{ $('Verify User and Normalize').first().json.focus }}\n\nDELIVERY MODEL\n{{ $('Verify User and Normalize').first().json.delivery }}\n\nTRAFFIC PLAN\n{{ $('Verify User and Normalize').first().json.paid_traffic }}\n\nTIMELINE\n{{ $('Verify User and Normalize').first().json.timeline }}\n\nPRICING\n{{ $('Verify User and Normalize').first().json.pricing }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are Offer IQ, a direct-response offer strategist. Use the saved buyer project and commercial choices to create one specific, credible, conversion-ready offer. Preserve user choices exactly where applicable. Never invent guarantees, performance claims, testimonials, or fake research. Success metrics must be measurement targets or indicators, not guaranteed outcomes. Return only the structured output requested by the parser."
+        }
+      },
+      "id": "offer-agent", "name": "Offer IQ Agent", "type": "@n8n/n8n-nodes-langchain.agent", "typeVersion": 1.7,
+      "position": [720, 0]
+    },
+    {
+      "parameters": { "modelName": "={{ $vars.GEMINI_MODEL }}", "options": { "maxOutputTokens": 6144 } },
+      "id": "offer-gemini", "name": "Gemini - Offer IQ", "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini", "typeVersion": 1.1,
+      "position": [560, 260],
+      "credentials": { "googlePalmApi": { "id": "GOOGLE_GEMINI_CREDENTIAL", "name": "Google Gemini" } }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Verify User and Normalize').first().json.user_id + ':offer:' + $('Verify User and Normalize').first().json.session_id }}",
+        "tableName": "n8n_chat_histories",
+        "contextWindowLength": 12
+      },
+      "id": "offer-memory", "name": "Postgres Memory - Offer IQ", "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat", "typeVersion": 1.4,
+      "position": [760, 260],
+      "credentials": { "postgres": { "id": "SUPABASE_POSTGRES_CREDENTIAL", "name": "Supabase Postgres" } }
+    },
+    {
+      "parameters": {},
+      "id": "offer-calculator", "name": "Calculator - Offer IQ", "type": "@n8n/n8n-nodes-langchain.toolCalculator", "typeVersion": 1,
+      "position": [960, 260]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"title\": { \"type\": \"string\" },\n    \"promise\": { \"type\": \"string\" },\n    \"audience\": { \"type\": \"string\" },\n    \"core_angle\": { \"type\": \"string\" },\n    \"delivery_model\": { \"type\": \"string\" },\n    \"traffic_strategy\": { \"type\": \"string\" },\n    \"timeline\": { \"type\": \"string\" },\n    \"pricing\": { \"type\": \"string\" },\n    \"scope\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n    \"success_metrics\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n    \"risk_reversal\": { \"type\": \"string\" }\n  },\n  \"required\": [\"title\",\"promise\",\"audience\",\"core_angle\",\"delivery_model\",\"traffic_strategy\",\"timeline\",\"pricing\",\"scope\",\"success_metrics\",\"risk_reversal\"]\n}"
+      },
+      "id": "offer-parser", "name": "Offer Strategy Parser", "type": "@n8n/n8n-nodes-langchain.outputParserStructured", "typeVersion": 1.2,
+      "position": [1160, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $input.first().json;\nconst raw = source.output ?? source.text ?? source;\nlet offer = raw;\nif (typeof raw === 'string') offer = JSON.parse(raw.trim().replace(/^```json\\s*/i, '').replace(/```\\s*$/i, '').trim());\nif (offer?.output) offer = offer.output;\nif (!offer?.title || !Array.isArray(offer.scope)) throw new Error('Offer IQ output is missing required fields');\nconst buyer = $('Load Buyer Project').first().json.blueprint;\nif (!buyer?.persona_name) throw new Error('No saved buyer project was found');\nconst input = $('Verify User and Normalize').first().json;\noffer.generated_at = new Date().toISOString();\nreturn [{ json: { ...input, offer, blueprint: { ...buyer, offer } } }];"
+      },
+      "id": "validate-offer", "name": "Validate and Merge Offer", "type": "n8n-nodes-base.code", "typeVersion": 2,
+      "position": [1020, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update public.blueprint_sessions set blueprint = $3::jsonb, status = 'completed', last_error = null, updated_at = now() where session_id = $1::uuid and owner_id = $2::uuid returning session_id;",
+        "options": { "queryReplacement": "={{ [ $json.session_id, $json.user_id, JSON.stringify($json.blueprint) ] }}" }
+      },
+      "id": "save-offer", "name": "Save Offer Project", "type": "n8n-nodes-base.postgres", "typeVersion": 2.7,
+      "position": [1260, 0],
+      "credentials": { "postgres": { "id": "SUPABASE_POSTGRES_CREDENTIAL", "name": "Supabase Postgres" } }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update public.workspace_memory set onboarding_complete = true, audience_profile = $2::jsonb, offer_profile = $3::jsonb, source_session_id = $4::uuid, updated_at = now() where owner_id = $1::uuid returning owner_id;",
+        "options": { "queryReplacement": "={{ [ $('Validate and Merge Offer').first().json.user_id, JSON.stringify($('Validate and Merge Offer').first().json.blueprint), JSON.stringify($('Validate and Merge Offer').first().json.offer), $('Validate and Merge Offer').first().json.session_id ] }}" }
+      },
+      "id": "save-offer-memory", "name": "Save Offer to Account Memory", "type": "n8n-nodes-base.postgres", "typeVersion": 2.7,
+      "position": [1380, 0],
+      "credentials": { "postgres": { "id": "SUPABASE_POSTGRES_CREDENTIAL", "name": "Supabase Postgres" } }
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ $('Validate and Merge Offer').first().json.offer }}", "options": {} },
+      "id": "respond-offer", "name": "Respond to Offer IQ", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4,
+      "position": [1500, 0]
+    }
+  ],
+  "connections": {
+    "Offer IQ Webhook": { "main": [[{ "node": "Verify User and Normalize", "type": "main", "index": 0 }]] },
+    "Verify User and Normalize": { "main": [[{ "node": "Load Buyer Project", "type": "main", "index": 0 }]] },
+    "Load Buyer Project": { "main": [[{ "node": "Offer IQ Agent", "type": "main", "index": 0 }]] },
+    "Gemini - Offer IQ": { "ai_languageModel": [[{ "node": "Offer IQ Agent", "type": "ai_languageModel", "index": 0 }]] },
+    "Postgres Memory - Offer IQ": { "ai_memory": [[{ "node": "Offer IQ Agent", "type": "ai_memory", "index": 0 }]] },
+    "Calculator - Offer IQ": { "ai_tool": [[{ "node": "Offer IQ Agent", "type": "ai_tool", "index": 0 }]] },
+    "Offer Strategy Parser": { "ai_outputParser": [[{ "node": "Offer IQ Agent", "type": "ai_outputParser", "index": 0 }]] },
+    "Offer IQ Agent": { "main": [[{ "node": "Validate and Merge Offer", "type": "main", "index": 0 }]] },
+    "Validate and Merge Offer": { "main": [[{ "node": "Save Offer Project", "type": "main", "index": 0 }]] },
+    "Save Offer Project": { "main": [[{ "node": "Save Offer to Account Memory", "type": "main", "index": 0 }]] },
+    "Save Offer to Account Memory": { "main": [[{ "node": "Respond to Offer IQ", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {}, "active": false,
+  "settings": { "executionOrder": "v1", "saveDataErrorExecution": "none", "saveDataSuccessExecution": "none", "saveExecutionProgress": false },
+  "versionId": "offer-iq-native-nodes-v1", "meta": { "templateCredsSetupCompleted": false }, "tags": []
+}
