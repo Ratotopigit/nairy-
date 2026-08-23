@@ -8,16 +8,17 @@ type Props = {
   busy: boolean;
   hasContent: boolean;
   onSend: (text: string) => void;
+  onUseIdea?: (text: string, build?: boolean) => void;
 };
 
 const SUGGESTIONS = [
-  "Give me 10 pitch ideas with hooks, examples, visuals, and icons",
-  "Build a 12-slide investor presentation",
-  "Create a 30-slide webinar with opening, teaching, offer, and Q&A",
-  "Turn my saved business context into a concise sales deck",
+  "Brainstorm 10 strong presentation angles",
+  "Give me hooks using my saved business and brand assets",
+  "Create a webinar idea with opening, teaching, offer, and Q&A",
+  "Turn my uploaded brand context into a sharp sales deck idea",
 ];
 
-export function ChatPanel({ messages, busy, hasContent, onSend }: Props) {
+export function ChatPanel({ messages, busy, hasContent, onSend, onUseIdea }: Props) {
   const [value, setValue] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -43,21 +44,40 @@ export function ChatPanel({ messages, busy, hasContent, onSend }: Props) {
           <p className="font-serif text-[15px] leading-relaxed text-muted-foreground">
             {hasContent
               ? "Ask for a specific edit. I know the selected slide, your saved business, audience, offer, and deck structure."
-              : "Tell me what you want to make. I will reuse your saved business context, ask only for missing details, and build the right structure."}
+              : "Brainstorm here. I already know your saved business, audience, offer, quotes, logo, and brand assets. When an idea is ready, send it into Content Maker."}
           </p>
         ) : null}
 
 
         {messages.map((m) => (
-          <div
-            key={m.id}
-            className={
-              m.role === "user"
-                ? "ml-auto max-w-[86%] rounded-[12px] rounded-br-[4px] bg-secondary px-3 py-2 text-[13px] leading-relaxed text-foreground"
-                : "max-w-[92%] text-[13px] leading-relaxed text-foreground"
-            }
-          >
-            {m.text}
+          <div key={m.id} className={m.role === "user" ? "flex justify-end" : ""}>
+            <div
+              className={
+                m.role === "user"
+                  ? "max-w-[86%] rounded-[12px] rounded-br-[4px] bg-secondary px-3 py-2 text-[13px] leading-relaxed text-foreground"
+                  : "max-w-[92%] text-[13px] leading-relaxed text-foreground"
+              }
+            >
+              <p className="whitespace-pre-line">{m.text}</p>
+              {!hasContent && m.role === "assistant" && onUseIdea ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onUseIdea(m.text)}
+                    className="rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    Add to brief
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUseIdea(m.text, true)}
+                    className="rounded-full bg-foreground px-2.5 py-1 text-[11px] font-medium text-background"
+                  >
+                    Build from this
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         ))}
 
@@ -68,7 +88,7 @@ export function ChatPanel({ messages, busy, hasContent, onSend }: Props) {
                 <span key={index} className="generation-bar w-0.5 rounded-full bg-accent" style={{ animationDelay: `${index * 110}ms` }} />
               ))}
             </span>
-            Applying your instruction to the deck
+            {hasContent ? "Applying your instruction to the deck" : "Thinking through the idea"}
           </div>
         ) : null}
         <div ref={endRef} />
@@ -100,7 +120,7 @@ export function ChatPanel({ messages, busy, hasContent, onSend }: Props) {
           <textarea
             value={value}
             rows={2}
-            placeholder="Ask for a deck or an edit…"
+            placeholder={hasContent ? "Ask for a deck edit..." : "Brainstorm an idea..."}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {

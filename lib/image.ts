@@ -104,6 +104,52 @@ export type ExtractedPalette = {
   background: string;
 };
 
+export type PreparedImage = {
+  blob: Blob;
+  mimeType: string;
+  fileName: string;
+  previewUrl: string;
+  backgroundRemoved: boolean;
+};
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not prepare image.")), type, quality);
+  });
+}
+
+export async function prepareImageForStorage(
+  file: File,
+  options: { logo?: boolean; max?: number } = {},
+): Promise<PreparedImage> {
+  const originalUrl = await readFileAsDataUrl(file);
+  const cleanedUrl = options.logo ? await removeBackground(originalUrl, 46) : originalUrl;
+  const img = await loadImage(cleanedUrl);
+  const max = options.max ?? (options.logo ? 1200 : 1800);
+  const { canvas } = toCanvas(img, max);
+  const mimeType = options.logo ? "image/png" : "image/webp";
+  const blob = options.logo
+    ? await canvasToBlob(canvas, mimeType)
+    : await canvasToBlob(canvas, mimeType, 0.84);
+  const baseName = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9._-]+/g, "-") || "asset";
+  return {
+    blob,
+    mimeType,
+    fileName: `${baseName}.${options.logo ? "png" : "webp"}`,
+    previewUrl: URL.createObjectURL(blob),
+    backgroundRemoved: Boolean(options.logo && blob.size <= file.size * 1.2),
+  };
+}
+
 /** Pulls a usable brand palette out of an uploaded logo or image. */
 export async function extractPalette(src: string): Promise<ExtractedPalette | null> {
   try {

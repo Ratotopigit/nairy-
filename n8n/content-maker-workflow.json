@@ -2,17 +2,41 @@
   "name": "03 - Content Maker - Native Gemini + Postgres Memory",
   "nodes": [
     {
-      "parameters": { "httpMethod": "POST", "path": "content-maker", "authentication": "jwtAuth", "responseMode": "responseNode", "options": {} },
-      "id": "content-webhook", "name": "Content Maker Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2,
-      "position": [0, 0], "webhookId": "content-maker",
-      "credentials": { "jwtAuth": { "id": "SUPABASE_JWT_CREDENTIAL", "name": "Supabase JWT" } }
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "content-maker",
+        "authentication": "jwtAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "content-webhook",
+      "name": "Content Maker Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "content-maker",
+      "credentials": {
+        "jwtAuth": {
+          "id": "SUPABASE_JWT_CREDENTIAL",
+          "name": "Supabase JWT"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const body = $json.body ?? {};\nconst claims = $json.jwtPayload ?? {};\nconst expectedIssuer = $vars.SUPABASE_JWT_ISSUER;\nif (!expectedIssuer) throw new Error('Missing n8n variable: SUPABASE_JWT_ISSUER');\nif (!claims.sub) throw new Error('Verified Supabase JWT is missing sub');\nif (claims.iss !== expectedIssuer || claims.role !== 'authenticated') throw new Error('JWT was not issued for this Supabase project');\nif (body.user_id && body.user_id !== claims.sub) throw new Error('JWT user does not match request user');\nif (!body.project_id) throw new Error('Missing required field: project_id');\nconst requestedCount = Math.min(90, Math.max(1, Number.parseInt(body.slide_count ?? '8', 10) || 8));\nreturn [{ json: {\n  mode: body.mode === 'assistant' ? 'assistant' : 'generate', project_id: body.project_id, session_id: body.session_id ?? '', user_id: claims.sub,\n  message: body.message ?? '', description: body.description ?? '', purpose: body.purpose ?? 'Sales', slide_count: requestedCount,\n  style: body.style ?? 'modern', font_set: body.font_set ?? 'grotesk', palette: body.palette ?? 'clay', ratio: body.ratio ?? '16:9',\n  slides: Array.isArray(body.slides) ? body.slides : [], selected_slide_id: body.selected_slide_id ?? null, messages: Array.isArray(body.messages) ? body.messages.slice(-30) : []\n} }];"
+        "jsCode": "const body = $json.body ?? {};\nconst claims = $json.jwtPayload ?? {};\nconst expectedIssuer = $vars.SUPABASE_JWT_ISSUER;\nif (!expectedIssuer) throw new Error('Missing n8n variable: SUPABASE_JWT_ISSUER');\nif (!claims.sub) throw new Error('Verified Supabase JWT is missing sub');\nif (claims.iss !== expectedIssuer || claims.role !== 'authenticated') throw new Error('JWT was not issued for this Supabase project');\nif (body.user_id && body.user_id !== claims.sub) throw new Error('JWT user does not match request user');\nif (!body.project_id) throw new Error('Missing required field: project_id');\nconst requestedCount = Math.min(90, Math.max(1, Number.parseInt(body.slide_count ?? '8', 10) || 8));\nreturn [{ json: {\n  mode: body.mode === 'assistant' ? 'assistant' : 'generate', project_id: body.project_id, session_id: body.session_id ?? '', user_id: claims.sub,\n  message: body.message ?? '', description: body.description ?? '', purpose: body.purpose ?? 'Sales', slide_count: requestedCount,\n  style: body.style ?? 'modern', font_set: body.font_set ?? 'grotesk', palette: body.palette ?? 'clay', ratio: body.ratio ?? '16:9',\n  slides: Array.isArray(body.slides) ? body.slides : [], selected_slide_id: body.selected_slide_id ?? null, messages: Array.isArray(body.messages) ? body.messages.slice(-30) : [], asset_context: body.asset_context ?? ''\n} }];"
       },
-      "id": "normalize-content", "name": "Verify User and Normalize", "type": "n8n-nodes-base.code", "typeVersion": 2,
-      "position": [220, 0]
+      "id": "normalize-content",
+      "name": "Verify User and Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
     },
     {
       "parameters": {
@@ -20,47 +44,105 @@
         "query": "create table if not exists public.workspace_memory (owner_id uuid primary key references public.profiles(id) on delete cascade, onboarding_complete boolean not null default false, business_profile jsonb not null default '{}'::jsonb, audience_profile jsonb not null default '{}'::jsonb, offer_profile jsonb not null default '{}'::jsonb, brand_profile jsonb not null default '{}'::jsonb, creation_preferences jsonb not null default '{}'::jsonb, memory_summary text not null default '', source_session_id uuid, created_at timestamptz not null default now(), updated_at timestamptz not null default now()); grant select, insert, update, delete on public.workspace_memory to authenticated; revoke all on public.workspace_memory from anon; alter table public.workspace_memory enable row level security; do $$ begin if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workspace_memory' and policyname = 'Users own workspace memory') then create policy \"Users own workspace memory\" on public.workspace_memory for all to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id); end if; end $$; select 1 as ready;",
         "options": {}
       },
-      "id": "setup-workspace-memory", "name": "Ensure Workspace Memory", "type": "n8n-nodes-base.postgres", "typeVersion": 2.7,
-      "position": [340, 0],
-      "credentials": { "postgres": { "id": "SUPABASE_POSTGRES_CREDENTIAL", "name": "Supabase Postgres" } }
+      "id": "setup-workspace-memory",
+      "name": "Ensure Workspace Memory",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        340,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL",
+          "name": "Supabase Postgres"
+        }
+      }
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "create table if not exists public.content_sessions (id uuid primary key default gen_random_uuid(), project_id uuid not null unique, owner_id uuid not null references public.profiles(id) on delete cascade, blueprint_session_id uuid references public.blueprint_sessions(session_id) on delete set null, status text not null default 'draft' check (status in ('draft','generating','completed','failed')), title text not null default 'Untitled presentation', brief jsonb not null default '{}'::jsonb, slides jsonb not null default '[]'::jsonb, messages jsonb not null default '[]'::jsonb, theme jsonb not null default '{}'::jsonb, last_error text, created_at timestamptz not null default now(), updated_at timestamptz not null default now()); create index if not exists content_sessions_owner_updated_idx on public.content_sessions(owner_id, updated_at desc); create index if not exists content_sessions_blueprint_idx on public.content_sessions(blueprint_session_id, updated_at desc); grant usage on schema public to authenticated; grant select, insert, update, delete on public.content_sessions to authenticated; revoke all on public.content_sessions from anon; alter table public.content_sessions enable row level security; do $$ begin if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'content_sessions' and policyname = 'Users own content sessions') then create policy \"Users own content sessions\" on public.content_sessions for all to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id); end if; end $$; create table if not exists public.n8n_chat_histories (id bigserial primary key, session_id text not null, message jsonb not null); create index if not exists n8n_chat_histories_session_idx on public.n8n_chat_histories(session_id, id); revoke all on public.n8n_chat_histories from anon, authenticated; revoke all on sequence public.n8n_chat_histories_id_seq from anon, authenticated; alter table public.n8n_chat_histories enable row level security; select 1 as ready;",
+        "query": "create table if not exists public.content_sessions (id uuid primary key default gen_random_uuid(), project_id uuid not null, owner_id uuid not null references public.profiles(id) on delete cascade, blueprint_session_id uuid references public.blueprint_sessions(session_id) on delete set null, status text not null default 'draft' check (status in ('draft','generating','completed','failed')), title text not null default 'Untitled presentation', brief jsonb not null default '{}'::jsonb, slides jsonb not null default '[]'::jsonb, messages jsonb not null default '[]'::jsonb, theme jsonb not null default '{}'::jsonb, last_error text, created_at timestamptz not null default now(), updated_at timestamptz not null default now()); alter table public.content_sessions drop constraint if exists content_sessions_project_id_key; create unique index if not exists content_sessions_owner_project_key on public.content_sessions(owner_id, project_id); create index if not exists content_sessions_owner_updated_idx on public.content_sessions(owner_id, updated_at desc); create index if not exists content_sessions_blueprint_idx on public.content_sessions(blueprint_session_id, updated_at desc); grant usage on schema public to authenticated; grant select, insert, update, delete on public.content_sessions to authenticated; revoke all on public.content_sessions from anon; alter table public.content_sessions enable row level security; do $$ begin if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'content_sessions' and policyname = 'Users own content sessions') then create policy \"Users own content sessions\" on public.content_sessions for all to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id); end if; end $$; create table if not exists public.n8n_chat_histories (id bigserial primary key, session_id text not null, message jsonb not null); create index if not exists n8n_chat_histories_session_idx on public.n8n_chat_histories(session_id, id); revoke all on public.n8n_chat_histories from anon, authenticated; revoke all on sequence public.n8n_chat_histories_id_seq from anon, authenticated; alter table public.n8n_chat_histories enable row level security; select 1 as ready;",
         "options": {}
       },
-      "id": "setup-content-db", "name": "Ensure Content Database", "type": "n8n-nodes-base.postgres", "typeVersion": 2.7,
-      "position": [460, 0],
-      "credentials": { "postgres": { "id": "SUPABASE_POSTGRES_CREDENTIAL", "name": "Supabase Postgres" } }
+      "id": "setup-content-db",
+      "name": "Ensure Content Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        460,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL",
+          "name": "Supabase Postgres"
+        }
+      }
     },
     {
       "parameters": {
         "operation": "executeQuery",
         "query": "select b.blueprint, m.business_profile, m.audience_profile, m.offer_profile, m.brand_profile, m.creation_preferences, m.memory_summary, c.title as saved_title, c.brief as saved_brief, c.slides as saved_slides, c.messages as saved_messages, c.theme as saved_theme from (select $2::uuid as owner_id) u left join public.blueprint_sessions b on b.owner_id = u.owner_id and b.session_id = nullif($1, '')::uuid and b.status = 'completed' left join public.workspace_memory m on m.owner_id = u.owner_id left join public.content_sessions c on c.project_id = $3::uuid and c.owner_id = u.owner_id limit 1;",
-        "options": { "queryReplacement": "={{ [ $('Verify User and Normalize').first().json.session_id, $('Verify User and Normalize').first().json.user_id, $('Verify User and Normalize').first().json.project_id ] }}" }
+        "options": {
+          "queryReplacement": "={{ [ $('Verify User and Normalize').first().json.session_id, $('Verify User and Normalize').first().json.user_id, $('Verify User and Normalize').first().json.project_id ] }}"
+        }
       },
-      "id": "load-content", "name": "Load Buyer Offer and Deck", "type": "n8n-nodes-base.postgres", "typeVersion": 2.7,
-      "position": [700, 0], "alwaysOutputData": true,
-      "credentials": { "postgres": { "id": "SUPABASE_POSTGRES_CREDENTIAL", "name": "Supabase Postgres" } }
+      "id": "load-content",
+      "name": "Load Buyer Offer and Deck",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        700,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL",
+          "name": "Supabase Postgres"
+        }
+      }
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "=MODE\n{{ $('Verify User and Normalize').first().json.mode }}\n\nLATEST USER INSTRUCTION\n{{ $('Verify User and Normalize').first().json.message }}\n\nDESCRIPTION\n{{ $('Verify User and Normalize').first().json.description }}\n\nREQUESTED SETTINGS\n{{ JSON.stringify({ purpose: $('Verify User and Normalize').first().json.purpose, slide_count: $('Verify User and Normalize').first().json.slide_count, style: $('Verify User and Normalize').first().json.style, font_set: $('Verify User and Normalize').first().json.font_set, palette: $('Verify User and Normalize').first().json.palette, ratio: $('Verify User and Normalize').first().json.ratio, selected_slide_id: $('Verify User and Normalize').first().json.selected_slide_id }) }}\n\nCURRENT BROWSER SLIDES\n{{ JSON.stringify($('Verify User and Normalize').first().json.slides) }}\n\nACCOUNT MEMORY - DO NOT ASK FOR THIS AGAIN\n{{ JSON.stringify({ summary: $json.memory_summary, business: $json.business_profile, audience: $json.audience_profile, offer: $json.offer_profile, brand: $json.brand_profile, preferences: $json.creation_preferences }) }}\n\nSAVED BUYER AND OFFER PROJECT\n{{ JSON.stringify($json.blueprint ?? null) }}\n\nSAVED DECK MEMORY\n{{ JSON.stringify({ title: $json.saved_title, brief: $json.saved_brief, slides: $json.saved_slides, messages: $json.saved_messages, theme: $json.saved_theme }) }}",
+        "text": "=MODE\n{{ $('Verify User and Normalize').first().json.mode }}\n\nLATEST USER INSTRUCTION\n{{ $('Verify User and Normalize').first().json.message }}\n\nDESCRIPTION\n{{ $('Verify User and Normalize').first().json.description }}\n\nBRAND ASSETS AND REUSABLE LINES\n{{ $('Verify User and Normalize').first().json.asset_context }}\n\nREQUESTED SETTINGS\n{{ JSON.stringify({ purpose: $('Verify User and Normalize').first().json.purpose, slide_count: $('Verify User and Normalize').first().json.slide_count, style: $('Verify User and Normalize').first().json.style, font_set: $('Verify User and Normalize').first().json.font_set, palette: $('Verify User and Normalize').first().json.palette, ratio: $('Verify User and Normalize').first().json.ratio, selected_slide_id: $('Verify User and Normalize').first().json.selected_slide_id }) }}\n\nCURRENT BROWSER SLIDES\n{{ JSON.stringify($('Verify User and Normalize').first().json.slides) }}\n\nACCOUNT MEMORY - DO NOT ASK FOR THIS AGAIN\n{{ JSON.stringify({ summary: $json.memory_summary, business: $json.business_profile, audience: $json.audience_profile, offer: $json.offer_profile, brand: $json.brand_profile, preferences: $json.creation_preferences }) }}\n\nSAVED BUYER AND OFFER PROJECT\n{{ JSON.stringify($json.blueprint ?? null) }}\n\nSAVED DECK MEMORY\n{{ JSON.stringify({ title: $json.saved_title, brief: $json.saved_brief, slides: $json.saved_slides, messages: $json.saved_messages, theme: $json.saved_theme }) }}",
         "hasOutputParser": true,
         "options": {
           "systemMessage": "You are Astro, an expert creation strategist, idea generator, and presentation director. Account memory is authoritative: never ask users to repeat known business, audience, offer, brand, or preference information. Ask only for genuinely missing details, and only when generation would otherwise be impossible. For generate mode, create exactly the requested number of slides, from 1 to 90. Plan a deliberate opening, coherent middle, and clear closing or thank-you slide. For webinars include agenda, audience fit, problem, belief shifts, method, proof placeholders, implementation, offer, Q&A, CTA, and closing as appropriate. For idea requests, make each slide an idea card with a hook, promise, example, visual direction, and icon recommendation. For assistant mode, obey the latest instruction and return the complete resulting deck while preserving every unchanged slide. If a selected slide is named, change only that slide unless the user explicitly requests a wider revision. Keep one idea per slide, no more than four concise bullets, speaker-ready copy, useful transitions, and valid layout/type values. Never fabricate statistics, proof, testimonials, research, logos, or claims. Use explicit placeholders instead. Return only the structured output requested by the parser."
         }
       },
-      "id": "content-agent", "name": "Content Maker Agent", "type": "@n8n/n8n-nodes-langchain.agent", "typeVersion": 1.7,
-      "position": [720, 0]
+      "id": "content-agent",
+      "name": "Content Maker Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        720,
+        0
+      ]
     },
     {
-      "parameters": { "modelName": "={{ $vars.GEMINI_MODEL }}", "options": { "maxOutputTokens": 16384 } },
-      "id": "content-gemini", "name": "Gemini - Content Maker", "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini", "typeVersion": 1.1,
-      "position": [520, 300],
-      "credentials": { "googlePalmApi": { "id": "GOOGLE_GEMINI_CREDENTIAL", "name": "Google Gemini" } }
+      "parameters": {
+        "modelName": "={{ $vars.GEMINI_MODEL }}",
+        "options": {
+          "maxOutputTokens": 16384
+        }
+      },
+      "id": "content-gemini",
+      "name": "Gemini - Content Maker",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        520,
+        300
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "GOOGLE_GEMINI_CREDENTIAL",
+          "name": "Google Gemini"
+        }
+      }
     },
     {
       "parameters": {
@@ -69,61 +151,243 @@
         "tableName": "n8n_chat_histories",
         "contextWindowLength": 16
       },
-      "id": "content-memory", "name": "Postgres Memory - Content Maker", "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat", "typeVersion": 1.4,
-      "position": [740, 300],
-      "credentials": { "postgres": { "id": "SUPABASE_POSTGRES_CREDENTIAL", "name": "Supabase Postgres" } }
+      "id": "content-memory",
+      "name": "Postgres Memory - Content Maker",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.4,
+      "position": [
+        740,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL",
+          "name": "Supabase Postgres"
+        }
+      }
     },
     {
       "parameters": {},
-      "id": "content-calculator", "name": "Calculator - Content Maker", "type": "@n8n/n8n-nodes-langchain.toolCalculator", "typeVersion": 1,
-      "position": [960, 300]
+      "id": "content-calculator",
+      "name": "Calculator - Content Maker",
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        960,
+        300
+      ]
     },
     {
       "parameters": {
         "schemaType": "manual",
-    "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"reply\": { \"type\": \"string\" },\n    \"style\": { \"type\": \"string\", \"enum\": [\"modern\",\"corporate\",\"minimal\",\"editorial\",\"bold\",\"luxury\",\"technical\",\"genz\"] },\n    \"fontSet\": { \"type\": \"string\", \"enum\": [\"anthropic\",\"grotesk\",\"corporate\",\"minimal\",\"display\",\"luxury\",\"editorial\",\"genz\",\"technical\"] },\n    \"palette\": { \"type\": \"string\", \"enum\": [\"clay\",\"ochre\",\"slate\",\"forest\",\"ink\",\"custom\"] },\n    \"purpose\": { \"type\": \"string\", \"enum\": [\"Company Profile\",\"Sales\",\"Pitch\",\"Proposal\",\"Report\"] },\n    \"ratio\": { \"type\": \"string\", \"enum\": [\"16:9\",\"4:3\",\"portrait\",\"square\"] },\n    \"slideCount\": { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 90 },\n    \"generate\": { \"type\": \"boolean\" },\n    \"rewriteSelected\": { \"type\": \"string\", \"enum\": [\"None\",\"Shorter\",\"More professional\",\"More visual\",\"More minimal\",\"Same content, new layout\"] },\n    \"slides\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"id\": { \"type\": \"string\" }, \"name\": { \"type\": \"string\" },\n          \"type\": { \"type\": \"string\", \"enum\": [\"title\",\"split\",\"bullets\",\"visual\",\"metrics\",\"services\",\"timeline\",\"process\",\"chart\",\"closing\"] },\n          \"layout\": { \"type\": \"string\", \"enum\": [\"A\",\"B\",\"C\",\"D\"] },\n          \"eyebrow\": { \"type\": \"string\" }, \"title\": { \"type\": \"string\" }, \"body\": { \"type\": \"string\" },\n          \"bullets\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n          \"metrics\": { \"type\": \"array\", \"items\": { \"type\": \"object\", \"properties\": { \"value\": { \"type\": \"string\" }, \"label\": { \"type\": \"string\" } }, \"required\": [\"value\",\"label\"] } },\n          \"chart\": { \"type\": \"array\", \"items\": { \"type\": \"number\" } }, \"useImage\": { \"type\": \"boolean\" }\n        },\n        \"required\": [\"id\",\"name\",\"type\",\"layout\",\"eyebrow\",\"title\",\"body\",\"bullets\",\"metrics\",\"chart\",\"useImage\"]\n      }\n    }\n  },\n  \"required\": [\"reply\",\"style\",\"fontSet\",\"palette\",\"purpose\",\"ratio\",\"slideCount\",\"generate\",\"rewriteSelected\",\"slides\"]\n}"
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"reply\": { \"type\": \"string\" },\n    \"style\": { \"type\": \"string\", \"enum\": [\"modern\",\"corporate\",\"minimal\",\"editorial\",\"bold\",\"luxury\",\"technical\",\"genz\"] },\n    \"fontSet\": { \"type\": \"string\", \"enum\": [\"anthropic\",\"grotesk\",\"corporate\",\"minimal\",\"display\",\"luxury\",\"editorial\",\"genz\",\"technical\"] },\n    \"palette\": { \"type\": \"string\", \"enum\": [\"clay\",\"ochre\",\"slate\",\"forest\",\"ink\",\"custom\"] },\n    \"purpose\": { \"type\": \"string\", \"enum\": [\"Company Profile\",\"Sales\",\"Pitch\",\"Proposal\",\"Report\"] },\n    \"ratio\": { \"type\": \"string\", \"enum\": [\"16:9\",\"4:3\",\"portrait\",\"square\"] },\n    \"slideCount\": { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 90 },\n    \"generate\": { \"type\": \"boolean\" },\n    \"rewriteSelected\": { \"type\": \"string\", \"enum\": [\"None\",\"Shorter\",\"More professional\",\"More visual\",\"More minimal\",\"Same content, new layout\"] },\n    \"slides\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"id\": { \"type\": \"string\" }, \"name\": { \"type\": \"string\" },\n          \"type\": { \"type\": \"string\", \"enum\": [\"title\",\"split\",\"bullets\",\"visual\",\"metrics\",\"services\",\"timeline\",\"process\",\"chart\",\"closing\"] },\n          \"layout\": { \"type\": \"string\", \"enum\": [\"A\",\"B\",\"C\",\"D\"] },\n          \"eyebrow\": { \"type\": \"string\" }, \"title\": { \"type\": \"string\" }, \"body\": { \"type\": \"string\" },\n          \"bullets\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n          \"metrics\": { \"type\": \"array\", \"items\": { \"type\": \"object\", \"properties\": { \"value\": { \"type\": \"string\" }, \"label\": { \"type\": \"string\" } }, \"required\": [\"value\",\"label\"] } },\n          \"chart\": { \"type\": \"array\", \"items\": { \"type\": \"number\" } }, \"useImage\": { \"type\": \"boolean\" }\n        },\n        \"required\": [\"id\",\"name\",\"type\",\"layout\",\"eyebrow\",\"title\",\"body\",\"bullets\",\"metrics\",\"chart\",\"useImage\"]\n      }\n    }\n  },\n  \"required\": [\"reply\",\"style\",\"fontSet\",\"palette\",\"purpose\",\"ratio\",\"slideCount\",\"generate\",\"rewriteSelected\",\"slides\"]\n}"
       },
-      "id": "content-parser", "name": "Content Result Parser", "type": "@n8n/n8n-nodes-langchain.outputParserStructured", "typeVersion": 1.2,
-      "position": [1180, 300]
+      "id": "content-parser",
+      "name": "Content Result Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1180,
+        300
+      ]
     },
     {
       "parameters": {
         "jsCode": "const source = $input.first().json;\nconst raw = source.output ?? source.text ?? source;\nlet result = raw;\nif (typeof raw === 'string') result = JSON.parse(raw.trim().replace(/^```json\\s*/i, '').replace(/```\\s*$/i, '').trim());\nif (result?.output) result = result.output;\nif (!Array.isArray(result?.slides)) throw new Error('Content Maker output is missing slides');\nresult.slides = result.slides.map((slide, index) => ({ ...slide, id: slide.id || ('slide-' + (index + 1)) }));\nresult.slideCount = result.slides.length;\nresult.generated_at = new Date().toISOString();\nconst input = $('Verify User and Normalize').first().json;\nconst messages = [...input.messages];\nconst last = messages[messages.length - 1];\nif (input.message && !(last?.role === 'user' && last?.text === input.message)) messages.push({ id: 'user-' + Date.now(), role: 'user', text: input.message });\nmessages.push({ id: 'assistant-' + Date.now(), role: 'assistant', text: result.reply });\nreturn [{ json: { ...input, title: result.slides[0]?.title || 'Untitled presentation', messages, result } }];"
       },
-      "id": "validate-content", "name": "Validate Content Result", "type": "n8n-nodes-base.code", "typeVersion": 2,
-      "position": [1040, 0]
+      "id": "validate-content",
+      "name": "Validate Content Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "insert into public.content_sessions (project_id, owner_id, blueprint_session_id, status, title, brief, slides, messages, theme, last_error, updated_at) values ($1::uuid, $2::uuid, nullif($3, '')::uuid, 'completed', $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, null, now()) on conflict (project_id) do update set blueprint_session_id = excluded.blueprint_session_id, status = 'completed', title = excluded.title, brief = excluded.brief, slides = excluded.slides, messages = excluded.messages, theme = excluded.theme, last_error = null, updated_at = now() where public.content_sessions.owner_id = excluded.owner_id returning project_id;",
-        "options": { "queryReplacement": "={{ [ $json.project_id, $json.user_id, $json.session_id, $json.title, JSON.stringify({ description: $json.description, purpose: $json.result.purpose, slide_count: $json.result.slideCount }), JSON.stringify($json.result.slides), JSON.stringify($json.messages), JSON.stringify({ style: $json.result.style, font_set: $json.result.fontSet, palette: $json.result.palette, ratio: $json.result.ratio }) ] }}" }
+        "query": "insert into public.content_sessions (project_id, owner_id, blueprint_session_id, status, title, brief, slides, messages, theme, last_error, updated_at) values ($1::uuid, $2::uuid, nullif($3, '')::uuid, 'completed', $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, null, now()) on conflict (owner_id, project_id) do update set blueprint_session_id = excluded.blueprint_session_id, status = 'completed', title = excluded.title, brief = excluded.brief, slides = excluded.slides, messages = excluded.messages, theme = excluded.theme, last_error = null, updated_at = now() returning project_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.project_id, $json.user_id, $json.session_id, $json.title, JSON.stringify({ description: $json.description, purpose: $json.result.purpose, slide_count: $json.result.slideCount }), JSON.stringify($json.result.slides), JSON.stringify($json.messages), JSON.stringify({ style: $json.result.style, font_set: $json.result.fontSet, palette: $json.result.palette, ratio: $json.result.ratio }) ] }}"
+        }
       },
-      "id": "save-content", "name": "Save Deck and Chat Project", "type": "n8n-nodes-base.postgres", "typeVersion": 2.7,
-      "position": [1280, 0],
-      "credentials": { "postgres": { "id": "SUPABASE_POSTGRES_CREDENTIAL", "name": "Supabase Postgres" } }
+      "id": "save-content",
+      "name": "Save Deck and Chat Project",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1280,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL",
+          "name": "Supabase Postgres"
+        }
+      }
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={{ $('Validate Content Result').first().json.result }}", "options": {} },
-      "id": "respond-content", "name": "Respond to Content Maker", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4,
-      "position": [1520, 0]
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $('Validate Content Result').first().json.result }}",
+        "options": {}
+      },
+      "id": "respond-content",
+      "name": "Respond to Content Maker",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1520,
+        0
+      ]
     }
   ],
   "connections": {
-    "Content Maker Webhook": { "main": [[{ "node": "Verify User and Normalize", "type": "main", "index": 0 }]] },
-    "Verify User and Normalize": { "main": [[{ "node": "Ensure Workspace Memory", "type": "main", "index": 0 }]] },
-    "Ensure Workspace Memory": { "main": [[{ "node": "Ensure Content Database", "type": "main", "index": 0 }]] },
-    "Ensure Content Database": { "main": [[{ "node": "Load Buyer Offer and Deck", "type": "main", "index": 0 }]] },
-    "Load Buyer Offer and Deck": { "main": [[{ "node": "Content Maker Agent", "type": "main", "index": 0 }]] },
-    "Gemini - Content Maker": { "ai_languageModel": [[{ "node": "Content Maker Agent", "type": "ai_languageModel", "index": 0 }]] },
-    "Postgres Memory - Content Maker": { "ai_memory": [[{ "node": "Content Maker Agent", "type": "ai_memory", "index": 0 }]] },
-    "Calculator - Content Maker": { "ai_tool": [[{ "node": "Content Maker Agent", "type": "ai_tool", "index": 0 }]] },
-    "Content Result Parser": { "ai_outputParser": [[{ "node": "Content Maker Agent", "type": "ai_outputParser", "index": 0 }]] },
-    "Content Maker Agent": { "main": [[{ "node": "Validate Content Result", "type": "main", "index": 0 }]] },
-    "Validate Content Result": { "main": [[{ "node": "Save Deck and Chat Project", "type": "main", "index": 0 }]] },
-    "Save Deck and Chat Project": { "main": [[{ "node": "Respond to Content Maker", "type": "main", "index": 0 }]] }
+    "Content Maker Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify User and Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify User and Normalize": {
+      "main": [
+        [
+          {
+            "node": "Ensure Workspace Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ensure Workspace Memory": {
+      "main": [
+        [
+          {
+            "node": "Ensure Content Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ensure Content Database": {
+      "main": [
+        [
+          {
+            "node": "Load Buyer Offer and Deck",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Buyer Offer and Deck": {
+      "main": [
+        [
+          {
+            "node": "Content Maker Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Content Maker": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Content Maker Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Memory - Content Maker": {
+      "ai_memory": [
+        [
+          {
+            "node": "Content Maker Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator - Content Maker": {
+      "ai_tool": [
+        [
+          {
+            "node": "Content Maker Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content Result Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Content Maker Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content Maker Agent": {
+      "main": [
+        [
+          {
+            "node": "Validate Content Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Content Result": {
+      "main": [
+        [
+          {
+            "node": "Save Deck and Chat Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Deck and Chat Project": {
+      "main": [
+        [
+          {
+            "node": "Respond to Content Maker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "pinData": {}, "active": false,
-  "settings": { "executionOrder": "v1", "saveDataErrorExecution": "none", "saveDataSuccessExecution": "none", "saveExecutionProgress": false },
-  "versionId": "content-maker-native-nodes-v1", "meta": { "templateCredsSetupCompleted": false }, "tags": []
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false
+  },
+  "versionId": "content-maker-native-nodes-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
 }

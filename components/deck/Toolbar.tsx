@@ -11,7 +11,7 @@ type Props = {
   onMotion: (motion: Motion) => void;
   generating: boolean;
   hasContent: boolean;
-  onGenerate: () => void;
+  onGenerate: () => void | Promise<void>;
   onExport: () => void;
 };
 
@@ -61,7 +61,7 @@ export function Toolbar({ ratio, onRatio, style, onStyle, motion, onMotion, gene
 
         <button
           type="button"
-          onClick={onGenerate}
+          onClick={() => void onGenerate()}
           disabled={generating}
           className={`relative overflow-hidden rounded-[10px] bg-foreground px-4 py-1.5 text-[13px] font-medium text-background transition-opacity duration-150 hover:opacity-90 disabled:opacity-75 ${generating ? "generation-button" : ""}`}
         >

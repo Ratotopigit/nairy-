@@ -6,10 +6,10 @@ export default function UploadsPage() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-emerald-600">
-            Asset Library
+            Brand Assets
           </p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-            Uploads
+            Logos, Photos, and Source Files
           </h1>
         </div>
       </div>

@@ -47,7 +47,19 @@ function Editable({
 
 const cq = (n: number) => `${n}cqw`;
 
-export function SlideView({ slide, palette, spec, image, removeBg, logo, motion, onEdit, onRequestImage }: Props) {
+export function SlideView({ slide: rawSlide, palette, spec, image, removeBg, logo, motion, onEdit, onRequestImage }: Props) {
+  const slide = {
+    ...rawSlide,
+    bullets: Array.isArray(rawSlide?.bullets) ? rawSlide.bullets : [],
+    metrics: Array.isArray(rawSlide?.metrics) ? rawSlide.metrics : [],
+    chart: Array.isArray(rawSlide?.chart) && rawSlide.chart.length > 0 ? rawSlide.chart : [30, 50, 70, 90],
+    eyebrow: rawSlide?.eyebrow ?? "",
+    title: rawSlide?.title ?? "",
+    body: rawSlide?.body ?? "",
+    name: rawSlide?.name ?? "",
+    layout: rawSlide?.layout ?? "A",
+    type: rawSlide?.type ?? "bullets",
+  };
   const pad = spec.pad;
   const h1 = 5.4 * spec.headingScale;
   const dur = motion === "None" ? 0 : motion === "Dynamic" ? 420 : 260;

@@ -65,7 +65,7 @@ create table if not exists public.blueprint_sessions (
 
 create table if not exists public.content_sessions (
   id uuid primary key default gen_random_uuid(),
-  project_id uuid not null unique,
+  project_id uuid not null,
   owner_id uuid not null references public.profiles(id) on delete cascade,
   blueprint_session_id uuid references public.blueprint_sessions(session_id) on delete set null,
   status text not null default 'draft' check (status in ('draft', 'generating', 'completed', 'failed')),
@@ -114,6 +114,7 @@ create table if not exists public.workspace_assets (
   mime_type text not null,
   byte_size bigint not null default 0 check (byte_size >= 0),
   asset_type text not null default 'reference' check (asset_type in ('logo', 'photo', 'reference', 'document', 'video')),
+  asset_role text not null default 'reference' check (asset_role in ('logo', 'brand_photo', 'product', 'background', 'document', 'reference')),
   palette jsonb,
   background_removed_path text,
   created_at timestamptz not null default now(),
@@ -126,14 +127,22 @@ create table if not exists public.n8n_chat_histories (
   message jsonb not null
 );
 
+alter table public.workspace_assets
+  add column if not exists asset_role text not null default 'reference'
+  check (asset_role in ('logo', 'brand_photo', 'product', 'background', 'document', 'reference'));
+
 create index if not exists presentation_briefs_owner_id_idx on public.presentation_briefs(owner_id, updated_at desc);
 create index if not exists buyer_blueprints_owner_id_idx on public.buyer_blueprints(owner_id, created_at desc);
 create index if not exists presentations_owner_id_idx on public.presentations(owner_id, updated_at desc);
 create index if not exists blueprint_sessions_owner_updated_idx on public.blueprint_sessions(owner_id, updated_at desc);
+create unique index if not exists blueprint_sessions_owner_session_key on public.blueprint_sessions(owner_id, session_id);
 create index if not exists content_sessions_owner_updated_idx on public.content_sessions(owner_id, updated_at desc);
 create index if not exists content_sessions_blueprint_idx on public.content_sessions(blueprint_session_id, updated_at desc);
+alter table public.content_sessions drop constraint if exists content_sessions_project_id_key;
+create unique index if not exists content_sessions_owner_project_key on public.content_sessions(owner_id, project_id);
 create index if not exists assistant_sessions_owner_updated_idx on public.assistant_sessions(owner_id, updated_at desc);
 create index if not exists workspace_assets_owner_created_idx on public.workspace_assets(owner_id, created_at desc);
+create index if not exists workspace_assets_owner_role_created_idx on public.workspace_assets(owner_id, asset_role, created_at desc);
 create index if not exists n8n_chat_histories_session_idx on public.n8n_chat_histories(session_id, id);
 
 alter table public.profiles enable row level security;
