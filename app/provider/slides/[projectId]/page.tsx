@@ -1,7 +1,8 @@
 import SlideStudio from "@/components/provider/SlideStudio";
 
-export const dynamic = "force-dynamic";
-export const dynamicParams = true;
+export function generateStaticParams() {
+  return [{ projectId: "default" }];
+}
 
 export default function SlidesProjectPage() {
   return <SlideStudio />;

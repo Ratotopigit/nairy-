@@ -6,7 +6,13 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 
 export const runtime = "nodejs";
 
-export const dynamic = "force-dynamic";
+export function generateStaticParams() {
+  return [
+    { workflow: "avatar-iq" },
+    { workflow: "offer-iq" },
+    { workflow: "content-maker" },
+  ];
+}
 
 export async function OPTIONS() {
   return new NextResponse(null, {
