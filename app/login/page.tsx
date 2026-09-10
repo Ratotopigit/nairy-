@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
+import { checkUserOnboardingStatus } from "@/lib/onboarding";
 
 // Image paths served from public directory (not bundled into worker)
 const logo = "/assets/AstraCraft-logo.jpeg";
@@ -32,28 +34,32 @@ export default function LoginPage() {
     setIsLoading(true);
     setAuthError(null);
 
-    if (!isSupabaseConfigured) {
+    if (!isFirebaseConfigured) {
+      const isCompleted = await checkUserOnboardingStatus("demo-user-id");
       setIsLoading(false);
-      router.replace("/provider");
+      router.replace(isCompleted ? "/provider" : "/onboarding");
       return;
     }
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const isCompleted = await checkUserOnboardingStatus(userCredential.user.uid);
       setIsLoading(false);
-      if (error) {
-        const msg = error.message?.toLowerCase().includes("fetch failed")
-          ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
-          : error.message;
-        setAuthError(msg);
-        return;
-      }
-      router.replace("/provider");
+      router.replace(isCompleted ? "/provider" : "/onboarding");
     } catch (err: any) {
       setIsLoading(false);
-      const msg = err?.message?.toLowerCase().includes("fetch failed")
-        ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
-        : (err?.message || "An unexpected error occurred during sign in.");
+      let msg = err?.message || "An unexpected error occurred during sign in.";
+      if (
+        err?.code === "auth/invalid-credential" ||
+        err?.code === "auth/user-not-found" ||
+        err?.code === "auth/wrong-password"
+      ) {
+        msg = "Invalid email or password.";
+      } else if (err?.code === "auth/too-many-requests") {
+        msg = "Too many failed login attempts. Please try again later.";
+      } else if (err?.code === "auth/network-request-failed") {
+        msg = "Unable to connect to Firebase authentication server. Please check your network connection.";
+      }
       setAuthError(msg);
     }
   };

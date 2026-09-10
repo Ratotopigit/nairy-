@@ -1,8 +1,7 @@
 import AstroAIChat from "@/components/provider/AstroAIChat";
 
-export function generateStaticParams() {
-  return [{ sessionId: "default" }];
-}
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
 
 export default function AstroAISessionPage() {
   return <AstroAIChat />;

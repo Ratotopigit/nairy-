@@ -1,47 +1,49 @@
 "use client";
 
+import { GoogleAuthProvider, OAuthProvider, signInWithPopup } from "firebase/auth";
 import { useState } from "react";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
+import { checkUserOnboardingStatus } from "@/lib/onboarding";
 
-type OAuthProvider = "google" | "apple";
+type OAuthProviderType = "google" | "apple";
 
 type Props = {
   onError: (message: string | null) => void;
 };
 
 export function OAuthButtons({ onError }: Props) {
-  const [loadingProvider, setLoadingProvider] = useState<OAuthProvider | null>(null);
+  const [loadingProvider, setLoadingProvider] = useState<OAuthProviderType | null>(null);
 
-  async function signIn(provider: OAuthProvider) {
-    setLoadingProvider(provider);
+  async function signIn(providerType: OAuthProviderType) {
+    setLoadingProvider(providerType);
     onError(null);
 
-    if (!isSupabaseConfigured) {
+    if (!isFirebaseConfigured) {
+      const isCompleted = await checkUserOnboardingStatus("demo-user-id");
       setLoadingProvider(null);
-      window.location.assign("/provider");
+      window.location.assign(isCompleted ? "/provider" : "/onboarding");
       return;
     }
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/provider`,
-        },
-      });
+      const provider =
+        providerType === "google"
+          ? new GoogleAuthProvider()
+          : new OAuthProvider("apple.com");
 
-      if (error) {
-        setLoadingProvider(null);
-        const msg = error.message?.toLowerCase().includes("fetch failed")
-          ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
-          : error.message;
-        onError(msg);
-      }
+      const userCredential = await signInWithPopup(auth, provider);
+      const isCompleted = await checkUserOnboardingStatus(userCredential.user.uid);
+      setLoadingProvider(null);
+      window.location.assign(isCompleted ? "/provider" : "/onboarding");
     } catch (err: any) {
       setLoadingProvider(null);
-      const msg = err?.message?.toLowerCase().includes("fetch failed")
-        ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
-        : (err?.message || "OAuth sign in failed.");
+      if (err?.code === "auth/popup-closed-by-user") {
+        return;
+      }
+      const msg =
+        err?.code === "auth/network-request-failed"
+          ? "Unable to connect to Firebase authentication server. Please check your network connection."
+          : (err?.message || "OAuth sign in failed.");
       onError(msg);
     }
   }

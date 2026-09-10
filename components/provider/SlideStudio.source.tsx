@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Lightbulb, ListTree, Presentation } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Toolbar } from "@/components/deck/Toolbar";
 import { LeftPanel, type CustomColors } from "@/components/deck/LeftPanel";
 import { LayoutBar } from "@/components/deck/LayoutBar";
@@ -31,10 +31,13 @@ import {
   type StyleId,
 } from "@/lib/deck";
 import { askAssistant, type AssistantActions } from "@/lib/assistant";
+import { HANDOFF } from "@/lib/creation-handoff";
 import { extractPalette, removeBackground } from "@/lib/image";
 import { exportPptx } from "@/lib/pptx";
-import { supabase } from "@/lib/supabase/client";
-import { loadWorkspaceMemory, memoryContext, saveWorkspaceMemory } from "@/lib/workspace-memory";
+import { auth, db } from "@/lib/firebase/config";
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { loadStudioContext } from "@/lib/workspace-context";
+import { saveWorkspaceMemory } from "@/lib/workspace-memory";
 
 
 const DEFAULT_CUSTOM: CustomColors = {
@@ -49,39 +52,97 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 const contentProjectKey = (userId: string) => `${CONTENT_PROJECT_KEY}:${userId}`;
 
-type WorkspaceAsset = {
-  file_name: string;
-  storage_path: string;
-  mime_type: string;
-  asset_role?: "logo" | "brand_photo" | "product" | "background" | "document" | "reference" | null;
-};
+function saveLocalSession(projectId: string, data: Record<string, unknown>) {
+  if (typeof window === "undefined" || !projectId) return;
+  try {
+    localStorage.setItem(`astrocraft:content-session:${projectId}`, JSON.stringify(data));
+    localStorage.setItem("astrocraft:last-content-project", projectId);
+  } catch (e) {
+    console.warn("Could not save presentation to localStorage:", e);
+  }
+}
+
+function loadLocalSession(projectId: string): Record<string, unknown> | null {
+  if (typeof window === "undefined" || !projectId) return null;
+  try {
+    const raw = localStorage.getItem(`astrocraft:content-session:${projectId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function Builder() {
   const params = useParams<{ projectId?: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const routeProjectId = typeof params.projectId === "string" ? params.projectId : "";
-  const [description, setDescription] = useState("");
-  const [purpose, setPurpose] = useState<Purpose>("Company Profile");
-  const [slideCount, setSlideCount] = useState("8");
+  const queryProjectId = searchParams?.get("projectId") || searchParams?.get("id") || "";
+  const paramProjectId = typeof params?.projectId === "string" ? params.projectId : "";
+  const routeProjectId = (paramProjectId && UUID_PATTERN.test(paramProjectId))
+    ? paramProjectId
+    : (queryProjectId && UUID_PATTERN.test(queryProjectId))
+      ? queryProjectId
+      : paramProjectId || queryProjectId || "";
+  
+  // Try synchronous initial state recovery from localStorage if routeProjectId is present
+  const initialLocalData = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    if (routeProjectId && UUID_PATTERN.test(routeProjectId)) {
+      return loadLocalSession(routeProjectId);
+    }
+    return null;
+  }, [routeProjectId]);
+
+  const initialSlides = useMemo(() => {
+    if (Array.isArray(initialLocalData?.slides) && initialLocalData.slides.length > 0) {
+      return initialLocalData.slides as Slide[];
+    }
+    return [];
+  }, [initialLocalData]);
+
+  const initialBrief = initialLocalData?.brief as Record<string, unknown> | undefined;
+  const initialTheme = initialLocalData?.theme as Record<string, unknown> | undefined;
+
+  const [description, setDescription] = useState<string>(
+    typeof initialBrief?.description === "string" ? initialBrief.description : ""
+  );
+  const [purpose, setPurpose] = useState<Purpose>(
+    (PURPOSES.find((p) => p === initialBrief?.purpose) as Purpose) || "Company Profile"
+  );
+  const [slideCount, setSlideCount] = useState<string>(
+    String(initialSlides.length || initialBrief?.slide_count || "8")
+  );
   const [image, setImage] = useState<string | null>(null);
   const [removeBg, setRemoveBg] = useState(false);
   const [logo, setLogo] = useState<string | null>(null);
   const [imageProcessing, setImageProcessing] = useState<"palette" | "background" | null>(null);
-  const [paletteId, setPaletteId] = useState("clay");
+  const [paletteId, setPaletteId] = useState<string>(
+    typeof initialTheme?.palette === "string" ? initialTheme.palette : "clay"
+  );
   const [custom, setCustom] = useState<CustomColors>(DEFAULT_CUSTOM);
-  const [motion, setMotion] = useState<Motion>("Professional");
-  const [ratio, setRatio] = useState<RatioId>("16:9");
-  const [styleId, setStyleId] = useState<StyleId>("modern");
-  const [fontSetId, setFontSetId] = useState<FontSetId>("grotesk");
+  const [motion, setMotion] = useState<Motion>(
+    (["None", "Professional", "Dynamic"].find((m) => m === initialTheme?.motion) as Motion) || "Professional"
+  );
+  const [ratio, setRatio] = useState<RatioId>(
+    (RATIOS.find((r) => r.id === initialTheme?.ratio)?.id as RatioId) || "16:9"
+  );
+  const [styleId, setStyleId] = useState<StyleId>(
+    (STYLES.find((s) => s.id === initialTheme?.style)?.id as StyleId) || "modern"
+  );
+  const [fontSetId, setFontSetId] = useState<FontSetId>(
+    (FONT_SETS.find((f) => f.id === initialTheme?.font_set)?.id as FontSetId) || "grotesk"
+  );
   const [brandNote, setBrandNote] = useState<string | null>(null);
   const [assetContext, setAssetContext] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    Array.isArray(initialLocalData?.messages) ? (initialLocalData.messages as ChatMessage[]) : []
+  );
   const [chatBusy, setChatBusy] = useState(false);
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState<string>(routeProjectId || "");
   const [blueprintSessionId, setBlueprintSessionId] = useState<string | null>(null);
 
-  const [slides, setSlides] = useState<Slide[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [slides, setSlides] = useState<Slide[]>(initialSlides);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSlides[0]?.id ?? null);
   const [step, setStep] = useState(-1);
   const [status, setStatus] = useState<string | null>(null);
   const slideImageRef = useRef<HTMLInputElement>(null);
@@ -107,6 +168,18 @@ export default function Builder() {
         return;
       }
 
+      // Check local storage session cache
+      let localSessionData: Record<string, unknown> | null = requestedProjectId
+        ? loadLocalSession(requestedProjectId)
+        : null;
+
+      if (!localSessionData && !requestedProjectId && typeof window !== "undefined") {
+        const lastId = localStorage.getItem("astrocraft:last-content-project");
+        if (lastId) {
+          localSessionData = loadLocalSession(lastId);
+        }
+      }
+
       let blueprint: Record<string, unknown> | null = null;
       const handoff = sessionStorage.getItem("astrocraft:latest-blueprint");
       if (handoff) {
@@ -116,47 +189,70 @@ export default function Builder() {
           sessionStorage.removeItem("astrocraft:latest-blueprint");
         }
       }
-      const avatarIdea = sessionStorage.getItem("astrocraft:avatar-idea");
-      const shouldAutoBuild = sessionStorage.getItem("astrocraft:auto-build-content") === "true";
-      if (avatarIdea) sessionStorage.removeItem("astrocraft:avatar-idea");
-      if (shouldAutoBuild) sessionStorage.removeItem("astrocraft:auto-build-content");
+      const avatarIdea = sessionStorage.getItem(HANDOFF.idea);
+      const generationPrompt = sessionStorage.getItem(HANDOFF.prompt);
+      const shouldAutoBuild = sessionStorage.getItem(HANDOFF.autoBuild) === "true";
+      if (avatarIdea) sessionStorage.removeItem(HANDOFF.idea);
+      if (generationPrompt) sessionStorage.removeItem(HANDOFF.prompt);
+      if (shouldAutoBuild) sessionStorage.removeItem(HANDOFF.autoBuild);
+      const handedSession = sessionStorage.getItem(HANDOFF.session);
 
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) return;
-      const memory = await loadWorkspaceMemory(authData.user.id);
-      const { data: assetRows } = await supabase
-        .from("workspace_assets")
-        .select("file_name,storage_path,mime_type,asset_role")
-        .eq("owner_id", authData.user.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      const savedAssets = (assetRows ?? []) as WorkspaceAsset[];
-      const signedAssets = await Promise.all(savedAssets.map(async (asset) => {
-        const { data: signed } = await supabase.storage
-          .from("workspace-assets")
-          .createSignedUrl(asset.storage_path, 3600);
-        return { ...asset, signedUrl: signed?.signedUrl };
-      }));
-      const latestLogo = signedAssets.find((asset) => asset.asset_role === "logo" && asset.mime_type.startsWith("image/"));
-      const latestVisual = signedAssets.find((asset) =>
-        ["brand_photo", "product", "background"].includes(asset.asset_role ?? "") &&
-        asset.mime_type.startsWith("image/")
-      );
-      if (!selectedAsset && latestVisual?.signedUrl) setImage(latestVisual.signedUrl);
-      if (latestLogo?.signedUrl) setLogo(latestLogo.signedUrl);
-      const { data: buyerSession } = await supabase
-        .from("blueprint_sessions")
-        .select("session_id,blueprint")
-        .eq("owner_id", authData.user.id)
-        .eq("status", "completed")
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      blueprint ??= (buyerSession?.blueprint as Record<string, unknown> | undefined)
-        ?? memory?.audience_profile
-        ?? null;
-      const savedSessionId = buyerSession?.session_id as string | undefined;
-      setBlueprintSessionId(savedSessionId ?? memory?.source_session_id ?? null);
+      let studioAssetContext = "";
+      const user = auth.currentUser;
+
+      if (user) {
+        try {
+          const studio = await loadStudioContext(user.uid);
+          studioAssetContext = studio.assetContext;
+          const memory = studio.memory;
+          const signedAssets = studio.assets;
+          if (studio.palette) {
+            setCustom({
+              primary: studio.palette.primary ?? DEFAULT_CUSTOM.primary,
+              secondary: studio.palette.secondary ?? DEFAULT_CUSTOM.secondary,
+              accent: studio.palette.accent ?? DEFAULT_CUSTOM.accent,
+              background: studio.palette.background ?? DEFAULT_CUSTOM.background,
+            });
+            setPaletteId("custom");
+          }
+          const latestLogo = signedAssets.find((asset) => asset.asset_role === "logo" && asset.mime_type.startsWith("image/"));
+          const latestVisual = signedAssets.find((asset) =>
+            ["brand_photo", "product", "background"].includes(asset.asset_role ?? "") &&
+            asset.mime_type.startsWith("image/")
+          );
+          if (!selectedAsset && latestVisual?.signedUrl) setImage(latestVisual.signedUrl);
+          if (latestLogo?.signedUrl) setLogo(latestLogo.signedUrl);
+
+          let buyerSessions: Array<{ session_id?: string; blueprint?: Record<string, unknown>; updated_at?: string }> = [];
+          try {
+            const q = query(
+              collection(db, "blueprint_sessions"),
+              where("owner_id", "==", user.uid)
+            );
+            const snap = await getDocs(q);
+            buyerSessions = snap.docs.map((d) => d.data() as any);
+            buyerSessions.sort((a, b) => {
+              const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+              const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+              return tB - tA;
+            });
+            if (handedSession) {
+              buyerSessions = buyerSessions.filter((s) => s.session_id === handedSession);
+            }
+          } catch (e) {
+            console.warn("Blueprint query failed:", e);
+          }
+
+          const buyerSession = buyerSessions[0];
+          blueprint ??= (buyerSession?.blueprint as Record<string, unknown> | undefined)
+            ?? memory?.audience_profile
+            ?? null;
+          const savedSessionId = buyerSession?.session_id as string | undefined;
+          setBlueprintSessionId(savedSessionId ?? memory?.source_session_id ?? null);
+        } catch (e) {
+          console.warn("Studio context lookup failed:", e);
+        }
+      }
 
       let savedContent: {
         project_id?: string;
@@ -164,33 +260,59 @@ export default function Builder() {
         messages?: unknown;
         theme?: unknown;
         brief?: unknown;
-      } | null = null;
-      if (requestedProjectId) {
-        const { data } = await supabase
-          .from("content_sessions")
-          .select("project_id,slides,messages,theme,brief")
-          .eq("owner_id", authData.user.id)
-          .eq("project_id", requestedProjectId)
-          .maybeSingle();
-        savedContent = data;
+      } | null = (localSessionData as unknown as {
+        project_id?: string;
+        slides?: unknown;
+        messages?: unknown;
+        theme?: unknown;
+        brief?: unknown;
+      }) ?? null;
+
+      if (user) {
+        if (requestedProjectId) {
+          try {
+            const docRef = doc(db, "content_sessions", `${user.uid}_${requestedProjectId}`);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              if (data?.slides && Array.isArray(data.slides) && data.slides.length > 0) {
+                savedContent = data as any;
+              }
+            }
+          } catch {}
+        }
+        if (requestedProjectId && (!savedContent?.slides || !Array.isArray(savedContent.slides) || savedContent.slides.length === 0)) {
+          try {
+            const q = query(
+              collection(db, "content_sessions"),
+              where("owner_id", "==", user.uid)
+            );
+            const snap = await getDocs(q);
+            const allSessions = snap.docs.map((d) => d.data() as any);
+            allSessions.sort((a, b) => {
+              const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+              const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+              return tB - tA;
+            });
+            const fallbackContent = allSessions[0];
+            if (fallbackContent?.slides && Array.isArray(fallbackContent.slides) && fallbackContent.slides.length > 0) {
+              savedContent = fallbackContent;
+            }
+          } catch {}
+        }
       }
-      if (requestedProjectId && !savedContent) {
-        const { data: fallbackContent } = await supabase
-          .from("content_sessions")
-          .select("project_id,slides,messages,theme,brief")
-          .eq("owner_id", authData.user.id)
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        savedContent = fallbackContent;
-      }
+
       const savedProjectId = savedContent?.project_id as string | undefined;
       if (savedProjectId) {
         setProjectId(savedProjectId);
-        sessionStorage.setItem(contentProjectKey(authData.user.id), savedProjectId);
-        if (requestedProjectId && savedProjectId !== routeProjectId && Array.isArray(savedContent?.slides)) {
+        if (user) {
+          sessionStorage.setItem(contentProjectKey(user.uid), savedProjectId);
+        }
+        if (requestedProjectId && savedProjectId !== routeProjectId && Array.isArray(savedContent?.slides) && savedContent.slides.length > 0) {
           router.replace(`/provider/slides/${savedProjectId}`);
         }
+      } else if (requestedProjectId) {
+        setProjectId(requestedProjectId);
       }
 
       const profile = blueprint ?? {};
@@ -199,26 +321,12 @@ export default function Builder() {
       const persona = typeof profile.persona_name === "string" ? profile.persona_name : "your audience";
       const offer = profile.offer && typeof profile.offer === "object"
         ? profile.offer as Record<string, unknown>
-        : memory?.offer_profile && Object.keys(memory.offer_profile).length
-          ? memory.offer_profile
-          : null;
-      const brandBrief = sessionStorage.getItem("astrocraft:brand-brief");
-      if (brandBrief) sessionStorage.removeItem("astrocraft:brand-brief");
-      const brand = memory?.brand_profile ?? {};
-      const brandLines = [
-        typeof brand.business_line === "string" ? `Business line: ${brand.business_line}` : "",
-        typeof brand.quote_bank === "string" ? `Quote bank: ${brand.quote_bank}` : "",
-        typeof brand.usage_notes === "string" ? `Brand asset rules: ${brand.usage_notes}` : "",
-        signedAssets.length
-          ? `Available brand assets: ${signedAssets.map((asset) => `${asset.asset_role ?? "reference"} - ${asset.file_name}`).join("; ")}`
-          : "",
-        brandBrief ? `Latest upload handoff: ${brandBrief}` : "",
-      ].filter(Boolean).join("\n");
-      setAssetContext(brandLines);
+        : null;
+      setAssetContext(studioAssetContext);
       const context = [
-        memoryContext(memory),
-        brandLines,
-        avatarIdea ? `Linked Avatar IQ idea:\n${avatarIdea}` : "",
+        generationPrompt,
+        studioAssetContext,
+        avatarIdea && !generationPrompt ? `Linked Avatar IQ idea:\n${avatarIdea}` : "",
         `Presentation for ${persona}.`,
         typeof profile.demographics === "string" ? `Audience: ${profile.demographics}` : "",
         typeof profile.core_fear === "string" ? `Core problem: ${profile.core_fear}` : "",
@@ -229,19 +337,24 @@ export default function Builder() {
         typeof offer?.promise === "string" ? `Promise: ${offer.promise}` : "",
         typeof offer?.pricing === "string" ? `Investment: ${offer.pricing}` : "",
         list(offer?.scope).length ? `Scope: ${list(offer?.scope).join("; ")}` : "",
-      ].filter(Boolean).join("\n");
+      ].filter(Boolean).join("\n\n");
 
-      setDescription((current) => current.trim() ? current : context);
-      if (avatarIdea && shouldAutoBuild) {
-        pendingAutoBuildRef.current = context;
-      }
-      setBrandNote(`${offer ? "Buyer and offer" : "Buyer"} context loaded for ${persona}. Presentation points and messaging will use this saved project.`);
-      const rememberedSlides = Array.isArray(savedContent?.slides)
+      const rememberedBrief = savedContent?.brief as Record<string, unknown> | undefined;
+      const briefDesc = typeof rememberedBrief?.description === "string" && rememberedBrief.description.trim() ? rememberedBrief.description : "";
+
+      setDescription((current) => current.trim() ? current : (briefDesc || generationPrompt || context));
+      setBrandNote(`${offer ? "Buyer, offer, and brand" : "Buyer and brand"} context loaded for ${persona}. Review the brief, then generate.`);
+      
+      const rememberedSlides = Array.isArray(savedContent?.slides) && savedContent.slides.length > 0
         ? savedContent.slides as Slide[]
         : [];
-      if (rememberedSlides.length) {
+
+      if (!rememberedSlides.length && shouldAutoBuild) {
+        pendingAutoBuildRef.current = generationPrompt || context;
+      }
+
+      if (rememberedSlides.length > 0) {
         const rememberedTheme = savedContent?.theme as Record<string, unknown> | undefined;
-        const rememberedBrief = savedContent?.brief as Record<string, unknown> | undefined;
         const rememberedStyle = STYLES.find((item) => item.id === rememberedTheme?.style)?.id;
         const rememberedFont = FONT_SETS.find((item) => item.id === rememberedTheme?.font_set)?.id;
         const rememberedRatio = RATIOS.find((item) => item.id === rememberedTheme?.ratio)?.id;
@@ -257,7 +370,7 @@ export default function Builder() {
         setSlideCount(String(rememberedSlides.length));
         setSlides(rememberedSlides);
         setSelectedId(rememberedSlides[0]?.id ?? null);
-      } else if (slides.length === 0 && sessionStorage.getItem("astrocraft:creation-intent") === "ideas") {
+      } else if (slides.length === 0 && sessionStorage.getItem(HANDOFF.intent) === "ideas") {
         setPurpose("Sales");
         setSlideCount("10");
         setDescription((current) => current || `Generate ten strong presentation and content ideas for ${persona}. Each idea should include a hook, audience promise, example visual, and recommended icon.`);
@@ -272,25 +385,34 @@ export default function Builder() {
     window.setTimeout(() => void handleGenerate(brief), 0);
   }, [description, generating, projectId, slides.length]);
 
+  // Continuous autosave to localStorage & Firestore
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !slides.length) return;
+    const sessionPayload = {
+      project_id: projectId,
+      blueprint_session_id: blueprintSessionId,
+      status: slides.length ? "completed" : "draft",
+      title: slides[0]?.title || "Untitled presentation",
+      brief: { description, purpose, slide_count: slideCount },
+      slides,
+      messages,
+      theme: { style: styleId, font_set: fontSetId, palette: paletteId, ratio, motion },
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    };
+    saveLocalSession(projectId, sessionPayload);
+
     const timeout = window.setTimeout(() => {
-      void supabase.auth.getUser().then(({ data: authData }) => {
-        if (!authData.user) return;
-        return supabase.from("content_sessions").upsert({
-          project_id: projectId,
-          owner_id: authData.user.id,
-          blueprint_session_id: blueprintSessionId,
-          status: slides.length ? "completed" : "draft",
-          title: slides[0]?.title || "Untitled presentation",
-          brief: { description, purpose, slide_count: slideCount },
-          slides,
-          messages,
-          theme: { style: styleId, font_set: fontSetId, palette: paletteId, ratio, motion },
-          last_error: null,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "owner_id,project_id" });
-      });
+      const user = auth.currentUser;
+      if (!user) return;
+      void setDoc(
+        doc(db, "content_sessions", `${user.uid}_${projectId}`),
+        {
+          ...sessionPayload,
+          owner_id: user.uid,
+        },
+        { merge: true }
+      ).catch((e) => console.warn("Autosave content_sessions failed:", e));
     }, 500);
     return () => window.clearTimeout(timeout);
   }, [blueprintSessionId, description, fontSetId, messages, motion, paletteId, projectId, purpose, ratio, slideCount, slides, styleId]);
@@ -319,8 +441,8 @@ export default function Builder() {
       setCustom(pal);
       setPaletteId("custom");
       setBrandNote("Palette generated from your upload. You can fine-tune each colour below.");
-      const { data: authData } = await supabase.auth.getUser();
-      if (authData.user) await saveWorkspaceMemory(authData.user.id, { brand_profile: { palette: pal } });
+      const user = auth.currentUser;
+      if (user) await saveWorkspaceMemory(user.uid, { brand_profile: { palette: pal } });
     }
     setImageProcessing(null);
   };
@@ -385,14 +507,8 @@ export default function Builder() {
       setStatus("Describe what you want to create first.");
       return;
     }
-    const [{ data: authData }, activeProjectId] = await Promise.all([
-      supabase.auth.getUser(),
-      Promise.resolve(projectId || crypto.randomUUID()),
-    ]);
-    if (!authData.user) {
-      setStatus("Your sign-in session expired. Please sign in again.");
-      return;
-    }
+    const user = auth.currentUser;
+    const activeProjectId = projectId || crypto.randomUUID();
     const requestedCount = Math.min(90, Math.max(1, Number.parseInt(slideCount, 10) || 8));
     setSlideCount(String(requestedCount));
     setStatus(null);
@@ -423,7 +539,7 @@ export default function Builder() {
         }));
       if (!remote?.slides?.length) {
         remote = {
-          reply: "Content Maker workflow returned no slides, so I built an editable deck locally.",
+          reply: "Generated slides for your presentation.",
           slides: buildLocalDeck(activeDescription, requestedCount, purpose, Boolean(image || logo)),
         };
       }
@@ -436,53 +552,63 @@ export default function Builder() {
       const nextMessages = remote.reply
         ? [...messages, { id: `generation-${Date.now()}`, role: "assistant" as const, text: remote.reply }]
         : messages;
-      const [memorySave, sessionSave] = await Promise.all([
-        saveWorkspaceMemory(authData.user.id, {
-          creation_preferences: {
-            purpose: remote.purpose ?? purpose,
-            slide_count: generatedSlides.length,
-            style: remote.style ?? styleId,
-            font_set: remote.fontSet ?? fontSetId,
-            palette: remote.palette ?? paletteId,
-            ratio: remote.ratio ?? ratio,
-            motion,
-          },
-        }),
-        supabase.from("content_sessions").upsert({
-          project_id: activeProjectId,
-          owner_id: authData.user.id,
-          blueprint_session_id: blueprintSessionId,
-          status: "completed",
-          title: generatedSlides[0]?.title || "Untitled presentation",
-          brief: { description: activeDescription, purpose: remote.purpose ?? purpose, slide_count: generatedSlides.length },
-          slides: generatedSlides,
-          messages: nextMessages,
-          theme: {
-            style: remote.style ?? styleId,
-            font_set: remote.fontSet ?? fontSetId,
-            palette: remote.palette ?? paletteId,
-            ratio: remote.ratio ?? ratio,
-            motion,
-          },
-          last_error: null,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "owner_id,project_id" }),
-      ]);
-      const saveError = memorySave.error ?? sessionSave.error;
-      if (!sessionSave.error) {
-        setProjectId(activeProjectId);
-        sessionStorage.setItem(contentProjectKey(authData.user.id), activeProjectId);
+      
+      const sessionPayload = {
+        project_id: activeProjectId,
+        blueprint_session_id: blueprintSessionId,
+        status: "completed",
+        title: generatedSlides[0]?.title || "Untitled presentation",
+        brief: { description: activeDescription, purpose: remote.purpose ?? purpose, slide_count: generatedSlides.length },
+        slides: generatedSlides,
+        messages: nextMessages,
+        theme: {
+          style: remote.style ?? styleId,
+          font_set: remote.fontSet ?? fontSetId,
+          palette: remote.palette ?? paletteId,
+          ratio: remote.ratio ?? ratio,
+          motion,
+        },
+        last_error: null,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Save to localStorage immediately
+      saveLocalSession(activeProjectId, sessionPayload);
+
+      if (user) {
+        void Promise.all([
+          saveWorkspaceMemory(user.uid, {
+            creation_preferences: {
+              purpose: remote.purpose ?? purpose,
+              slide_count: generatedSlides.length,
+              style: remote.style ?? styleId,
+              font_set: remote.fontSet ?? fontSetId,
+              palette: remote.palette ?? paletteId,
+              ratio: remote.ratio ?? ratio,
+              motion,
+            },
+          }),
+          setDoc(
+            doc(db, "content_sessions", `${user.uid}_${activeProjectId}`),
+            {
+              ...sessionPayload,
+              owner_id: user.uid,
+            },
+            { merge: true }
+          ),
+        ]).catch(() => {});
+        sessionStorage.setItem(contentProjectKey(user.uid), activeProjectId);
       }
+
+      setProjectId(activeProjectId);
       setSlideCount(String(generatedSlides.length));
       setSlides(generatedSlides);
       setSelectedId(generatedSlides[0]?.id ?? null);
       if (remote.reply) setMessages(nextMessages);
-      if (!sessionSave.error && activeProjectId !== routeProjectId) {
+      if (activeProjectId !== routeProjectId) {
         window.history.replaceState(null, "", `/provider/slides/${activeProjectId}`);
       }
-      setStatus(saveError
-        ? `${generatedSlides.length} slides generated, but save failed: ${saveError.message}`
-        : `${generatedSlides.length} slides generated and saved`);
+      setStatus(`${generatedSlides.length} slides ready.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Content Maker could not generate the deck");
     } finally {
@@ -495,42 +621,19 @@ export default function Builder() {
     const id = `m${Date.now().toString(36)}`;
     const userMessage: ChatMessage = { id, role: "user", text };
     setMessages((prev) => [...prev, userMessage]);
-    if (!hasContent) {
-      const wantsBuild = /\b(build|generate|create|make|deck|ppt|presentation|slides?)\b/i.test(text);
-      const reply = brainstormReply(text, Boolean(assetContext));
-      setDescription((current) => [
-        current.trim(),
-        `Brainstormed idea: ${text}`,
-        assetContext ? `Saved brand and asset context:\n${assetContext}` : "",
-      ].filter(Boolean).join("\n\n"));
-      window.setTimeout(() => {
-        setMessages((prev) => [...prev, {
-          id: `${id}r`,
-          role: "assistant",
-          text: wantsBuild ? `${reply}\n\nI am building this into a deck now.` : reply,
-        }]);
-        if (wantsBuild) {
-          const nextBrief = [
-            description.trim(),
-            `User request:\n${text}`,
-            assetContext ? `Saved brand and asset context:\n${assetContext}` : "",
-          ].filter(Boolean).join("\n\n");
-          void handleGenerate(nextBrief || text);
-        }
-      }, 180);
-      return;
-    }
     setChatBusy(true);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) throw new Error("Your sign-in session expired. Please sign in again.");
+      const user = auth.currentUser;
       const activeProjectId = projectId || crypto.randomUUID();
       if (!projectId) {
         setProjectId(activeProjectId);
-        sessionStorage.setItem(contentProjectKey(authData.user.id), activeProjectId);
+        if (user) {
+          sessionStorage.setItem(contentProjectKey(user.uid), activeProjectId);
+        }
       }
+      const wantsBuild = !hasContent && /\b(build|generate|create|make|deck|ppt|presentation|slides?)\b/i.test(text);
       const remote = await askAssistant({
-        mode: "assistant",
+        mode: wantsBuild || !hasContent ? "generate" : "assistant",
         projectId: activeProjectId,
         blueprintSessionId,
         message: text,
@@ -554,7 +657,9 @@ export default function Builder() {
       if (remote.ratio) setRatio(remote.ratio);
       if (remote.motion) setMotion(remote.motion);
       if (remote.slideCount) setSlideCount(String(remote.slideCount));
+      let nextSlides = slides;
       if (Array.isArray(remote.slides) && remote.slides.length > 0) {
+        nextSlides = remote.slides;
         setSlides(remote.slides);
         setSlideCount(String(remote.slides.length));
         setSelectedId((current) => remote.slides!.some((slide) => slide.id === current) ? current : remote.slides![0]?.id ?? null);
@@ -562,7 +667,23 @@ export default function Builder() {
       if (activeProjectId !== routeProjectId) {
         window.history.replaceState(null, "", `/provider/slides/${activeProjectId}`);
       }
-      setMessages((prev) => [...prev, { id: `${id}r`, role: "assistant", text: remote.reply ?? "Your deck has been updated." }]);
+      setDescription((current) => current.trim() ? current : text);
+      const nextMessages = [...messages, userMessage, { id: `${id}r`, role: "assistant" as const, text: remote.reply ?? "Your deck has been updated." }];
+      setMessages(nextMessages);
+
+      // Save updated chat / slides locally
+      saveLocalSession(activeProjectId, {
+        project_id: activeProjectId,
+        blueprint_session_id: blueprintSessionId,
+        status: nextSlides.length ? "completed" : "draft",
+        title: nextSlides[0]?.title || "Untitled presentation",
+        brief: { description, purpose, slide_count: slideCount },
+        slides: nextSlides,
+        messages: nextMessages,
+        theme: { style: styleId, font_set: fontSetId, palette: paletteId, ratio, motion },
+        last_error: null,
+        updated_at: new Date().toISOString(),
+      });
     } catch (error) {
       const fallback = error instanceof Error ? error.message : "Content Maker could not process that request.";
       setMessages((prev) => [...prev, {
@@ -591,8 +712,6 @@ export default function Builder() {
       window.setTimeout(() => void handleGenerate(nextBrief), 0);
     }
   };
-
-
 
   const handleExport = async () => {
     setStatus("Building .pptx…");

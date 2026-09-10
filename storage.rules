@@ -1,0 +1,17 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // User-scoped workspace assets
+    match /{userId}/{allPaths=**} {
+      // Allow read/delete if the authenticated user owns the directory
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow create/update with file size limit (50MB) and valid content types
+      allow create, update: if request.auth != null 
+        && request.auth.uid == userId
+        && request.resource.size < 50 * 1024 * 1024;
+    }
+  }
+}

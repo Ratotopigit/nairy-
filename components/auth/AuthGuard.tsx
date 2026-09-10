@@ -1,64 +1,62 @@
 "use client";
 
-import type { Session } from "@supabase/supabase-js";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-
-import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
+import { checkUserOnboardingStatus } from "@/lib/onboarding";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [isOnboarded, setIsOnboarded] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setSession({
-        access_token: "demo-access-token",
-        token_type: "bearer",
-        expires_in: 3600,
-        refresh_token: "demo-refresh-token",
-        user: {
-          id: "demo-user-id",
-          app_metadata: {},
-          user_metadata: { full_name: "Demo Provider" },
-          aud: "authenticated",
-          created_at: new Date().toISOString(),
-        },
-      } as Session);
+    if (!isFirebaseConfigured) {
+      setUser({
+        uid: "demo-user-id",
+        email: "demo@example.com",
+        displayName: "Demo Provider",
+      } as unknown as User);
       return;
     }
 
-    let active = true;
-    Promise.all([
-      supabase.auth.getSession().catch(() => ({ data: { session: null } })),
-      supabase.auth.getUser().catch(() => ({ data: { user: null }, error: null })),
-    ]).then(([{ data: sessionData }, { data: userData, error }]) => {
-      if (!active) return;
-      setSession(!error && userData?.user ? sessionData?.session ?? null : null);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
     });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-    });
-
-    return () => {
-      active = false;
-      data?.subscription?.unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (session === null) router.replace("/login");
-  }, [router, session]);
+    if (user === null) {
+      router.replace("/login");
+      return;
+    }
 
-  if (session === undefined) {
+    if (user) {
+      let active = true;
+      checkUserOnboardingStatus(user.uid).then((completed) => {
+        if (!active) return;
+        setIsOnboarded(completed);
+        if (!completed) {
+          router.replace("/onboarding");
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }
+  }, [router, user]);
+
+  if (user === undefined || (user && isOnboarded === undefined)) {
     return (
-      <div className="grid min-h-screen place-items-center text-sm text-[#587166]">
+      <div className="grid min-h-screen place-items-center bg-[#f4f1e8] text-sm text-[#587166]">
         Checking your session...
       </div>
     );
   }
 
-  if (!session) return null;
+  if (!user || isOnboarded === false) return null;
   return children;
 }

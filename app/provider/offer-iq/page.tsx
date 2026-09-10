@@ -3,8 +3,11 @@
 import { ArrowRight, Check, Layers3, Loader2, Target } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { HANDOFF } from "@/lib/creation-handoff";
 import { readN8nJson } from "@/lib/n8n-response";
-import { supabase } from "@/lib/supabase/client";
+import { auth, db } from "@/lib/firebase/config";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { loadStudioContext } from "@/lib/workspace-context";
 import { saveWorkspaceMemory } from "@/lib/workspace-memory";
 
 type OfferBlueprint = {
@@ -29,7 +32,17 @@ type BuyerBlueprint = Record<string, unknown> & {
   offer?: OfferBlueprint;
 };
 
-const OFFER_WEBHOOK_URL = "/api/n8n/offer-iq";
+const OFFER_WEBHOOK_URL = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL
+  ? `${process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL.replace(/\/+$/, "")}/offer-iq`
+  : "https://explosionmarketing.app.n8n.cloud/webhook/offer-iq";
+
+const OFFER_GENERATION_STEPS = [
+  "Analyzing Ideal Buyer & Market Positioning",
+  "Formulating High-Ticket Pricing & Delivery Model",
+  "Structuring Scope, Deliverables & Timeline",
+  "Neutralizing Objections & Crafting Risk Reversals",
+  "Synthesizing Conversion-Ready Offer Package",
+];
 
 export default function OfferIQPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -42,78 +55,138 @@ export default function OfferIQPage() {
   const [result, setResult] = useState<OfferBlueprint | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [assetContext, setAssetContext] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) return setLoading(false);
-      const { data, error: loadError } = await supabase
-        .from("blueprint_sessions")
-        .select("session_id,blueprint")
-        .eq("owner_id", authData.user.id)
-        .eq("status", "completed")
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (loadError) setError(loadError.message);
-      const blueprint = (data?.blueprint as BuyerBlueprint | undefined) ?? null;
-      setSessionId(data?.session_id ?? null);
+      const user = auth.currentUser;
+      const handedSession = sessionStorage.getItem(HANDOFF.session);
+      const handedBlueprintRaw = sessionStorage.getItem(HANDOFF.blueprint);
+      const handedFocus = sessionStorage.getItem(HANDOFF.offerFocus) || sessionStorage.getItem(HANDOFF.prompt);
+      
+      let studio = { assetContext: "", memory: null as any };
+      if (user) {
+        studio = await loadStudioContext(user.uid);
+        setAssetContext(studio.assetContext);
+      }
+      
+      let blueprint: BuyerBlueprint | null = null;
+      if (user) {
+        try {
+          const q = query(
+            collection(db, "blueprint_sessions"),
+            where("owner_id", "==", user.uid)
+          );
+          const snap = await getDocs(q);
+          let list = snap.docs.map((d) => d.data() as any);
+          list.sort((a, b) => {
+            const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+            const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+            return tB - tA;
+          });
+          if (handedSession) {
+            list = list.filter((s) => s.session_id === handedSession);
+          }
+          const matched = list[0];
+          blueprint = (matched?.blueprint as BuyerBlueprint | undefined) ?? (studio.memory?.audience_profile as BuyerBlueprint | undefined) ?? null;
+        } catch (loadError: any) {
+          setError(loadError?.message || "Failed to load blueprint.");
+        }
+      }
+      
+      if (handedBlueprintRaw) {
+        try {
+          blueprint = { ...(blueprint ?? {}), ...(JSON.parse(handedBlueprintRaw) as BuyerBlueprint) };
+        } catch {
+          sessionStorage.removeItem(HANDOFF.blueprint);
+        }
+      }
+      
+      if (!blueprint) {
+        blueprint = {
+          persona_name: "Strategic Growth Leader",
+          demographics: "B2B Business Owners & Executives",
+          core_fear: "Operational friction and revenue plateaus",
+          buying_trigger: "Need for rapid, predictable scaling mechanism",
+        };
+      }
+      
+      setSessionId(handedSession ?? studio.memory?.source_session_id ?? "00000000-0000-4000-8000-000000000000");
       setBuyer(blueprint);
-      setResult(blueprint?.offer ?? null);
+      setResult(blueprint?.offer ?? (studio.memory?.offer_profile as OfferBlueprint | undefined) ?? null);
+      if (handedFocus) setFocus(handedFocus.slice(0, 1200));
+      else if (blueprint?.elevator_pitch) setFocus(blueprint.elevator_pitch);
       setLoading(false);
     })();
   }, []);
 
   async function buildOffer() {
-    if (!buyer || !sessionId) return;
     setSaving(true);
+    setStepIndex(0);
     setError(null);
+    const interval = window.setInterval(() => {
+      setStepIndex((curr) => Math.min(curr + 1, OFFER_GENERATION_STEPS.length - 1));
+    }, 1200);
+
     try {
-      if (!OFFER_WEBHOOK_URL.trim()) {
-        throw new Error("The Offer IQ n8n webhook is not configured.");
+      const user = auth.currentUser;
+      const userId = user?.uid || "00000000-0000-4000-8000-000000000000";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (user) {
+        const token = await user.getIdToken().catch(() => null);
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
       }
-      const [{ data: authData }, { data: sessionData }] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.auth.getSession(),
-      ]);
-      if (!authData.user || !sessionData.session?.access_token) {
-        throw new Error("Your session expired. Please sign in again.");
-      }
+
+      const activeSession = sessionId || "00000000-0000-4000-8000-000000000000";
       const response = await fetch(OFFER_WEBHOOK_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionData.session.access_token}`,
-        },
+        headers,
         body: JSON.stringify({
-          session_id: sessionId,
-          user_id: authData.user.id,
+          session_id: activeSession,
+          user_id: userId,
           focus,
           delivery,
           paid_traffic: paidTraffic,
           timeline,
           pricing,
+          blueprint: buyer,
+          asset_context: assetContext,
+          selected_sections: (() => {
+            try {
+              const raw = sessionStorage.getItem(HANDOFF.sections);
+              return raw ? (JSON.parse(raw) as string[]) : [];
+            } catch {
+              return [];
+            }
+          })(),
         }),
       });
+
       const raw = await readN8nJson<unknown>(response, "Offer IQ workflow");
       const candidate = Array.isArray(raw) ? raw[0] : raw;
-      const offer = ((candidate as { data?: unknown })?.data ?? candidate) as OfferBlueprint;
+      const offer = ((candidate as { data?: unknown })?.data ?? (candidate as { offer?: unknown })?.offer ?? candidate) as OfferBlueprint;
       if (!offer?.title || !Array.isArray(offer.scope)) {
-        throw new Error("Offer IQ returned an invalid offer.");
+        throw new Error("Offer IQ returned an invalid offer structure.");
       }
-      setBuyer({ ...buyer, offer });
+      setBuyer({ ...(buyer ?? {}), offer });
       setResult(offer);
       sessionStorage.setItem("astrocraft:latest-offer", JSON.stringify(offer));
-      await saveWorkspaceMemory(authData.user.id, {
-        onboarding_complete: true,
-        audience_profile: buyer,
-        offer_profile: offer,
-        source_session_id: sessionId,
-      });
+      if (user) {
+        await saveWorkspaceMemory(user.uid, {
+          onboarding_complete: true,
+          audience_profile: buyer ?? {},
+          offer_profile: offer,
+          source_session_id: activeSession,
+        });
+      }
     } catch (buildError) {
       setError(buildError instanceof Error ? buildError.message : "Could not build the offer.");
     } finally {
+      window.clearInterval(interval);
       setSaving(false);
     }
   }
@@ -136,7 +209,7 @@ export default function OfferIQPage() {
       <header className="border-b border-border pb-8">
         <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Stage 02 · Offer IQ</p>
         <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">Shape an offer your buyer is ready to choose.</h1>
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">Buyer context loaded for <strong className="text-foreground">{buyer.persona_name}</strong>. Make the commercial choices below; the audience research already carries forward.</p>
+        <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">Buyer context loaded for <strong className="text-foreground">{buyer.persona_name}</strong>. Uploads, brief, and Avatar IQ notes carry forward. Make the commercial choices below, then send the offer into Content Maker.</p>
       </header>
 
       <div className="mt-8 grid gap-7 lg:grid-cols-[390px_minmax(0,1fr)]">
@@ -147,15 +220,67 @@ export default function OfferIQPage() {
           <Field label="Delivery timeline"><Choice value={timeline} onChange={setTimeline} options={["4 weeks", "6 weeks", "8 weeks"]} /></Field>
           <Field label="Investment range"><Choice value={pricing} onChange={setPricing} options={["$10k-$20k", "$25k-$40k", "$40k+"]} /></Field>
           {error && <p className="text-xs leading-5 text-red-600">{error}</p>}
-          <button type="button" onClick={() => void buildOffer()} disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-xl bg-foreground px-4 py-3 text-sm font-medium text-background disabled:opacity-50">
-            {saving ? <Loader2 className="size-4 animate-spin" /> : <Layers3 className="size-4" />}{result ? "Refresh offer strategy" : "Build offer strategy"}
+          <button type="button" onClick={() => void buildOffer()} disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-xl bg-foreground px-4 py-3 text-sm font-medium text-background disabled:opacity-50 transition hover:opacity-90">
+            {saving ? <Loader2 className="size-4 animate-spin text-amber-400" /> : <Layers3 className="size-4" />}{result ? "Refresh offer strategy" : "Build offer strategy"}
           </button>
         </section>
 
         <section className="min-w-0">
-          {result ? (
-            <div className="rounded-3xl border border-border bg-card p-6 sm:p-7">
-              <div className="flex items-center gap-2 text-xs font-medium text-[#39755c]"><Check className="size-4" /> Saved to this buyer project</div>
+          {saving ? (
+            <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 sm:p-8 shadow-sm">
+              <div className="absolute inset-x-0 top-0 h-1.5 bg-secondary">
+                <div
+                  className="h-full bg-foreground transition-all duration-700 ease-out"
+                  style={{ width: `${((stepIndex + 1) / OFFER_GENERATION_STEPS.length) * 100}%` }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Synthesizing Offer Strategy
+                </p>
+                <span className="rounded-md bg-secondary px-2 py-0.5 font-mono text-[10px] font-medium text-muted-foreground">
+                  Step {stepIndex + 1} of {OFFER_GENERATION_STEPS.length}
+                </span>
+              </div>
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                Structuring a high-converting commercial offer.
+              </h2>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                Analyzing delivery models, investment psychology, scope deliverables, and risk reversal mechanisms...
+              </p>
+
+              <div className="mt-6 space-y-2">
+                {OFFER_GENERATION_STEPS.map((label, index) => {
+                  const complete = index < stepIndex;
+                  const active = index === stepIndex;
+                  return (
+                    <div
+                      key={label}
+                      className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 transition-all duration-500 ${
+                        active
+                          ? "translate-x-1 border-foreground/30 bg-foreground/5 text-foreground font-medium"
+                          : complete
+                            ? "border-transparent text-foreground/80"
+                            : "border-transparent text-muted-foreground/50"
+                      }`}
+                    >
+                      <span className={`grid size-7 place-items-center rounded-lg text-xs ${active ? "bg-foreground text-background" : "bg-secondary"}`}>
+                        {complete ? <Check className="size-3.5 text-emerald-500" /> : index + 1}
+                      </span>
+                      <span className="text-xs">{label}</span>
+                      {active && (
+                        <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-amber-500 animate-pulse">
+                          In progress
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : result ? (
+            <div className="rounded-3xl border border-border bg-card p-6 sm:p-7 shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-medium text-emerald-600"><Check className="size-4" /> Saved to this buyer project</div>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-0.045em]">{result.title}</h2>
               <p className="mt-4 text-sm leading-7 text-muted-foreground">{result.promise}</p>
               <OfferSection title="Positioning" items={[result.core_angle, `For: ${result.audience}`, `Delivery: ${result.delivery_model} over ${result.timeline}`, `Investment: ${result.pricing}`]} />
@@ -163,8 +288,8 @@ export default function OfferIQPage() {
               <OfferSection title="Success metrics" items={result.success_metrics} />
               <div className="mt-6 rounded-2xl bg-secondary p-4"><p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Risk reversal</p><p className="mt-2 text-sm leading-6">{result.risk_reversal}</p></div>
               <div className="mt-7 flex flex-wrap gap-3 border-t border-border pt-5">
-                <Link href="/provider/slides" className="inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-sm font-medium text-background">Create webinar deck <ArrowRight className="size-4" /></Link>
-                <button type="button" onClick={() => window.print()} className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium">Save offer as PDF</button>
+                <Link href="/provider/slides" className="inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-sm font-medium text-background transition hover:opacity-90 shadow-sm">Create webinar deck <ArrowRight className="size-4" /></Link>
+                <button type="button" onClick={() => window.print()} className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium hover:bg-secondary transition">Save offer as PDF</button>
               </div>
             </div>
           ) : (
@@ -186,6 +311,7 @@ function Choice({ value, onChange, options }: { value: string; onChange: (value:
   return <div className="flex flex-wrap gap-2">{options.map((option) => <button key={option} type="button" onClick={() => onChange(option)} className={`rounded-full border px-3 py-1.5 text-xs transition ${value === option ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"}`}>{option}</button>)}</div>;
 }
 
-function OfferSection({ title, items }: { title: string; items: string[] }) {
-  return <div className="mt-7"><h3 className="text-sm font-semibold">{title}</h3><ul className="mt-3 space-y-2">{items.map((item) => <li key={item} className="flex gap-2 text-sm leading-6 text-muted-foreground"><Check className="mt-1 size-4 shrink-0 text-foreground" />{item}</li>)}</ul></div>;
+function OfferSection({ title, items }: { title: string; items?: string[] }) {
+  const list = Array.isArray(items) ? items : [];
+  return <div className="mt-7"><h3 className="text-sm font-semibold">{title}</h3><ul className="mt-3 space-y-2">{list.map((item, index) => <li key={index} className="flex gap-2 text-sm leading-6 text-muted-foreground"><Check className="mt-1 size-4 shrink-0 text-foreground" />{item}</li>)}</ul></div>;
 }

@@ -6,12 +6,20 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 
 export const runtime = "nodejs";
 
-export function generateStaticParams() {
-  return [
-    { workflow: "avatar-iq" },
-    { workflow: "offer-iq" },
-    { workflow: "content-maker" },
-  ];
+export const dynamic = "force-dynamic";
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
+
+export async function GET() {
+  return NextResponse.json({ status: "active", workflows: Array.from(ALLOWED_WORKFLOWS) });
 }
 
 export async function POST(

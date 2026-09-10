@@ -1,35 +1,37 @@
 "use client";
 
 import {
-  ArrowRight,
   Check,
   ChevronRight,
   Copy,
   FilePlus2,
-  Layers,
-  Lightbulb,
-  Link2,
+  Layers3,
   Loader2,
-  MessageSquare,
-  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
-  PanelRightOpen,
   Plus,
-  RefreshCw,
   Send,
   Sparkles,
   Target,
   Trash2,
-  UserCheck,
+  X,
 } from "lucide-react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { parseAvatarChatPayload } from "@/lib/avatar-chat";
+import {
+  buildGenerationPrompt,
+  HANDOFF,
+  storeHandoff,
+  suggestedSections,
+  type HandoffSection,
+} from "@/lib/creation-handoff";
 import { readN8nJson } from "@/lib/n8n-response";
-import { supabase } from "@/lib/supabase/client";
-import { loadWorkspaceMemory, saveWorkspaceMemory, type WorkspaceMemory } from "@/lib/workspace-memory";
+import { auth, db } from "@/lib/firebase/config";
+import { collection, doc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { loadStudioContext } from "@/lib/workspace-context";
+import { saveWorkspaceMemory, type WorkspaceMemory } from "@/lib/workspace-memory";
 
 export type Message = {
   id: string;
@@ -73,21 +75,15 @@ type BlueprintSession = {
   updated_at: string;
 };
 
-const WEBHOOK_URL = "/api/n8n/avatar-iq";
+const WEBHOOK_URL = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL
+  ? `${process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL.replace(/\/+$/, "")}/avatar-iq`
+  : "/api/n8n/avatar-iq";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const PROMPT_SUGGESTIONS = [
-  { label: "B2B SaaS Buyer", prompt: "Help me define the ideal buyer persona for a B2B SaaS product targeting engineering leads." },
-  { label: "High-Ticket Coaching", prompt: "I run a high-ticket business coaching program. Who is my most profitable and decisive customer?" },
-  { label: "Agency Positioning", prompt: "We are a digital marketing agency wanting to specialize in e-commerce brand scaling. Shape our primary buyer persona." },
-  { label: "Fears & Objections", prompt: "Analyze the top hesitations, skepticism, and hidden fears preventing prospects from buying high-value advisory services." },
-  { label: "Synthesize Blueprint", prompt: "Synthesize everything we discussed so far into a comprehensive Ideal Buyer Blueprint." },
-];
 
 const INITIAL_GREETING: Message = {
   id: "welcome",
   role: "assistant",
-  text: "Hello! I’m **Avatar IQ**, your customer research strategist & positioning coach.\n\nLet’s build your high-converting buyer persona step by step.\n\nTo get started: **Tell me a bit about your business, product, or the offer you want to sell!**",
+  text: "Hi — I’m **Antigravity**, your elite Business Strategy and Brainstorming AI.\n\nTell me about your business, the core offer, or the presentation you want to create. I’ll collaborate with you to formulate high-impact strategies, synthesize your uploaded assets, and when you're ready, output a presentation-ready blueprint.",
   timestamp: new Date().toISOString(),
 };
 
@@ -106,8 +102,13 @@ export default function PresentationChat() {
   const [sessionId, setSessionId] = useState("");
   const [history, setHistory] = useState<BlueprintSession[]>([]);
   const [workspaceMemory, setWorkspaceMemory] = useState<WorkspaceMemory | null>(null);
+  const [assetContext, setAssetContext] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [handoffOpen, setHandoffOpen] = useState<"ppt" | "offer" | null>(null);
+  const [handoffPrompt, setHandoffPrompt] = useState("");
+  const [handoffSections, setHandoffSections] = useState<HandoffSection[]>([]);
+  const [handoffIdea, setHandoffIdea] = useState("");
 
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -132,21 +133,35 @@ export default function PresentationChat() {
         router.replace("/provider/astro-ai");
         return;
       }
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user || cancelled) return setHydrated(true);
+      const user = auth.currentUser;
+      if (!user || cancelled) return setHydrated(true);
 
-      const [{ data: sessions }, memory] = await Promise.all([
-        supabase
-          .from("blueprint_sessions")
-          .select("session_id,status,messages,answers,step,draft,selected_category,blueprint,updated_at")
-          .eq("owner_id", authData.user.id)
-          .order("updated_at", { ascending: false })
-          .limit(30),
-        loadWorkspaceMemory(authData.user.id),
+      const [sessions, studio] = await Promise.all([
+        (async () => {
+          try {
+            const q = query(
+              collection(db, "blueprint_sessions"),
+              where("owner_id", "==", user.uid)
+            );
+            const snap = await getDocs(q);
+            const list = snap.docs.map((d) => d.data() as BlueprintSession);
+            list.sort((a, b) => {
+              const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+              const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+              return tB - tA;
+            });
+            return list.slice(0, 30);
+          } catch (e) {
+            console.warn("Could not load blueprint sessions from Firestore:", e);
+            return [];
+          }
+        })(),
+        loadStudioContext(user.uid),
       ]);
       if (cancelled) return;
 
-      setWorkspaceMemory(memory);
+      setWorkspaceMemory(studio.memory);
+      setAssetContext(studio.assetContext);
       const savedSessions = (sessions ?? []) as BlueprintSession[];
       setHistory(savedSessions);
 
@@ -157,7 +172,7 @@ export default function PresentationChat() {
       if (activeSession) {
         restoreSession(activeSession);
       } else {
-        initializeSession(requestedSessionId, memory);
+        initializeSession(requestedSessionId, studio.memory, studio.assetContext);
       }
       setHydrated(true);
     })();
@@ -166,29 +181,32 @@ export default function PresentationChat() {
     };
   }, [routeSessionId, router]);
 
-  // Autosave session to Supabase
+  // Autosave session to Firestore
   useEffect(() => {
     if (!hydrated || !sessionId) return;
     const timeout = window.setTimeout(() => {
-      void supabase.auth.getUser().then(({ data: authData }) => {
-        if (!authData.user) return;
-        const status = result ? "completed" : busy ? "generating" : webhookError ? "failed" : "draft";
-        const updatedAt = new Date().toISOString();
-        const session: BlueprintSession = {
+      const user = auth.currentUser;
+      if (!user) return;
+      const status = result ? "completed" : busy ? "generating" : webhookError ? "failed" : "draft";
+      const updatedAt = new Date().toISOString();
+      const session: BlueprintSession = {
+        session_id: sessionId,
+        status,
+        step: result ? 4 : 1,
+        answers: {},
+        messages,
+        draft,
+        selected_category: null,
+        blueprint: result,
+        updated_at: updatedAt,
+      };
+      setHistory((items) => [session, ...items.filter((item) => item.session_id !== sessionId)]);
+      const docId = `${user.uid}_${sessionId}`;
+      void setDoc(
+        doc(db, "blueprint_sessions", docId),
+        {
           session_id: sessionId,
-          status,
-          step: result ? 4 : 1,
-          answers: {},
-          messages,
-          draft,
-          selected_category: null,
-          blueprint: result,
-          updated_at: updatedAt,
-        };
-        setHistory((items) => [session, ...items.filter((item) => item.session_id !== sessionId)]);
-        return supabase.from("blueprint_sessions").upsert({
-          session_id: sessionId,
-          owner_id: authData.user.id,
+          owner_id: user.uid,
           status,
           step: result ? 4 : 1,
           answers: {},
@@ -198,25 +216,40 @@ export default function PresentationChat() {
           blueprint: result,
           last_error: webhookError,
           updated_at: updatedAt,
-        }, { onConflict: "owner_id,session_id" });
-      });
+        },
+        { merge: true }
+      ).catch((err) => console.warn("Failed to autosave blueprint session:", err));
     }, 400);
     return () => window.clearTimeout(timeout);
   }, [busy, draft, hydrated, messages, result, sessionId, webhookError]);
 
-  function initializeSession(nextSessionId: string, memory = workspaceMemory) {
+  function contextGreeting(memory: WorkspaceMemory | null, context: string): Message {
+    const remembered = memory?.audience_profile as BuyerBlueprint | undefined;
+    const offerTitle = typeof memory?.offer_profile?.title === "string" ? memory.offer_profile.title : "";
+    const hasBrief = /brief|Business line|Uploaded assets/i.test(context);
+    if (memory?.onboarding_complete && remembered?.persona_name) {
+      return {
+        id: "welcome-back",
+        role: "assistant",
+        text: `Welcome back. I already have **${remembered.persona_name}**${remembered.demographics ? ` (${remembered.demographics})` : ""}${offerTitle ? ` and the offer **${offerTitle}**` : ""}.\n\n${hasBrief ? "Your uploads, brand colors, and brief are loaded into this chat. " : ""}What should we brainstorm next — refine the buyer, shape the offer, or map the deck?`,
+      };
+    }
+    if (hasBrief) {
+      return {
+        id: "welcome-brief",
+        role: "assistant",
+        text: "Hi — I loaded your **uploads and business brief** into this chat.\n\nAsk me anything about the business, the buyer, or the presentation. I’ll stay in this context and keep the Idea Blueprint in sync as we go.",
+      };
+    }
+    return INITIAL_GREETING;
+  }
+
+  function initializeSession(nextSessionId: string, memory = workspaceMemory, context = assetContext) {
     const remembered = memory?.audience_profile as BuyerBlueprint | undefined;
     const hasMemory = Boolean(memory?.onboarding_complete && remembered?.persona_name);
     const sid = nextSessionId || crypto.randomUUID();
 
-    setMessages(hasMemory && remembered ? [
-      {
-        id: "welcome-back",
-        role: "assistant",
-        text: `Welcome back! I remember your saved Ideal Buyer: **${remembered.persona_name}** (${remembered.demographics || "Target Audience"}).\n\nWhat would you like to explore today? We can refine this buyer persona, test new marketing angles, or build a presentation for them.`,
-      }
-    ] : [INITIAL_GREETING]);
-
+    setMessages([contextGreeting(memory, context)]);
     setDraft("");
     setBusy(false);
     setResult(hasMemory && remembered ? remembered : null);
@@ -239,7 +272,7 @@ export default function PresentationChat() {
   function startNewChat() {
     const nextSessionId = crypto.randomUUID();
     setSessionId(nextSessionId);
-    setMessages([INITIAL_GREETING]);
+    setMessages([contextGreeting(workspaceMemory, assetContext)]);
     setDraft("");
     setResult(null);
     setWebhookError(null);
@@ -270,77 +303,52 @@ export default function PresentationChat() {
     }
 
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData.user?.id || "";
+      const user = auth.currentUser;
+      const userId = user?.uid || "";
 
-      // Check if user is asking to synthesize or generate blueprint
-      const isBlueprintRequest = /\b(blueprint|persona|synthesize|generate blueprint|create blueprint|buyer profile|avatar profile)\b/i.test(text);
+      // Check if user is asking to synthesize or initiate build
+      const isInitiateBuild = text.includes("[SYSTEM COMMAND: INITIATE BUILD]") || /initiate build/i.test(text);
+      const isBlueprintRequest = isInitiateBuild || /\b(blueprint|persona|synthesize|generate blueprint|create blueprint|buyer profile|avatar profile)\b/i.test(text);
 
       let assistantReplyText = "";
       let updatedBlueprint: BuyerBlueprint | null = result;
 
-      // Try calling n8n webhook if available
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData.session?.access_token && WEBHOOK_URL.trim()) {
-          const response = await fetch(WEBHOOK_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${sessionData.session.access_token}`,
-            },
-            body: JSON.stringify({
-              session_id: activeSessionId,
-              user_id: userId,
-              message: text,
-              messages: nextMessages,
-              business: text,
-              buyer: result?.persona_name || text,
-              problem: result?.core_fear || text,
-              objections: result?.objections?.join("; ") || text,
-            }),
-          });
-
-          if (response.ok) {
-            const parsed = await readN8nJson<unknown>(response, "Avatar IQ workflow");
-            const candidate = Array.isArray(parsed) ? parsed[0] : parsed;
-            const generated = ((candidate as { data?: unknown })?.data ?? candidate) as Partial<BuyerBlueprint>;
-            if (generated?.persona_name) {
-              updatedBlueprint = {
-                persona_name: generated.persona_name,
-                demographics: generated.demographics || "Target Industry & Decision Makers",
-                core_fear: generated.core_fear || "Risk of wasted investment and falling behind competitors",
-                buying_trigger: generated.buying_trigger || "Urgent mandate to scale without added headcount",
-                objections: Array.isArray(generated.objections) ? generated.objections : ["Is this proven in our specific niche?", "Will this take too much of our internal bandwidth?"],
-                headlines: Array.isArray(generated.headlines) ? generated.headlines : ["How to achieve predictable results without the traditional overhead."],
-                social_hooks: Array.isArray(generated.social_hooks) ? generated.social_hooks : ["Stop doing it the hard way. Here is what top performers do instead."],
-                email_subject_lines: Array.isArray(generated.email_subject_lines) ? generated.email_subject_lines : ["Quick question about your current workflow"],
-                primary_goals: Array.isArray(generated.primary_goals) ? generated.primary_goals : ["Predictable revenue", "Time freedom", "Market authority"],
-                values_and_beliefs: Array.isArray(generated.values_and_beliefs) ? generated.values_and_beliefs : ["Quality over quantity", "Data-driven decisions"],
-                decision_style: generated.decision_style || "Analytical, looks for proof and clear ROI before committing",
-                trusted_influences: Array.isArray(generated.trusted_influences) ? generated.trusted_influences : ["Industry peers", "Direct case studies", "Respected newsletters"],
-                day_in_the_life: generated.day_in_the_life || "Constantly putting out fires, juggling high expectations with limited time.",
-                elevator_pitch: generated.elevator_pitch || `Tailored solution designed specifically for ${generated.persona_name}.`,
-                content_ideas: Array.isArray(generated.content_ideas) ? generated.content_ideas : ["The 3 costly mistakes most teams make when scaling", "A step-by-step breakdown of our core framework"],
-                search_topics: Array.isArray(generated.search_topics) ? generated.search_topics : ["How to scale efficiently", "Best practices for modern workflows"],
-                conversation_starters: Array.isArray(generated.conversation_starters) ? generated.conversation_starters : ["What is currently taking up most of your team's weekly bandwidth?"],
-                competitive_edge: generated.competitive_edge || "High-touch execution with guaranteed turnaround.",
-                research_notes: generated.research_notes,
-              };
-            }
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (user) {
+          const token = await user.getIdToken().catch(() => null);
+          if (token) {
+            headers.Authorization = `Bearer ${token}`;
           }
         }
-      } catch (err) {
-        console.warn("Avatar IQ webhook note:", err);
-      }
-
-      // If local AI or webhook synthesis is needed
-      if (!assistantReplyText) {
-        const localResponse = generateConversationalResponse(text, nextMessages, updatedBlueprint);
-        assistantReplyText = localResponse.reply;
-        if (localResponse.blueprint) {
-          updatedBlueprint = localResponse.blueprint;
+        const response = await fetch(WEBHOOK_URL, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            session_id: activeSessionId,
+            user_id: userId,
+            message: text,
+            messages: nextMessages,
+            blueprint: result,
+            asset_context: assetContext,
+            workspace_context: assetContext,
+            synthesize: isBlueprintRequest,
+            initiate_build: isInitiateBuild,
+          }),
+        });
+        const parsed = await readN8nJson<unknown>(response, "n8n Workflow");
+        const chat = parseAvatarChatPayload(parsed, result);
+        if (!chat.reply) {
+          throw new Error("n8n workflow executed but returned an empty reply.");
         }
+        assistantReplyText = chat.reply;
+        if (chat.blueprint) updatedBlueprint = chat.blueprint;
+      } catch (err) {
+        console.error("n8n webhook error:", err);
+        const errMsg = err instanceof Error ? err.message : "Unable to communicate with n8n webhook.";
+        assistantReplyText = `⚠️ **Error connecting to n8n:**\n\n${errMsg}\n\n*Webhook URL: \`${WEBHOOK_URL}\`*`;
       }
 
       if (updatedBlueprint) {
@@ -376,18 +384,50 @@ export default function PresentationChat() {
     }
   }
 
+  function handleInitiateBuild() {
+    void handleSend("[SYSTEM COMMAND: INITIATE BUILD]");
+  }
+
   function handleSynthesizeBlueprint() {
     void handleSend("Please synthesize all the context, business details, customer traits, and objections we've discussed into a complete Ideal Buyer Blueprint.");
   }
 
-  function linkIdeaToContent(ideaText: string, build = false) {
-    if (result) {
-      sessionStorage.setItem("astrocraft:latest-blueprint", JSON.stringify(result));
-    }
-    sessionStorage.setItem("astrocraft:avatar-idea", ideaText);
-    sessionStorage.setItem("astrocraft:creation-intent", build ? "presentation" : "ideas");
-    if (build) sessionStorage.setItem("astrocraft:auto-build-content", "true");
-    router.push("/provider/slides");
+  function openHandoff(destination: "ppt" | "offer", ideaText?: string) {
+    const idea = (ideaText ?? messages.filter((item) => item.role === "assistant").at(-1)?.text ?? "").trim();
+    const sections = suggestedSections(result, idea);
+    const prompt = buildGenerationPrompt({
+      blueprint: result,
+      ideaText: idea,
+      sections,
+      assetContext,
+    });
+    setHandoffIdea(idea);
+    setHandoffSections(sections);
+    setHandoffPrompt(prompt);
+    setHandoffOpen(destination);
+  }
+
+  function confirmHandoff() {
+    if (!handoffOpen) return;
+    const selected = handoffSections.filter((section) => section.selected);
+    const prompt = handoffPrompt.trim() || buildGenerationPrompt({
+      blueprint: result,
+      ideaText: handoffIdea,
+      sections: selected.length ? selected : handoffSections,
+      assetContext,
+    });
+    if (result) sessionStorage.setItem(HANDOFF.blueprint, JSON.stringify(result));
+    storeHandoff({
+      session: sessionId,
+      idea: handoffIdea,
+      prompt,
+      sections: JSON.stringify(selected.map((section) => section.label)),
+      intent: handoffOpen === "ppt" ? "presentation" : "offer",
+      autoBuild: handoffOpen === "ppt" ? "true" : "",
+      offerFocus: handoffOpen === "offer" ? (prompt || result?.elevator_pitch || "") : "",
+    });
+    setHandoffOpen(null);
+    router.push(handoffOpen === "ppt" ? "/provider/slides" : "/provider/offer-iq");
   }
 
   async function copyText(text: string, id: string) {
@@ -514,6 +554,56 @@ export default function PresentationChat() {
     });
   }
 
+  const [mergeToast, setMergeToast] = useState(false);
+
+  function mergeBlueprintIntoDraft(customTopic?: string) {
+    const bp = result || activeBlueprint;
+    const topic = customTopic || bp.persona_name?.trim() || "High-Converting Business Presentation";
+    const audience = bp.demographics?.trim() || "Target Decision Makers";
+    const pain = bp.core_fear?.trim() || "Bottlenecks, operational friction, and scaling ceilings";
+    const trigger = bp.buying_trigger?.trim() || "Urgent need for predictable leverage";
+    const pitch = bp.elevator_pitch?.trim() || "";
+    const objections = (bp.objections || []).filter(Boolean);
+    const hooks = (bp.headlines || []).filter(Boolean);
+    const outline = (bp.content_ideas || []).filter(Boolean);
+
+    let prompt = `Create a high-converting, 8-10 slide presentation on "${topic}".\n\n`;
+    prompt += `🎯 Target Audience: ${audience}\n`;
+    prompt += `🔥 Core Problem / Pain Point: ${pain}\n`;
+    prompt += `⚡ Breakthrough / Buying Trigger: ${trigger}\n`;
+    if (pitch) prompt += `💡 Core Value Pitch: ${pitch}\n`;
+    if (objections.length > 0) {
+      prompt += `🛡️ Key Objections to Neutralize:\n${objections.map((o) => `  - ${o}`).join("\n")}\n`;
+    }
+    if (hooks.length > 0) {
+      prompt += `🎣 Winning Angles & Hooks:\n${hooks.map((h) => `  - ${h}`).join("\n")}\n`;
+    }
+    if (outline.length > 0) {
+      prompt += `📋 Slide Points & Outline Flow:\n${outline.map((pt, i) => `  ${i + 1}. ${pt}`).join("\n")}\n`;
+    }
+    prompt += `\nPlease structure this into presentation slides with punchy titles, clear subheadings, and actionable speaker-ready bullet points.`;
+
+    setDraft(prompt);
+    setMergeToast(true);
+    setTimeout(() => setMergeToast(false), 2500);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }
+
+  function mergeFieldIntoDraft(label: string, value: string) {
+    if (!value.trim()) return;
+    setDraft((prev) => {
+      const addition = `${label}: ${value.trim()}`;
+      return prev.trim() ? `${prev.trim()}\n\n${addition}` : addition;
+    });
+    setMergeToast(true);
+    setTimeout(() => setMergeToast(false), 2500);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }
+
   return (
     <div className="brief-builder flex h-[calc(100dvh-4rem-1px)] min-h-0 overflow-hidden bg-background text-foreground">
       {/* History Sidebar */}
@@ -578,19 +668,33 @@ export default function PresentationChat() {
             <div className="flex items-center gap-2">
               <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
               <h1 className="text-sm font-semibold tracking-tight text-foreground truncate max-w-[200px] sm:max-w-md">
-                {activeBlueprint.persona_name || "Avatar IQ · Idea Brainstorming"}
+                {activeBlueprint.persona_name || "Antigravity · Strategy & Ideation"}
               </h1>
+              <span className="hidden sm:inline-flex rounded-md bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                Strategy AI
+              </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleSynthesizeBlueprint}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
+              onClick={() => mergeBlueprintIntoDraft()}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-amber-500/20 transition shadow-sm"
+              title="Merge active blueprint into prompt box"
             >
               <Sparkles className="size-3.5 text-amber-500" />
-              Autofill Idea
+              <span>Merge into Box</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleInitiateBuild}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-foreground px-3 py-1.5 text-xs font-semibold text-background hover:opacity-90 shadow-sm transition"
+              title="Trigger Mode 2: Full Strategy Synthesis & PPT Blueprint"
+            >
+              <FilePlus2 className="size-3.5 text-amber-300" />
+              <span className="hidden xs:inline">⚡ Initiate Build</span>
+              <span className="xs:hidden">Build</span>
             </button>
             <button
               type="button"
@@ -618,49 +722,30 @@ export default function PresentationChat() {
                   message={message}
                   isCopied={copiedId === message.id}
                   onCopy={() => copyText(message.text, message.id)}
-                  onLink={() => linkIdeaToContent(message.text, false)}
-                  onBuild={() => linkIdeaToContent(message.text, true)}
-                  onSynthesize={handleSynthesizeBlueprint}
+                  onLink={() => openHandoff("offer", message.text)}
+                  onBuild={() => openHandoff("ppt", message.text)}
+                  onSynthesize={handleInitiateBuild}
                 />
               ))}
 
               {busy && (
-                <div className="flex items-center gap-3">
-                  <div className="grid size-8 place-items-center rounded-full bg-foreground text-[10px] font-bold text-background">
-                    IQ
-                  </div>
-                  <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-md border border-border bg-card px-4 py-3 text-xs text-muted-foreground shadow-sm">
-                    <Loader2 className="size-3.5 animate-spin" />
-                    <span>Avatar IQ is thinking...</span>
-                  </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin text-primary" />
+                  <span>Antigravity is formulating strategy...</span>
                 </div>
               )}
               <div ref={endRef} />
             </div>
 
-            {/* Prompt Suggestions */}
-            {messages.length <= 3 && (
-              <div className="px-4 lg:px-6 py-2">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
-                  <span className="text-[11px] font-medium text-muted-foreground shrink-0">Try asking:</span>
-                  {PROMPT_SUGGESTIONS.map((item, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleSend(item.prompt)}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-medium text-foreground hover:bg-secondary hover:border-foreground/30 transition"
-                    >
-                      <Lightbulb className="size-3 text-amber-500" />
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Message Input Footer */}
             <footer className="shrink-0 border-t border-border bg-background p-4 lg:p-6">
               <div className="mx-auto max-w-3xl">
+                {mergeToast && (
+                  <div className="mb-2 inline-flex items-center gap-2 rounded-lg bg-primary/15 border border-primary/30 px-3 py-1 text-xs text-foreground animate-in fade-in slide-in-from-bottom-2">
+                    <Check className="size-3.5 text-primary" />
+                    <span>Blueprint prompt merged into box! Review and send whenever ready.</span>
+                  </div>
+                )}
                 <div className="relative flex items-end rounded-2xl border border-border bg-card shadow-sm focus-within:border-foreground/50 transition">
                   <textarea
                     ref={textareaRef}
@@ -673,10 +758,18 @@ export default function PresentationChat() {
                         void handleSend();
                       }
                     }}
-                    placeholder="Talk about your presentation idea, ask marketing questions, or brainstorm your buyer..."
-                    className="max-h-36 min-h-[48px] flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
+                    placeholder="Message Antigravity... (Brainstorm ideas, ask strategy questions, or plan your presentation)"
+                    className="max-h-48 min-h-[48px] flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
                   />
                   <div className="flex items-center gap-2 p-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => mergeBlueprintIntoDraft()}
+                      title="Merge sidebar blueprint into box"
+                      className="grid size-9 place-items-center rounded-xl border border-border bg-secondary text-foreground hover:bg-surface-raised transition"
+                    >
+                      <Sparkles className="size-4 text-amber-500" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleSend()}
@@ -697,17 +790,17 @@ export default function PresentationChat() {
               <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Target className="size-4 text-primary" />
-                  <span>Idea Blueprint & Q&A Cards</span>
+                  <span>Strategy & Idea Blueprint</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleSynthesizeBlueprint}
-                    title="Autofill from Chat"
+                    onClick={handleInitiateBuild}
+                    title="Initiate Full Strategy Build"
                     className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-secondary"
                   >
                     <Sparkles className="size-3 text-amber-500" />
-                    Autofill
+                    Synthesize
                   </button>
                   <button
                     type="button"
@@ -720,29 +813,34 @@ export default function PresentationChat() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Prominent Helper: Merge Into Box Button */}
+                <button
+                  type="button"
+                  onClick={() => mergeBlueprintIntoDraft()}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500/15 via-primary/20 to-amber-500/15 border border-amber-500/40 p-3 text-xs font-bold text-foreground hover:border-amber-500 hover:scale-[1.01] active:scale-[0.99] transition shadow-sm"
+                >
+                  <Sparkles className="size-4 text-amber-500" />
+                  <span>Merge into Box (Generate PPT Prompt)</span>
+                </button>
+
                 {/* Top Action Row */}
                 <div className="grid grid-cols-2 gap-2">
-                  <Link
-                    href="/provider/slides"
-                    onClick={() => {
-                      if (activeBlueprint) sessionStorage.setItem("astrocraft:latest-blueprint", JSON.stringify(activeBlueprint));
-                      sessionStorage.setItem("astrocraft:creation-intent", "presentation");
-                    }}
+                  <button
+                    type="button"
+                    onClick={() => openHandoff("ppt")}
                     className="flex items-center justify-center gap-1.5 rounded-xl bg-foreground px-3 py-2 text-center text-xs font-semibold text-background transition hover:opacity-90 shadow-sm"
                   >
                     <FilePlus2 className="size-3.5" />
-                    Build PPT from Idea
-                  </Link>
-                  <Link
-                    href="/provider/offer-iq"
-                    onClick={() => {
-                      if (activeBlueprint) sessionStorage.setItem("astrocraft:latest-blueprint", JSON.stringify(activeBlueprint));
-                    }}
+                    Build PPT from Strategy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openHandoff("offer")}
                     className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 py-2 text-center text-xs font-semibold text-foreground transition hover:border-foreground/40 shadow-sm"
                   >
-                    <ArrowRight className="size-3.5" />
-                    Make Offer in Offer IQ
-                  </Link>
+                    <Layers3 className="size-3.5" />
+                    Shape in Offer IQ
+                  </button>
                 </div>
 
                 <div className="space-y-4">
@@ -753,6 +851,7 @@ export default function PresentationChat() {
                     value={activeBlueprint.persona_name}
                     placeholder="e.g. 5 Scaling Bottlenecks for 7-Figure Agency Founders"
                     onChange={(val) => updateBlueprintField("persona_name", val)}
+                    onMerge={(val) => mergeFieldIntoDraft("Topic", val)}
                   />
 
                   {/* Q2: Target Audience */}
@@ -762,6 +861,7 @@ export default function PresentationChat() {
                     value={activeBlueprint.demographics}
                     placeholder="e.g. Digital agency founders (teams of 5-25, $50k-$200k/mo revenue)"
                     onChange={(val) => updateBlueprintField("demographics", val)}
+                    onMerge={(val) => mergeFieldIntoDraft("Target Audience", val)}
                   />
 
                   {/* Q3: Core Pain Point / Burning Problem */}
@@ -771,6 +871,7 @@ export default function PresentationChat() {
                     value={activeBlueprint.core_fear}
                     placeholder="e.g. Trapped in daily client fulfillment; business stalls without constant micromanaging"
                     onChange={(val) => updateBlueprintField("core_fear", val)}
+                    onMerge={(val) => mergeFieldIntoDraft("Core Pain Point", val)}
                   />
 
                   {/* Q4: Big Transformation / Buying Trigger */}
@@ -780,6 +881,7 @@ export default function PresentationChat() {
                     value={activeBlueprint.buying_trigger}
                     placeholder="e.g. Hitting an operational capacity ceiling where taking more clients causes burnout"
                     onChange={(val) => updateBlueprintField("buying_trigger", val)}
+                    onMerge={(val) => mergeFieldIntoDraft("Buying Trigger", val)}
                   />
 
                   {/* Q5: Objections */}
@@ -791,6 +893,7 @@ export default function PresentationChat() {
                     onAdd={(val) => addArrayField("objections", val)}
                     onRemove={(idx) => removeArrayField("objections", idx)}
                     onUpdate={(idx, val) => updateArrayField("objections", idx, val)}
+                    onMerge={(items) => mergeFieldIntoDraft("Top Objections", items.join("; "))}
                   />
 
                   {/* Q6: Winning Hooks & Headlines */}
@@ -802,6 +905,7 @@ export default function PresentationChat() {
                     onAdd={(val) => addArrayField("headlines", val)}
                     onRemove={(idx) => removeArrayField("headlines", idx)}
                     onUpdate={(idx, val) => updateArrayField("headlines", idx, val)}
+                    onMerge={(items) => mergeFieldIntoDraft("Winning Hooks", items.join("; "))}
                   />
 
                   {/* Q7: Slide Points & Content Flow */}
@@ -813,6 +917,7 @@ export default function PresentationChat() {
                     onAdd={(val) => addArrayField("content_ideas", val)}
                     onRemove={(idx) => removeArrayField("content_ideas", idx)}
                     onUpdate={(idx, val) => updateArrayField("content_ideas", idx, val)}
+                    onMerge={(items) => mergeFieldIntoDraft("Slide Outline", items.join(" -> "))}
                   />
 
                   {/* Elevator Pitch */}
@@ -822,38 +927,99 @@ export default function PresentationChat() {
                     value={activeBlueprint.elevator_pitch ?? ""}
                     placeholder="e.g. We help agency founders build self-managing operations in 90 days."
                     onChange={(val) => updateBlueprintField("elevator_pitch", val)}
+                    onMerge={(val) => mergeFieldIntoDraft("Elevator Pitch", val)}
                   />
                 </div>
 
                 {/* Bottom Action Row */}
                 <div className="pt-2 space-y-2 border-t border-border">
-                  <Link
-                    href="/provider/slides"
-                    onClick={() => {
-                      if (activeBlueprint) sessionStorage.setItem("astrocraft:latest-blueprint", JSON.stringify(activeBlueprint));
-                      sessionStorage.setItem("astrocraft:creation-intent", "presentation");
-                    }}
+                  <button
+                    type="button"
+                    onClick={() => mergeBlueprintIntoDraft()}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500/20 via-primary/25 to-amber-500/20 border border-amber-500/50 p-2.5 text-xs font-bold text-foreground hover:border-amber-500 transition shadow-sm"
+                  >
+                    <Sparkles className="size-3.5 text-amber-500" />
+                    Merge Blueprint into Box
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openHandoff("ppt")}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-xs font-semibold text-background transition hover:opacity-90 shadow-sm"
                   >
                     <FilePlus2 className="size-3.5" />
                     Build PPT from this Idea
-                  </Link>
-                  <Link
-                    href="/provider/offer-iq"
-                    onClick={() => {
-                      if (activeBlueprint) sessionStorage.setItem("astrocraft:latest-blueprint", JSON.stringify(activeBlueprint));
-                    }}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openHandoff("offer")}
                     className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-medium text-foreground transition hover:border-foreground/40"
                   >
-                    <ArrowRight className="size-3.5" />
+                    <Layers3 className="size-3.5" />
                     Continue to Offer IQ
-                  </Link>
+                  </button>
                 </div>
               </div>
             </aside>
           )}
         </div>
       </section>
+
+      {handoffOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+          <div className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  {handoffOpen === "ppt" ? "Send to Content Maker" : "Send to Offer IQ"}
+                </p>
+                <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em]">
+                  Check the prompt and sections before we continue.
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Uncheck anything that is wrong, then edit the prompt. n8n will use this with your uploads and blueprint.
+                </p>
+              </div>
+              <button type="button" onClick={() => setHandoffOpen(null)} className="rounded-lg p-1 text-muted-foreground hover:text-foreground">
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {handoffSections.map((section) => (
+                <label key={section.id} className="flex items-start gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={section.selected}
+                    onChange={() => {
+                      setHandoffSections((items) => items.map((item) => item.id === section.id ? { ...item, selected: !item.selected } : item));
+                    }}
+                    className="mt-1"
+                  />
+                  <span>{section.label}</span>
+                </label>
+              ))}
+            </div>
+            <textarea
+              rows={8}
+              value={handoffPrompt}
+              onChange={(event) => setHandoffPrompt(event.target.value)}
+              className="mt-4 w-full resize-y rounded-2xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-foreground/40"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setHandoffOpen(null)} className="rounded-xl border border-border px-4 py-2 text-sm">
+                Keep chatting
+              </button>
+              <button
+                type="button"
+                onClick={confirmHandoff}
+                className="inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background"
+              >
+                {handoffOpen === "ppt" ? <FilePlus2 className="size-4" /> : <Layers3 className="size-4" />}
+                {handoffOpen === "ppt" ? "Build PPT" : "Open Offer IQ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -863,12 +1029,14 @@ function EditableCard({
   value,
   placeholder,
   onChange,
+  onMerge,
 }: {
   label: string;
   description?: string;
   value: string;
   placeholder?: string;
   onChange: (val: string) => void;
+  onMerge?: (val: string) => void;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-background p-3.5 shadow-sm space-y-2">
@@ -876,6 +1044,17 @@ function EditableCard({
         <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-foreground">
           {label}
         </p>
+        {onMerge && value?.trim() && (
+          <button
+            type="button"
+            onClick={() => onMerge(value)}
+            title="Merge this field into chat input"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-secondary/80 px-1.5 py-0.5 text-[10px] font-medium text-foreground hover:bg-secondary transition"
+          >
+            <Sparkles className="size-2.5 text-amber-500" />
+            <span>Insert</span>
+          </button>
+        )}
       </div>
       {description && (
         <p className="text-[11px] leading-4 text-muted-foreground">{description}</p>
@@ -899,6 +1078,7 @@ function EditableListCard({
   onAdd,
   onRemove,
   onUpdate,
+  onMerge,
 }: {
   label: string;
   description?: string;
@@ -907,6 +1087,7 @@ function EditableListCard({
   onAdd: (val: string) => void;
   onRemove: (idx: number) => void;
   onUpdate: (idx: number, val: string) => void;
+  onMerge?: (items: string[]) => void;
 }) {
   const [draftItem, setDraftItem] = useState("");
 
@@ -920,14 +1101,25 @@ function EditableListCard({
 
   return (
     <div className="rounded-2xl border border-border bg-background p-3.5 shadow-sm space-y-2.5">
-      <div>
+      <div className="flex items-center justify-between">
         <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-foreground">
           {label}
         </p>
-        {description && (
-          <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{description}</p>
+        {onMerge && list.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onMerge(list)}
+            title="Merge list into chat input"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-secondary/80 px-1.5 py-0.5 text-[10px] font-medium text-foreground hover:bg-secondary transition"
+          >
+            <Sparkles className="size-2.5 text-amber-500" />
+            <span>Insert</span>
+          </button>
         )}
       </div>
+      {description && (
+        <p className="text-[11px] leading-4 text-muted-foreground">{description}</p>
+      )}
 
       <div className="space-y-1.5">
         {list.map((item, idx) => (
@@ -995,13 +1187,12 @@ function MessageBubble({
   onSynthesize: () => void;
 }) {
   const isAssistant = message.role === "assistant";
-  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className={`flex items-start gap-3 ${isAssistant ? "" : "justify-end"}`}>
       {isAssistant && (
         <div className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-[10px] font-bold text-background">
-          IQ
+          AG
         </div>
       )}
       <div
@@ -1028,8 +1219,8 @@ function MessageBubble({
               onClick={onLink}
               className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
             >
-              <Link2 className="size-3" />
-              Link to Content
+              <Layers3 className="size-3" />
+              Offer IQ
             </button>
             <button
               type="button"
@@ -1045,7 +1236,7 @@ function MessageBubble({
               className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground ml-auto"
             >
               <Sparkles className="size-3 text-amber-500" />
-              Update Blueprint
+              ⚡ Initiate Build
             </button>
           </div>
         )}
@@ -1073,314 +1264,4 @@ function formatMarkdown(text: string) {
       </span>
     );
   });
-}
-
-function generateConversationalResponse(
-  userPrompt: string,
-  history: Message[],
-  existingBlueprint: BuyerBlueprint | null,
-): { reply: string; blueprint?: BuyerBlueprint } {
-  const lower = userPrompt.toLowerCase().trim();
-  const userMessages = history.filter((m) => m.role === "user");
-  const turnCount = userMessages.length;
-  const allUserText = userMessages.map((m) => m.text).join(" ");
-
-  // 1. Natural greeting detection
-  const isGreeting =
-    /^(hi|hii|hiii|hey|heyy|hello|helloo|sup|yo|good morning|good afternoon|good evening|howdy)\b/i.test(
-      lower,
-    ) && userPrompt.trim().split(/\s+/).length <= 4;
-
-  if (isGreeting) {
-    return {
-      reply: `Hey there! Great to connect with you.\n\nI'm here to help you uncover your most profitable buyer persona and dial in your positioning.\n\nTo kick things off: **What kind of business, service, or product are you offering?**`,
-      blueprint: existingBlueprint ?? undefined,
-    };
-  }
-
-  // 2. Help / Capabilities question
-  if (/^(help|what can you do|who are you|how does this work)\b/i.test(lower)) {
-    return {
-      reply: `I'm **Avatar IQ**, your customer research strategist. We work together just like a 1-on-1 strategy session:\n\n1. **Define Your Persona**: Identify your exact high-value target audience and decision-maker.\n2. **Uncover Urgent Pains & Triggers**: Figure out why they buy now rather than waiting.\n3. **Neutralize Objections**: Address skepticism and hesitation before they even arise.\n4. **Generate Copy Angles & Hooks**: High-converting headlines, social hooks, and email subjects.\n5. **Synthesize a Full Blueprint**: Create an actionable buyer profile that connects to **Offer IQ** and **PPT slide generation**.\n\nTo start: **Tell me what you sell or the business you want to build!**`,
-      blueprint: existingBlueprint ?? undefined,
-    };
-  }
-
-  // 3. Synthesize / Generate blueprint command
-  if (
-    lower.includes("synthesize") ||
-    lower.includes("generate blueprint") ||
-    lower.includes("create blueprint") ||
-    lower.includes("make blueprint") ||
-    lower.includes("show blueprint")
-  ) {
-    const personaName = extractPersonaName(allUserText);
-    const blueprint = buildFullBlueprint(allUserText, personaName, existingBlueprint);
-    return {
-      reply: `I have synthesized our discussion into your **Ideal Buyer Blueprint** for **${blueprint.persona_name}**!\n\n✨ **Key Pillars Generated**:\n• **Target Audience**: ${blueprint.demographics}\n• **Core Tension**: ${blueprint.core_fear}\n• **Buying Trigger**: ${blueprint.buying_trigger}\n• **Top Objection**: ${blueprint.objections[0]}\n\nCheck the **Blueprint Panel** on the right to review all headlines, hooks, email subject lines, and elevator pitch. You can now tweak anything, continue to **Offer IQ**, or click **Build PPT**!`,
-      blueprint,
-    };
-  }
-
-  // 4. Marketing hooks & headlines request
-  if (
-    lower.includes("hook") ||
-    lower.includes("headline") ||
-    lower.includes("angle") ||
-    lower.includes("copy idea") ||
-    lower.includes("email subject")
-  ) {
-    const persona = existingBlueprint?.persona_name || extractPersonaName(allUserText);
-    return {
-      reply: `Here are 3 high-converting **marketing angles & hooks** crafted for **${persona}**:\n\n- 🎯 **Angle 1 (The Cost of Waiting)**: *"How much is staying with your current workflow costing your team in lost revenue each quarter?"*\n- 🚀 **Angle 2 (The Mechanism Reframe)**: *"The 3-pillar method top performers use to achieve consistent results without burning out."*\n- 💡 **Angle 3 (Contrarian Truth)**: *"Why working harder or hiring more staff is usually the wrong first step to scaling."*\n\nWould you like to turn these into a full **PowerPoint presentation** (click Build PPT), or refine the persona further?`,
-      blueprint: existingBlueprint ?? undefined,
-    };
-  }
-
-  // 5. Objections & fears exploration
-  if (
-    lower.includes("objection") ||
-    lower.includes("fear") ||
-    lower.includes("hesitation") ||
-    lower.includes("skeptic")
-  ) {
-    const persona = existingBlueprint?.persona_name || extractPersonaName(allUserText);
-    return {
-      reply: `Here are the top **fears & hidden objections** preventing **${persona}** from buying:\n\n1. **Complexity & Bandwidth**: *"We don't have the time or team capacity to implement something new right now."*\n2. **Niche Fit & Proof**: *"Does this actually work for our specific situation, or is it a generic template?"*\n3. **ROI Timeline**: *"How soon will we see tangible results to justify the investment?"*\n\n**Copy Recommendation**: In your presentation and offer, lead with guaranteed turnaround, direct proof, and done-for-you ease to neutralize these early.`,
-      blueprint: existingBlueprint ?? undefined,
-    };
-  }
-
-  // 6. Progressive 1-by-1 consultative dialogue based on conversation context
-  const personaName = extractPersonaName(allUserText);
-  const updatedBlueprint = buildFullBlueprint(allUserText, personaName, existingBlueprint);
-
-  // Turn 1: User just described their business
-  if (turnCount <= 1 || (!hasAudienceContext(allUserText) && !hasProblemContext(allUserText))) {
-    return {
-      reply: `That gives us a great starting point!\n\nTo make your marketing cut through the noise, we need to pinpoint the exact person writing the check.\n\n**Who is the specific decision maker or ideal customer you want to target?**\n*(For example: SMB founders, VP of Sales, solo consultants, busy working parents, or enterprise CTOs?)*`,
-      blueprint: updatedBlueprint,
-    };
-  }
-
-  // Turn 2: User described their audience -> ask about core pain/fear
-  if (!hasProblemContext(allUserText)) {
-    return {
-      reply: `Excellent — **${personaName}** is a strong, distinct audience.\n\nNow let's uncover their primary tension:\n\n**What is the single biggest frustration, operational bottleneck, or fear they are struggling with right now?** *(What's keeping them awake at night or costing them money?)*`,
-      blueprint: updatedBlueprint,
-    };
-  }
-
-  // Turn 3: User described the problem -> ask about buying trigger
-  if (!hasTriggerContext(allUserText)) {
-    return {
-      reply: `That is a massive pain point, and an offer that solves that will command strong pricing.\n\nNext key pillar:\n\n**What is the specific catalyst or 'trigger event' that makes them urgently seek a solution now instead of putting it off?** *(e.g. reaching burnout, a revenue dip, board pressure, losing a client, or entering a new growth phase?)*`,
-      blueprint: updatedBlueprint,
-    };
-  }
-
-  // Turn 4: User described trigger -> ask about main objection
-  if (!hasObjectionContext(allUserText)) {
-    return {
-      reply: `Spot on. When that trigger hits, they are in active buying mode.\n\nOne last piece to lock in your messaging:\n\n**What is their biggest doubt or objection when considering working with you or buying your solution?** *(e.g. Price, trust, implementation time, or skepticism based on past bad experiences?)*`,
-      blueprint: updatedBlueprint,
-    };
-  }
-
-  // Turn 5+: All pillars covered -> synthesize and offer next strategic moves
-  return {
-    reply: `Fantastic! We now have all the core pieces of your **Ideal Buyer Blueprint** for **${personaName}**.\n\nI've updated the **Blueprint Panel** on the right with your complete profile, including core fears, buying triggers, objections, and ready-to-use marketing headlines.\n\n**Where would you like to take this next?**\n• **Continue to Offer IQ**: Shape a high-converting offer and pricing structure.\n• **Build PPT**: Generate a full presentation from this buyer blueprint.\n• **Brainstorm Hooks**: Generate more social media hooks and email angles.`,
-    blueprint: updatedBlueprint,
-  };
-}
-
-function extractPersonaName(text: string): string {
-  const lower = text.toLowerCase();
-  if (lower.includes("saas") || lower.includes("software") || lower.includes("tech") || lower.includes("developer")) {
-    return "B2B SaaS Growth Leader / Tech Founder";
-  }
-  if (lower.includes("agency") || lower.includes("client") || lower.includes("marketing")) {
-    return "Scaling Agency Owner & Service Provider";
-  }
-  if (lower.includes("coach") || lower.includes("consultant") || lower.includes("advisory")) {
-    return "High-Performing Professional & Practice Owner";
-  }
-  if (lower.includes("ecommerce") || lower.includes("ecom") || lower.includes("brand") || lower.includes("shopify")) {
-    return "D2C E-Commerce Brand Founder";
-  }
-  if (lower.includes("real estate") || lower.includes("realtor") || lower.includes("property")) {
-    return "Top-Producing Real Estate Broker & Team Lead";
-  }
-  if (lower.includes("dentist") || lower.includes("clinic") || lower.includes("doctor") || lower.includes("health")) {
-    return "Private Practice Medical / Healthcare Owner";
-  }
-  if (lower.includes("b2b") || lower.includes("enterprise") || lower.includes("executive")) {
-    return "B2B Decision Maker & Operations Director";
-  }
-  return "The Overloaded Business Owner";
-}
-
-function hasAudienceContext(text: string): boolean {
-  const lower = text.toLowerCase();
-  return (
-    lower.includes("founder") ||
-    lower.includes("owner") ||
-    lower.includes("director") ||
-    lower.includes("executive") ||
-    lower.includes("client") ||
-    lower.includes("customer") ||
-    lower.includes("team") ||
-    lower.includes("target") ||
-    lower.includes("people") ||
-    lower.includes("dentist") ||
-    lower.includes("coach") ||
-    lower.includes("agency") ||
-    lower.includes("leader")
-  );
-}
-
-function hasProblemContext(text: string): boolean {
-  const lower = text.toLowerCase();
-  return (
-    lower.includes("problem") ||
-    lower.includes("struggle") ||
-    lower.includes("frustrat") ||
-    lower.includes("pain") ||
-    lower.includes("stuck") ||
-    lower.includes("waste") ||
-    lower.includes("burnout") ||
-    lower.includes("time") ||
-    lower.includes("cost") ||
-    lower.includes("hard") ||
-    lower.includes("traffic") ||
-    lower.includes("lead") ||
-    lower.includes("revenue")
-  );
-}
-
-function hasTriggerContext(text: string): boolean {
-  const lower = text.toLowerCase();
-  return (
-    lower.includes("trigger") ||
-    lower.includes("catalyst") ||
-    lower.includes("event") ||
-    lower.includes("decide") ||
-    lower.includes("ready") ||
-    lower.includes("quarter") ||
-    lower.includes("launch") ||
-    lower.includes("happen") ||
-    lower.includes("realiz") ||
-    lower.includes("moment")
-  );
-}
-
-function hasObjectionContext(text: string): boolean {
-  const lower = text.toLowerCase();
-  return (
-    lower.includes("price") ||
-    lower.includes("cost") ||
-    lower.includes("expensive") ||
-    lower.includes("trust") ||
-    lower.includes("time") ||
-    lower.includes("bandwidth") ||
-    lower.includes("doubt") ||
-    lower.includes("hesitat") ||
-    lower.includes("objection") ||
-    lower.includes("skeptic") ||
-    lower.includes("risk") ||
-    lower.includes("guarantee")
-  );
-}
-
-function buildFullBlueprint(
-  contextText: string,
-  personaName: string,
-  existing: BuyerBlueprint | null,
-): BuyerBlueprint {
-  const lower = contextText.toLowerCase();
-  const isB2b = lower.includes("b2b") || lower.includes("saas") || lower.includes("enterprise") || lower.includes("tech");
-  const isAgency = lower.includes("agency") || lower.includes("client") || lower.includes("service");
-
-  return {
-    persona_name: existing?.persona_name || personaName,
-    demographics:
-      existing?.demographics ||
-      (isB2b
-        ? "B2B Tech Founders, VPs of Eng, CTOs (Age 32-52, $2M-$20M ARR)"
-        : isAgency
-        ? "Digital Agency Founders, 30-50 yrs, managing teams of 5-25"
-        : "Small-to-Medium Business Owners & Practice Leaders (Age 32-55, $500k-$5M revenue)"),
-    core_fear:
-      existing?.core_fear ||
-      (isB2b
-        ? "Wasting engineering cycles on unproven tools while competitors outpace them in market velocity."
-        : isAgency
-        ? "Getting trapped in low-margin fulfillment burnout where more revenue equals more chaos."
-        : "That the business will completely stall or decline without their constant personal micro-management."),
-    buying_trigger:
-      existing?.buying_trigger ||
-      (isB2b
-        ? "Quarterly board mandate to optimize efficiency and increase team output without new headcount."
-        : "Hitting an operational capacity ceiling where they can no longer take on clients safely."),
-    objections:
-      existing?.objections?.length
-        ? existing.objections
-        : [
-            "How quickly will we see measurable ROI without disrupting our current day-to-day operations?",
-            "Is this truly customized for our specific niche, or a generic cookie-cutter framework?",
-            "Do we have the internal team bandwidth to adopt and execute this properly?",
-          ],
-    headlines:
-      existing?.headlines?.length
-        ? existing.headlines
-        : [
-            `The Proven Operating Blueprint for ${personaName}`,
-            "How to Eliminate Operational Inefficiencies Without Adding More Headcount",
-            "Stop Leaking Revenue: The Scalable System Built for Today's Market",
-          ],
-    social_hooks:
-      existing?.social_hooks?.length
-        ? existing.social_hooks
-        : [
-            "Most founders try to scale by working longer hours. Here is why top operators do the exact opposite.",
-            "If you're still relying on manual playbooks in 2026, here is the hidden cost to your bottom line.",
-            "3 silent bottlenecks killing your growth (and the 14-day fix).",
-          ],
-    email_subject_lines:
-      existing?.email_subject_lines?.length
-        ? existing.email_subject_lines
-        : [
-            "A quick question about your current scaling bottleneck",
-            "How [Peer Brand] unlocked 3x higher retention",
-            "The missing piece in your growth roadmap",
-          ],
-    primary_goals: [
-      "Predictable, recurring revenue and higher profit margins",
-      "Reclaimed personal time and reduced day-to-day firefighting",
-      "A scalable operational foundation that runs reliably",
-    ],
-    values_and_beliefs: [
-      "Prioritizes high leverage and speed of execution over complexity",
-      "Values proven practitioner frameworks over theoretical advice",
-    ],
-    decision_style: "Analytical yet decisive when presented with clear case studies and risk mitigation.",
-    trusted_influences: ["Peer masterminds", "Direct practitioner case studies", "Respected industry newsletters"],
-    day_in_the_life: "Constantly juggling high-level growth strategy with urgent client fires and operational bottlenecks.",
-    elevator_pitch: `We help ${personaName} achieve predictable growth and operational freedom without adding headcount.`,
-    content_ideas: [
-      "The 5-Step Operating System for Sustainable Growth",
-      "Why Traditional Scaling Methods Are Breaking in 2026",
-      "Case Study: Going from Bottlenecked Operator to Scalable Asset",
-    ],
-    search_topics: [
-      "How to scale business without burnout",
-      "Best high-ticket acquisition strategies",
-      "Operational leverage and automation frameworks",
-    ],
-    conversation_starters: [
-      "What is currently the single largest bottleneck taking up your team's weekly bandwidth?",
-      "If you could remove one operational headache from your plate this month, what would it be?",
-    ],
-    competitive_edge: "Direct practitioner methodology backed by real operational systems and guaranteed implementation.",
-  };
 }

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, User, ArrowRight } from "lucide-react";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
 
 const logo = "/assets/AstraCraft-logo.jpeg";
@@ -38,39 +39,31 @@ export default function SignupPage() {
     }
     setIsLoading(true);
 
-    if (!isSupabaseConfigured) {
+    if (!isFirebaseConfigured) {
       setIsLoading(false);
-      router.replace("/provider");
+      router.replace("/onboarding");
       return;
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: fullName },
-          emailRedirectTo: `${window.location.origin}/login`,
-        },
-      });
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      if (fullName.trim()) {
+        await updateProfile(userCredential.user, { displayName: fullName.trim() });
+      }
       setIsLoading(false);
-      if (error) {
-        const msg = error.message?.toLowerCase().includes("fetch failed")
-          ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
-          : error.message;
-        setAuthError(msg);
-        return;
-      }
-      if (data.session) {
-        router.replace("/provider");
-        return;
-      }
-      setAuthMessage("Check your email to confirm your account, then sign in.");
+      router.replace("/onboarding");
     } catch (err: any) {
       setIsLoading(false);
-      const msg = err?.message?.toLowerCase().includes("fetch failed")
-        ? "Unable to connect to Supabase authentication server. Please verify your Supabase project URL and network connection."
-        : (err?.message || "An unexpected error occurred during sign up.");
+      let msg = err?.message || "An unexpected error occurred during sign up.";
+      if (err?.code === "auth/email-already-in-use") {
+        msg = "An account with this email address already exists.";
+      } else if (err?.code === "auth/weak-password") {
+        msg = "Password should be at least 6 characters.";
+      } else if (err?.code === "auth/invalid-email") {
+        msg = "The email address is not valid.";
+      } else if (err?.code === "auth/network-request-failed") {
+        msg = "Unable to connect to Firebase authentication server. Please check your network connection.";
+      }
       setAuthError(msg);
     }
   };

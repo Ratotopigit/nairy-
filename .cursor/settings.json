@@ -1,0 +1,13 @@
+{
+  "plugins": {
+    "supabase": {
+      "enabled": true
+    },
+    "cloudflare": {
+      "enabled": true
+    },
+    "github": {
+      "enabled": true
+    }
+  }
+}

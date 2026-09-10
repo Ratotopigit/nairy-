@@ -16,7 +16,7 @@ import {
   type StyleId,
 } from "./deck";
 import { readN8nJson } from "./n8n-response";
-import { supabase } from "./supabase/client";
+import { auth } from "./firebase/config";
 
 export type AssistantActions = {
   reply?: string;
@@ -50,7 +50,9 @@ export type AssistantContext = {
   assetContext?: string;
 };
 
-const WEBHOOK_URL = "/api/n8n/content-maker";
+const WEBHOOK_URL = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL
+  ? `${process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL.replace(/\/+$/, "")}/content-maker`
+  : "https://explosionmarketing.app.n8n.cloud/webhook/content-maker";
 
 export function normalizeSlide(raw: Partial<Slide>, index: number): Slide {
   const types: SlideType[] = ["title", "split", "bullets", "visual", "metrics", "services", "timeline", "process", "chart", "closing"];
@@ -86,53 +88,56 @@ export async function askAssistant(ctx: AssistantContext): Promise<AssistantActi
   const currentSlides = (Array.isArray(ctx.slides) ? ctx.slides : []).map(normalizeSlide);
 
   try {
-    const [{ data: authData }, { data: sessionData }] = await Promise.all([
-      supabase.auth.getUser(),
-      supabase.auth.getSession(),
-    ]);
+    const currentUser = auth.currentUser;
+    const userId = currentUser?.uid || "00000000-0000-4000-8000-000000000000";
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (currentUser) {
+      const token = await currentUser.getIdToken().catch(() => null);
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    }
 
-    if (authData.user && sessionData.session?.access_token && WEBHOOK_URL?.trim()) {
-      const res = await fetch(WEBHOOK_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionData.session.access_token}`,
-        },
-        body: JSON.stringify({
-          mode: ctx.mode,
-          project_id: ctx.projectId,
-          session_id: ctx.blueprintSessionId,
-          user_id: authData.user.id,
-          message: ctx.message,
-          description: ctx.description,
-          purpose: ctx.purpose,
-          slide_count: ctx.slideCount,
-          style: ctx.style,
-          font_set: ctx.fontSet,
-          palette: ctx.palette,
-          ratio: ctx.ratio,
-          slides: currentSlides,
-          selected_slide_id: ctx.selectedSlideId,
-          messages: ctx.messages,
-          asset_context: ctx.assetContext ?? "",
-        }),
-      });
+    const res = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        mode: ctx.mode,
+        project_id: ctx.projectId,
+        session_id: ctx.blueprintSessionId,
+        user_id: userId,
+        message: ctx.message,
+        description: ctx.description,
+        purpose: ctx.purpose,
+        slide_count: ctx.slideCount,
+        style: ctx.style,
+        font_set: ctx.fontSet,
+        palette: ctx.palette,
+        ratio: ctx.ratio,
+        slides: currentSlides.map((slide) => ({ ...slide, image: null })),
+        selected_slide_id: ctx.selectedSlideId,
+        messages: ctx.messages,
+        asset_context: ctx.assetContext ?? "",
+      }),
+    });
 
-      if (res.ok) {
-        const raw = await readN8nJson<Record<string, unknown> | Array<Record<string, unknown>>>(
-          res,
-          "Content Maker workflow",
-        );
-        const data = Array.isArray(raw) ? raw[0] : raw;
-        const candidate = ((data?.actions ?? data) as AssistantActions) ?? {};
-        if (Array.isArray(candidate.slides) && candidate.slides.length > 0) {
-          candidate.slides = candidate.slides.map(normalizeSlide);
-          return candidate;
-        }
+    if (res.ok) {
+      const raw = await readN8nJson<Record<string, unknown> | Array<Record<string, unknown>>>(
+        res,
+        "Content Maker workflow",
+      );
+      const data = Array.isArray(raw) ? raw[0] : raw;
+      const candidate = ((data?.actions ?? data?.result ?? data) as AssistantActions) ?? {};
+      if (Array.isArray(candidate.slides) && candidate.slides.length > 0) {
+        candidate.slides = candidate.slides.map(normalizeSlide);
+        return candidate;
+      }
+      if (candidate.reply) {
+        return candidate;
       }
     }
   } catch (error) {
-    console.warn("Content Maker webhook bridge bypassed or unavailable:", error);
+    console.warn("Content Maker webhook error:", error);
   }
 
   // Resilient local intelligent command interpreter

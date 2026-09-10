@@ -5,7 +5,8 @@ import { ArrowUpRight, LogOut, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase/client";
+import { signOut as firebaseSignOut } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
 
 const navItems = [
   { href: "/provider", label: "Home" },
@@ -25,7 +26,7 @@ export default function ProviderNavbar() {
   }, [pathname]);
 
   async function signOut() {
-    await supabase.auth.signOut();
+    await firebaseSignOut(auth);
     window.location.assign("/login");
   }
 
