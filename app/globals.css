@@ -55,6 +55,22 @@
     user-select: none;
     user-drag: none;
   }
+
+  input,
+  textarea,
+  select,
+  button {
+    outline: none;
+  }
+
+  input:focus,
+  input:focus-visible,
+  textarea:focus,
+  textarea:focus-visible,
+  select:focus,
+  select:focus-visible {
+    outline: none !important;
+  }
 }
 
 @layer utilities {

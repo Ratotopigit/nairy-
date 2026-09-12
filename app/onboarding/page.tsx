@@ -268,29 +268,13 @@ export default function OnboardingPage() {
       <div className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 w-[640px] h-[420px] bg-emerald-300/12 rounded-full blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 right-1/4 w-[520px] h-[380px] bg-amber-200/15 rounded-full blur-3xl" />
 
-      {/* Brand Header above card */}
-      <div className="relative z-10 mb-5 flex items-center justify-center gap-2.5 text-center">
-        <div className="flex size-7 items-center justify-center rounded-lg bg-[var(--card)] border border-[var(--border)] shadow-xs">
-          <span className="font-mono text-[11px] font-bold text-[var(--primary)]">AC</span>
-        </div>
-        <span className="text-sm font-bold tracking-tight text-[var(--foreground)]">
-          AstroCraft
-        </span>
-        <span className="text-xs font-mono tracking-widest text-[var(--muted-foreground)] uppercase">
-          • Studio
-        </span>
-      </div>
 
       {/* Apple-style Centered Box with Frosted Glassmorphism & Diffused Shadow */}
-      <motion.div
-        layout
-        transition={{ type: "spring", stiffness: 320, damping: 32 }}
-        className={`w-full relative z-10 rounded-3xl border border-white/80 bg-white/70 backdrop-blur-2xl shadow-[0_24px_64px_-12px_rgba(29,42,39,0.09),0_0_1px_1px_rgba(255,255,255,0.9)_inset,0_1px_3px_rgba(0,0,0,0.03)] p-6 sm:p-8 md:p-10 transition-all duration-300 ${
-          currentStep === 7 ? "max-w-4xl" : "max-w-[660px]"
-        }`}
+      <div
+        className="w-full max-w-[820px] min-h-[640px] relative z-10 rounded-3xl border border-white/90 bg-white/95 backdrop-blur-2xl shadow-[0_24px_64px_-12px_rgba(29,42,39,0.08),0_0_1px_1px_rgba(255,255,255,0.9)_inset,0_2px_4px_rgba(0,0,0,0.02)] p-6 sm:px-9 sm:py-7 flex flex-col justify-between overflow-hidden transition-none"
       >
-        {/* Top: Apple-style Numbered Stepper inside the box */}
-        <div className="pb-6 border-b border-[var(--border)]/50">
+        {/* Top: Stepper & Progress Bar inside the box */}
+        <div className="shrink-0">
           <AppleStepper
             currentStep={currentStep}
             totalSteps={7}
@@ -300,7 +284,7 @@ export default function OnboardingPage() {
         </div>
 
         {/* Content Section with fluid directional transitions */}
-        <div className="pt-6">
+        <div className="flex-1 flex flex-col justify-center px-1 py-4 min-h-0">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={currentStep}
@@ -309,7 +293,8 @@ export default function OnboardingPage() {
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full"
             >
               {currentStep === 1 && (
                 <StepAboutYou data={formData} onChange={updateData} />
@@ -340,53 +325,53 @@ export default function OnboardingPage() {
           </AnimatePresence>
 
           {submitError && (
-            <p className="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+            <p className="mt-2 rounded-xl border border-red-200 bg-red-50 p-2 text-xs text-red-700">
               {submitError}
             </p>
           )}
         </div>
 
         {/* Navigation Actions Bar INSIDE the Box */}
-        <div className="mt-8 pt-5 border-t border-[var(--border)]/60 flex items-center justify-between gap-4">
+        <div className="shrink-0 pt-3 border-t border-slate-100 flex items-center justify-between gap-4">
           <div>
             {currentStep > 1 ? (
               <button
                 type="button"
                 onClick={handleBack}
-                className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)]/90 px-4 py-2 text-xs font-semibold text-[var(--foreground)] transition-all hover:bg-[var(--surface)] hover:border-[var(--border-strong)] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] shadow-2xs"
+                className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] shadow-2xs"
               >
                 <ArrowLeft className="size-3.5" />
                 <span>Back</span>
               </button>
             ) : (
-              <span className="text-[11px] text-[var(--muted-foreground)]">
-                Required fields are marked with *
+              <span className="text-xs text-slate-400">
+                Required fields are marked with <span className="text-red-500">*</span>
               </span>
             )}
           </div>
 
           {currentStep < 7 ? (
             <div className="flex items-center gap-3">
-              <span className="hidden sm:inline-block text-[11px] text-[var(--muted-foreground)]">
-                Press <kbd className="rounded border border-[var(--border-strong)] bg-[var(--surface)] px-1.5 py-0.5 font-mono text-[10px] shadow-2xs">Enter ↵</kbd>
+              <span className="hidden sm:inline-block text-xs text-slate-400">
+                Press <kbd className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-600 shadow-2xs">Enter ↵</kbd>
               </span>
               <button
                 type="button"
                 disabled={!isStepValid(currentStep)}
                 onClick={handleNext}
-                className="flex items-center gap-2 rounded-xl bg-[var(--primary)] px-6 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--primary)]/90 hover:shadow active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                className="flex items-center gap-2 rounded-full bg-[var(--primary)] px-6 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm transition-all hover:bg-[var(--primary)]/90 hover:shadow active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <span>Continue</span>
-                <ArrowRight className="size-3.5" />
+                <ArrowRight className="size-4" />
               </button>
             </div>
           ) : (
-            <div className="text-xs text-[var(--muted-foreground)]">
+            <div className="text-xs text-slate-500">
               Choose any plan above to complete setup
             </div>
           )}
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

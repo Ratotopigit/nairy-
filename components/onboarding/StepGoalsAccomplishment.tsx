@@ -2,7 +2,19 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Check, Target, Calendar } from "lucide-react";
+import {
+  Check,
+  Target,
+  UserPlus,
+  TrendingUp,
+  Sparkles,
+  Users,
+  Zap,
+  Megaphone,
+  ShoppingCart,
+  Layers,
+  Rocket,
+} from "lucide-react";
 import { OnboardingData } from "@/lib/onboarding";
 
 interface StepGoalsAccomplishmentProps {
@@ -11,16 +23,16 @@ interface StepGoalsAccomplishmentProps {
 }
 
 const GOALS = [
-  "Get more leads",
-  "Get more customers",
-  "Increase sales",
-  "Build my brand",
-  "Grow my audience",
-  "Automate my business",
-  "Improve my marketing",
-  "Sell products/services online",
-  "Create digital products",
-  "Scale my business",
+  { label: "Get more leads", icon: Target },
+  { label: "Get more customers", icon: UserPlus },
+  { label: "Increase sales", icon: TrendingUp },
+  { label: "Build my brand", icon: Sparkles },
+  { label: "Grow my audience", icon: Users },
+  { label: "Automate my business", icon: Zap },
+  { label: "Improve my marketing", icon: Megaphone },
+  { label: "Sell products/services online", icon: ShoppingCart },
+  { label: "Create digital products", icon: Layers },
+  { label: "Scale my business", icon: Rocket },
 ];
 
 export function StepGoalsAccomplishment({
@@ -37,55 +49,64 @@ export function StepGoalsAccomplishment({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* Step Heading */}
       <div>
-        <h2 className="text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+        <h2 className="text-2xl sm:text-[26px] font-bold tracking-tight text-[var(--foreground)]">
           What do you want to achieve?
         </h2>
-        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+        <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
           Define your target outcomes so we can prioritize the most impactful playbooks and automated workflows.
         </p>
       </div>
 
       {/* Q8: Main Goals (Multi-select) */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Target className="size-4 text-[var(--primary)]" />
-            <label className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]">
-              What is your main goal? <span className="text-[var(--accent)]">*</span>
-            </label>
-          </div>
-          <span className="text-xs text-[var(--muted-foreground)]">
+          <label className="block text-xs sm:text-sm font-bold text-[var(--foreground)]">
+            What is your main goal? <span className="text-red-500">*</span>
+          </label>
+          <span className="text-xs text-slate-500">
             Select all that apply
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {GOALS.map((goal) => {
-            const isSelected = (data.mainGoals || []).includes(goal);
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {GOALS.map(({ label, icon: Icon }) => {
+            const isSelected = (data.mainGoals || []).includes(label);
             return (
               <button
-                key={goal}
+                key={label}
                 type="button"
-                onClick={() => toggleGoal(goal)}
-                className={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left text-xs font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
+                onClick={() => toggleGoal(label)}
+                className={`group relative flex items-center justify-between rounded-2xl border px-3.5 py-2.5 text-left transition-all duration-150 focus:outline-none ${
                   isSelected
-                    ? "border-[var(--primary)] bg-[var(--card)] text-[var(--primary)] shadow-xs ring-1 ring-[var(--primary)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:border-[var(--border-strong)] hover:bg-[var(--surface)]"
+                    ? "border-[var(--primary)] bg-[var(--primary)]/[0.03] text-[var(--primary)] ring-1 ring-[var(--primary)] shadow-2xs"
+                    : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50/70"
                 }`}
               >
-                <span>{goal}</span>
+                <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                  <Icon
+                    className={`size-4 shrink-0 transition-colors ${
+                      isSelected
+                        ? "text-[var(--primary)]"
+                        : "text-slate-500 group-hover:text-slate-700"
+                    }`}
+                  />
+                  <span className="text-xs font-semibold truncate leading-snug">
+                    {label}
+                  </span>
+                </div>
                 {isSelected ? (
-                  <motion.span
-                    initial={{ scale: 0.5, opacity: 0 }}
+                  <motion.div
+                    initial={{ scale: 0.6, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-foreground)]"
+                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white"
                   >
                     <Check className="size-2.5 stroke-[3]" />
-                  </motion.span>
+                  </motion.div>
                 ) : (
-                  <span className="size-4 shrink-0 rounded-full border border-[var(--border)] group-hover:border-[var(--border-strong)]" />
+                  <span className="size-4 shrink-0 rounded-full border border-slate-300 group-hover:border-slate-400" />
                 )}
               </button>
             );
@@ -94,23 +115,18 @@ export function StepGoalsAccomplishment({
       </div>
 
       {/* Q9: 3–6 Month Accomplishment */}
-      <div className="space-y-3 pt-2">
-        <div className="flex items-center gap-2">
-          <Calendar className="size-4 text-[var(--primary)]" />
-          <label htmlFor="targetAccomplishment" className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]">
-            What would you like to accomplish in the next 3–6 months?
-          </label>
-        </div>
-        <p className="text-xs text-[var(--muted-foreground)]">
-          Optional, but helps our AI Avatar and Offer modules formulate precise strategic recommendations.
-        </p>
+      <div className="space-y-2">
+        <label htmlFor="targetAccomplishment" className="block text-xs sm:text-sm font-bold text-[var(--foreground)]">
+          What would you like to accomplish in 3–6 months?{" "}
+          <span className="text-xs font-normal text-slate-500">(optional)</span>
+        </label>
         <textarea
           id="targetAccomplishment"
           rows={3}
           value={data.targetAccomplishment}
           onChange={(e) => onChange({ targetAccomplishment: e.target.value })}
           placeholder="e.g., Launch our flagship group program and generate $30k in new monthly recurring revenue..."
-          className="w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 text-sm text-[var(--foreground)] placeholder-[var(--muted-foreground)]/60 transition-all hover:border-[var(--border-strong)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+          className="w-full rounded-2xl border border-slate-200 bg-white p-3.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none shadow-2xs resize-none"
         />
       </div>
     </div>

@@ -2,7 +2,17 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Check } from "lucide-react";
+import {
+  Check,
+  User,
+  Rocket,
+  Megaphone,
+  Users,
+  GraduationCap,
+  Building2,
+  Laptop,
+  MoreHorizontal,
+} from "lucide-react";
 import { OnboardingData } from "@/lib/onboarding";
 
 interface StepAboutYouProps {
@@ -10,37 +20,38 @@ interface StepAboutYouProps {
   onChange: (patch: Partial<OnboardingData>) => void;
 }
 
-const ROLES = [
-  "Business owner",
-  "Entrepreneur",
-  "Marketer",
-  "Coach / Consultant",
-  "Course creator",
-  "Agency",
-  "Freelancer",
-  "Other",
+const ROLE_OPTIONS = [
+  { role: "Business owner", icon: User },
+  { role: "Entrepreneur", icon: Rocket },
+  { role: "Marketer", icon: Megaphone },
+  { role: "Coach / Consultant", icon: Users },
+  { role: "Course creator", icon: GraduationCap },
+  { role: "Agency", icon: Building2 },
+  { role: "Freelancer", icon: Laptop },
+  { role: "Other", icon: MoreHorizontal },
 ];
 
 export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* Step Heading */}
       <div>
-        <h2 className="text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
-          Tell us about you
+        <h2 className="text-2xl sm:text-[26px] font-bold tracking-tight text-[var(--foreground)]">
+          Let’s personalize your experience
         </h2>
-        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-          We&apos;ll tailor your personalized creation workspace and learning tracks based on your role.
+        <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
+          We’ll tailor your workspace and learning tracks based on your role and goals.
         </p>
       </div>
 
       {/* Q1: Name */}
-      <div className="space-y-4">
-        <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]">
-          What should we call you? <span className="text-[var(--accent)]">*</span>
+      <div className="space-y-1.5">
+        <label className="block text-xs sm:text-sm font-bold text-[var(--foreground)]">
+          What should we call you? <span className="text-red-500">*</span>
         </label>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
-            <label htmlFor="firstName" className="block text-xs text-[var(--muted-foreground)] mb-1.5">
+            <label htmlFor="firstName" className="block text-xs text-slate-500 mb-1">
               First name
             </label>
             <input
@@ -49,13 +60,13 @@ export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
               required
               value={data.firstName}
               onChange={(e) => onChange({ firstName: e.target.value })}
-              placeholder="Alex"
+              placeholder="Shrawan"
               autoFocus
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--foreground)] placeholder-[var(--muted-foreground)]/60 transition-all hover:border-[var(--border-strong)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none shadow-2xs"
             />
           </div>
           <div>
-            <label htmlFor="lastName" className="block text-xs text-[var(--muted-foreground)] mb-1.5">
+            <label htmlFor="lastName" className="block text-xs text-slate-500 mb-1">
               Last name
             </label>
             <input
@@ -64,49 +75,61 @@ export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
               required
               value={data.lastName}
               onChange={(e) => onChange({ lastName: e.target.value })}
-              placeholder="Rivera"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--foreground)] placeholder-[var(--muted-foreground)]/60 transition-all hover:border-[var(--border-strong)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+              placeholder="Karki"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none shadow-2xs"
             />
           </div>
         </div>
       </div>
 
       {/* Q2: Role */}
-      <div className="space-y-4">
+      <div className="space-y-2">
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]">
-            What best describes you? <span className="text-[var(--accent)]">*</span>
+          <label className="block text-xs sm:text-sm font-bold text-[var(--foreground)]">
+            What best describes you? <span className="text-red-500">*</span>
           </label>
-          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+          <p className="mt-0.5 text-xs text-slate-500">
             Select the identity that aligns closest with your primary focus.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {ROLES.map((role) => {
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {ROLE_OPTIONS.map(({ role, icon: Icon }) => {
             const isSelected = data.role === role;
             return (
               <button
                 key={role}
                 type="button"
                 onClick={() => onChange({ role })}
-                className={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left text-xs font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
+                className={`group relative flex items-center justify-between rounded-2xl border px-3.5 py-3 text-left transition-all duration-150 focus:outline-none ${
                   isSelected
-                    ? "border-[var(--primary)] bg-[var(--card)] text-[var(--primary)] shadow-xs ring-1 ring-[var(--primary)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:border-[var(--border-strong)] hover:bg-[var(--surface)]"
+                    ? "border-[var(--primary)] bg-[var(--primary)]/[0.03] text-[var(--primary)] ring-1 ring-[var(--primary)] shadow-2xs"
+                    : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50/70"
                 }`}
               >
-                <span>{role}</span>
+                <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                  <Icon
+                    className={`size-4 shrink-0 transition-colors ${
+                      isSelected
+                        ? "text-[var(--primary)]"
+                        : "text-slate-500 group-hover:text-slate-700"
+                    }`}
+                  />
+                  <span className="text-xs font-semibold truncate leading-snug">
+                    {role}
+                  </span>
+                </div>
+
                 {isSelected ? (
-                  <motion.span
-                    initial={{ scale: 0.5, opacity: 0 }}
+                  <motion.div
+                    initial={{ scale: 0.6, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="flex size-4 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-foreground)]"
+                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white"
                   >
                     <Check className="size-2.5 stroke-[3]" />
-                  </motion.span>
+                  </motion.div>
                 ) : (
-                  <span className="size-4 rounded-full border border-[var(--border)] group-hover:border-[var(--border-strong)]" />
+                  <span className="size-4 shrink-0 rounded-full border border-slate-300 group-hover:border-slate-400" />
                 )}
               </button>
             );
@@ -116,11 +139,11 @@ export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
         {/* Custom role input if "Other" is selected */}
         {data.role === "Other" && (
           <motion.div
-            initial={{ opacity: 0, y: -6 }}
+            initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="pt-2"
+            className="pt-1"
           >
-            <label htmlFor="customRole" className="block text-xs text-[var(--muted-foreground)] mb-1.5">
+            <label htmlFor="customRole" className="block text-xs text-slate-500 mb-1">
               Please specify your role:
             </label>
             <input
@@ -129,7 +152,7 @@ export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
               value={data.customRole || ""}
               onChange={(e) => onChange({ customRole: e.target.value })}
               placeholder="e.g., Fractional CMO, Community Builder"
-              className="w-full sm:w-1/2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-2.5 text-sm text-[var(--foreground)] placeholder-[var(--muted-foreground)]/60 transition-all hover:border-[var(--border-strong)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+              className="w-full sm:w-1/2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs text-slate-900 placeholder-slate-400 transition-all hover:border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none shadow-2xs"
             />
           </motion.div>
         )}

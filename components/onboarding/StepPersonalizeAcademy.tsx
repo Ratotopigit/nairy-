@@ -2,7 +2,25 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Check, GraduationCap, Video, Clock } from "lucide-react";
+import {
+  Check,
+  Megaphone,
+  Target,
+  TrendingUp,
+  Zap,
+  PenTool,
+  Globe,
+  Users,
+  Rocket,
+  Sparkles,
+  Video,
+  BookOpen,
+  Briefcase,
+  FileText,
+  GraduationCap,
+  Layers,
+  Clock,
+} from "lucide-react";
 import { OnboardingData } from "@/lib/onboarding";
 
 interface StepPersonalizeAcademyProps {
@@ -11,31 +29,31 @@ interface StepPersonalizeAcademyProps {
 }
 
 const LEARNING_TOPICS = [
-  "Marketing",
-  "Lead generation",
-  "Sales",
-  "Automation",
-  "Content creation",
-  "Building an online business",
-  "Growing my audience",
-  "Scaling my business",
-  "Using AI for business",
+  { label: "Marketing", icon: Megaphone },
+  { label: "Lead generation", icon: Target },
+  { label: "Sales", icon: TrendingUp },
+  { label: "Automation", icon: Zap },
+  { label: "Content creation", icon: PenTool },
+  { label: "Building an online business", icon: Globe },
+  { label: "Growing my audience", icon: Users },
+  { label: "Scaling my business", icon: Rocket },
+  { label: "Using AI for business", icon: Sparkles },
 ];
 
 const LEARNING_PREFERENCES = [
-  "Quick videos",
-  "Step-by-step guides",
-  "Practical projects",
-  "Templates/resources",
-  "Full courses",
-  "A mixture",
+  { label: "Quick videos", icon: Video },
+  { label: "Step-by-step guides", icon: BookOpen },
+  { label: "Practical projects", icon: Briefcase },
+  { label: "Templates/resources", icon: FileText },
+  { label: "Full courses", icon: GraduationCap },
+  { label: "A mixture", icon: Layers },
 ];
 
 const TIME_COMMITMENTS = [
-  "Less than 1 hour",
-  "1–3 hours",
-  "3–5 hours",
-  "5+ hours",
+  { label: "Less than 1 hour", icon: Clock },
+  { label: "1–3 hours", icon: Clock },
+  { label: "3–5 hours", icon: Clock },
+  { label: "5+ hours", icon: Clock },
 ];
 
 export function StepPersonalizeAcademy({
@@ -43,50 +61,59 @@ export function StepPersonalizeAcademy({
   onChange,
 }: StepPersonalizeAcademyProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Step Heading */}
       <div>
-        <h2 className="text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+        <h2 className="text-2xl sm:text-[26px] font-bold tracking-tight text-[var(--foreground)]">
           Personalize your Academy curriculum
         </h2>
-        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+        <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
           Customize your learning path so you receive the highest-relevance modules first.
         </p>
       </div>
 
       {/* Q12: What would you like to learn first? */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <GraduationCap className="size-4 text-[var(--primary)]" />
-          <label className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]">
-            What would you like to learn first? <span className="text-[var(--accent)]">*</span>
-          </label>
-        </div>
+      <div className="space-y-1.5">
+        <label className="block text-xs sm:text-sm font-bold text-[var(--foreground)]">
+          What would you like to learn first? <span className="text-red-500">*</span>
+        </label>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {LEARNING_TOPICS.map((topic) => {
-            const isSelected = data.primaryLearningInterest === topic;
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {LEARNING_TOPICS.map(({ label, icon: Icon }) => {
+            const isSelected = data.primaryLearningInterest === label;
             return (
               <button
-                key={topic}
+                key={label}
                 type="button"
-                onClick={() => onChange({ primaryLearningInterest: topic })}
-                className={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left text-xs font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
+                onClick={() => onChange({ primaryLearningInterest: label })}
+                className={`group relative flex items-center justify-between rounded-2xl border px-3 py-2 text-left transition-all duration-150 focus:outline-none ${
                   isSelected
-                    ? "border-[var(--primary)] bg-[var(--card)] text-[var(--primary)] shadow-xs ring-1 ring-[var(--primary)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:border-[var(--border-strong)] hover:bg-[var(--surface)]"
+                    ? "border-[var(--primary)] bg-[var(--primary)]/[0.03] text-[var(--primary)] ring-1 ring-[var(--primary)] shadow-2xs"
+                    : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50/70"
                 }`}
               >
-                <span>{topic}</span>
+                <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                  <Icon
+                    className={`size-3.5 sm:size-4 shrink-0 transition-colors ${
+                      isSelected
+                        ? "text-[var(--primary)]"
+                        : "text-slate-500 group-hover:text-slate-700"
+                    }`}
+                  />
+                  <span className="text-xs font-semibold truncate leading-snug">
+                    {label}
+                  </span>
+                </div>
                 {isSelected ? (
-                  <motion.span
-                    initial={{ scale: 0.5, opacity: 0 }}
+                  <motion.div
+                    initial={{ scale: 0.6, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-foreground)]"
+                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white"
                   >
                     <Check className="size-2.5 stroke-[3]" />
-                  </motion.span>
+                  </motion.div>
                 ) : (
-                  <span className="size-4 shrink-0 rounded-full border border-[var(--border)] group-hover:border-[var(--border-strong)]" />
+                  <span className="size-4 shrink-0 rounded-full border border-slate-300 group-hover:border-slate-400" />
                 )}
               </button>
             );
@@ -95,39 +122,47 @@ export function StepPersonalizeAcademy({
       </div>
 
       {/* Q13: How do you prefer to learn? */}
-      <div className="space-y-3 pt-2">
-        <div className="flex items-center gap-2">
-          <Video className="size-4 text-[var(--primary)]" />
-          <label className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]">
-            How do you prefer to learn? <span className="text-[var(--accent)]">*</span>
-          </label>
-        </div>
+      <div className="space-y-1.5">
+        <label className="block text-xs sm:text-sm font-bold text-[var(--foreground)]">
+          How do you prefer to learn? <span className="text-red-500">*</span>
+        </label>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {LEARNING_PREFERENCES.map((pref) => {
-            const isSelected = data.learningPreference === pref;
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {LEARNING_PREFERENCES.map(({ label, icon: Icon }) => {
+            const isSelected = data.learningPreference === label;
             return (
               <button
-                key={pref}
+                key={label}
                 type="button"
-                onClick={() => onChange({ learningPreference: pref })}
-                className={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left text-xs font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
+                onClick={() => onChange({ learningPreference: label })}
+                className={`group relative flex items-center justify-between rounded-2xl border px-3 py-2 text-left transition-all duration-150 focus:outline-none ${
                   isSelected
-                    ? "border-[var(--primary)] bg-[var(--card)] text-[var(--primary)] shadow-xs ring-1 ring-[var(--primary)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:border-[var(--border-strong)] hover:bg-[var(--surface)]"
+                    ? "border-[var(--primary)] bg-[var(--primary)]/[0.03] text-[var(--primary)] ring-1 ring-[var(--primary)] shadow-2xs"
+                    : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50/70"
                 }`}
               >
-                <span>{pref}</span>
+                <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                  <Icon
+                    className={`size-3.5 sm:size-4 shrink-0 transition-colors ${
+                      isSelected
+                        ? "text-[var(--primary)]"
+                        : "text-slate-500 group-hover:text-slate-700"
+                    }`}
+                  />
+                  <span className="text-xs font-semibold truncate leading-snug">
+                    {label}
+                  </span>
+                </div>
                 {isSelected ? (
-                  <motion.span
-                    initial={{ scale: 0.5, opacity: 0 }}
+                  <motion.div
+                    initial={{ scale: 0.6, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-foreground)]"
+                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white"
                   >
                     <Check className="size-2.5 stroke-[3]" />
-                  </motion.span>
+                  </motion.div>
                 ) : (
-                  <span className="size-4 shrink-0 rounded-full border border-[var(--border)] group-hover:border-[var(--border-strong)]" />
+                  <span className="size-4 shrink-0 rounded-full border border-slate-300 group-hover:border-slate-400" />
                 )}
               </button>
             );
@@ -136,39 +171,47 @@ export function StepPersonalizeAcademy({
       </div>
 
       {/* Q14: How much time can you spend learning each week? */}
-      <div className="space-y-3 pt-2">
-        <div className="flex items-center gap-2">
-          <Clock className="size-4 text-[var(--primary)]" />
-          <label className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]">
-            How much time can you spend learning each week? <span className="text-[var(--accent)]">*</span>
-          </label>
-        </div>
+      <div className="space-y-1.5">
+        <label className="block text-xs sm:text-sm font-bold text-[var(--foreground)]">
+          Weekly learning commitment <span className="text-red-500">*</span>
+        </label>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {TIME_COMMITMENTS.map((time) => {
-            const isSelected = data.weeklyTimeCommitment === time;
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {TIME_COMMITMENTS.map(({ label, icon: Icon }) => {
+            const isSelected = data.weeklyTimeCommitment === label;
             return (
               <button
-                key={time}
+                key={label}
                 type="button"
-                onClick={() => onChange({ weeklyTimeCommitment: time })}
-                className={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left text-xs font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
+                onClick={() => onChange({ weeklyTimeCommitment: label })}
+                className={`group relative flex items-center justify-between rounded-2xl border px-3 py-2 text-left transition-all duration-150 focus:outline-none ${
                   isSelected
-                    ? "border-[var(--primary)] bg-[var(--card)] text-[var(--primary)] shadow-xs ring-1 ring-[var(--primary)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:border-[var(--border-strong)] hover:bg-[var(--surface)]"
+                    ? "border-[var(--primary)] bg-[var(--primary)]/[0.03] text-[var(--primary)] ring-1 ring-[var(--primary)] shadow-2xs"
+                    : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50/70"
                 }`}
               >
-                <span>{time}</span>
+                <div className="flex items-center gap-2 min-w-0 pr-1">
+                  <Icon
+                    className={`size-3.5 sm:size-4 shrink-0 transition-colors ${
+                      isSelected
+                        ? "text-[var(--primary)]"
+                        : "text-slate-500 group-hover:text-slate-700"
+                    }`}
+                  />
+                  <span className="text-xs font-semibold truncate leading-snug">
+                    {label}
+                  </span>
+                </div>
                 {isSelected ? (
-                  <motion.span
-                    initial={{ scale: 0.5, opacity: 0 }}
+                  <motion.div
+                    initial={{ scale: 0.6, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-foreground)]"
+                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white"
                   >
                     <Check className="size-2.5 stroke-[3]" />
-                  </motion.span>
+                  </motion.div>
                 ) : (
-                  <span className="size-4 shrink-0 rounded-full border border-[var(--border)] group-hover:border-[var(--border-strong)]" />
+                  <span className="size-4 shrink-0 rounded-full border border-slate-300 group-hover:border-slate-400" />
                 )}
               </button>
             );
