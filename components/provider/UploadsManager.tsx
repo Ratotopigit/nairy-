@@ -399,8 +399,8 @@ export default function UploadsManager() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-xl bg-secondary px-3 py-1.5 text-xs font-semibold text-foreground">
-              <BadgeCheck className="size-3.5 text-primary" />
+            <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-emerald-600">
+              <BadgeCheck className="size-3.5 text-emerald-600" />
               Auto-saved per user
             </span>
           </div>
@@ -659,7 +659,7 @@ export default function UploadsManager() {
                 Brand Lines
               </p>
               <h2 className="mt-1 text-xl font-semibold tracking-[-0.035em] text-foreground">
-                Give Content Maker your reusable wording
+                Give Webinar Content your reusable wording
               </h2>
               <p className="mt-1 text-xs sm:text-sm leading-5 text-muted-foreground">
                 Add the lines, quotes, claims, and asset instructions that should follow every PPT/PDF.
@@ -718,7 +718,7 @@ export default function UploadsManager() {
                 onClick={() => void saveBrandBrief(true)}
                 className="inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2 text-xs sm:text-sm font-semibold text-background transition hover:bg-foreground/90 disabled:opacity-40"
               >
-                <span>Send to Content Maker</span>
+                <span>Send to Webinar Content</span>
                 <ArrowRight className="size-4" />
               </button>
             </div>
@@ -735,7 +735,7 @@ export default function UploadsManager() {
             </div>
             <div className="flex gap-3">
               <Palette className="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>Image palettes are saved so Content Maker can reuse brand colors.</span>
+              <span>Image palettes are saved so Webinar Content can reuse brand colors.</span>
             </div>
             <div className="flex gap-3">
               <Eraser className="mt-0.5 size-4 shrink-0 text-primary" />

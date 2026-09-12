@@ -326,7 +326,7 @@ export default function Builder() {
       const context = [
         generationPrompt,
         studioAssetContext,
-        avatarIdea && !generationPrompt ? `Linked Avatar IQ idea:\n${avatarIdea}` : "",
+        avatarIdea && !generationPrompt ? `Linked Webinar Chat idea:\n${avatarIdea}` : "",
         `Presentation for ${persona}.`,
         typeof profile.demographics === "string" ? `Audience: ${profile.demographics}` : "",
         typeof profile.core_fear === "string" ? `Core problem: ${profile.core_fear}` : "",
@@ -534,7 +534,7 @@ export default function Builder() {
           messages,
           assetContext,
         }).catch((error): AssistantActions => ({
-          reply: error instanceof Error ? error.message : "Content Maker workflow failed.",
+          reply: error instanceof Error ? error.message : "Webinar Content workflow failed.",
           slides: buildLocalDeck(activeDescription, requestedCount, purpose, Boolean(image || logo)),
         }));
       if (!remote?.slides?.length) {
@@ -610,7 +610,7 @@ export default function Builder() {
       }
       setStatus(`${generatedSlides.length} slides ready.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Content Maker could not generate the deck");
+      setStatus(error instanceof Error ? error.message : "Webinar Content could not generate the deck");
     } finally {
       window.clearInterval(progress);
       setStep(-1);
@@ -649,7 +649,7 @@ export default function Builder() {
         messages: [...messages, userMessage],
         assetContext,
       });
-      if (!remote) throw new Error("Content Maker returned an empty response.");
+      if (!remote) throw new Error("Webinar Content returned an empty response.");
       if (remote.style) applyStyle(remote.style);
       if (remote.fontSet) setFontSetId(remote.fontSet);
       if (remote.palette) setPaletteId(remote.palette);
@@ -685,7 +685,7 @@ export default function Builder() {
         updated_at: new Date().toISOString(),
       });
     } catch (error) {
-      const fallback = error instanceof Error ? error.message : "Content Maker could not process that request.";
+      const fallback = error instanceof Error ? error.message : "Webinar Content could not process that request.";
       setMessages((prev) => [...prev, {
         id: `${id}e`,
         role: "assistant",
@@ -934,7 +934,7 @@ function brainstormReply(input: string, hasAssetContext: boolean) {
       ? "Brand context: saved logo, visual assets, business lines, quotes, and usage notes will be attached when you build from this."
       : "Brand context: add logos, quotes, and source files in Brand Assets if you want them attached automatically.",
     "",
-    "Use Add to brief if you want to keep shaping it, or Build from this when you want Content Maker to create the PPT/PDF-ready deck.",
+    "Use Add to brief if you want to keep shaping it, or Build from this when you want Webinar Content to create the PPT/PDF-ready deck.",
   ].join("\n");
 }
 

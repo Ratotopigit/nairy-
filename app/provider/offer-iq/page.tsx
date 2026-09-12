@@ -166,11 +166,11 @@ export default function OfferIQPage() {
         }),
       });
 
-      const raw = await readN8nJson<unknown>(response, "Offer IQ workflow");
+      const raw = await readN8nJson<unknown>(response, "Webinar Offer workflow");
       const candidate = Array.isArray(raw) ? raw[0] : raw;
       const offer = ((candidate as { data?: unknown })?.data ?? (candidate as { offer?: unknown })?.offer ?? candidate) as OfferBlueprint;
       if (!offer?.title || !Array.isArray(offer.scope)) {
-        throw new Error("Offer IQ returned an invalid offer structure.");
+        throw new Error("Webinar Offer returned an invalid offer structure.");
       }
       setBuyer({ ...(buyer ?? {}), offer });
       setResult(offer);
@@ -198,21 +198,19 @@ export default function OfferIQPage() {
       <div className="mx-auto max-w-2xl py-16 text-center">
         <Target className="mx-auto size-8 text-muted-foreground" />
         <h1 className="mt-5 text-3xl font-semibold tracking-[-0.04em]">Build your buyer blueprint first</h1>
-        <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">Offer IQ uses your saved audience, problems, triggers, and objections so you do not answer the same questions twice.</p>
-        <Link href="/provider/astro-ai" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-foreground px-5 py-3 text-sm font-medium text-background">Open Avatar IQ <ArrowRight className="size-4" /></Link>
+        <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">Webinar Offer uses your saved audience, problems, triggers, and objections so you do not answer the same questions twice.</p>
+        <Link href="/provider/astro-ai" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-foreground px-5 py-3 text-sm font-medium text-background">Open Webinar Chat <ArrowRight className="size-4" /></Link>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1060px] pb-16 pt-4">
-      <header className="border-b border-border pb-8">
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Stage 02 · Offer IQ</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">Shape an offer your buyer is ready to choose.</h1>
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">Buyer context loaded for <strong className="text-foreground">{buyer.persona_name}</strong>. Uploads, brief, and Avatar IQ notes carry forward. Make the commercial choices below, then send the offer into Content Maker.</p>
-      </header>
+    <div className="mx-auto w-full max-w-[1060px] pb-16 pt-2">
+      <h1 className="mb-6 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl text-foreground">
+        Shape an offer your buyer is ready to choose.
+      </h1>
 
-      <div className="mt-8 grid gap-7 lg:grid-cols-[390px_minmax(0,1fr)]">
+      <div className="grid gap-7 lg:grid-cols-[390px_minmax(0,1fr)]">
         <section className="space-y-5 rounded-3xl border border-border bg-card p-5">
           <Field label="Primary outcome"><textarea value={focus} onChange={(event) => setFocus(event.target.value)} rows={3} className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-foreground/35" /></Field>
           <Field label="Delivery model"><Choice value={delivery} onChange={setDelivery} options={["Done-for-you", "Done-with-you", "Advisory"]} /></Field>
@@ -294,7 +292,7 @@ export default function OfferIQPage() {
             </div>
           ) : (
             <div className="grid min-h-[520px] place-items-center rounded-3xl border border-dashed border-border bg-card/40 p-8 text-center">
-              <div><Layers3 className="mx-auto size-7 text-muted-foreground" /><h2 className="mt-4 text-xl font-semibold">Your offer strategy will appear here</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Offer IQ combines these commercial choices with the saved buyer blueprint, then carries the result into Content Maker.</p></div>
+              <div><Layers3 className="mx-auto size-7 text-muted-foreground" /><h2 className="mt-4 text-xl font-semibold">Your offer strategy will appear here</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Webinar Offer combines these commercial choices with the saved buyer blueprint, then carries the result into Webinar Content.</p></div>
             </div>
           )}
         </section>

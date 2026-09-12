@@ -10,11 +10,11 @@ import { auth } from "@/lib/firebase/config";
 
 const navItems = [
   { href: "/provider", label: "Home" },
-  { href: "/provider/astro-ai", label: "Avatar IQ" },
-  { href: "/provider/offer-iq", label: "Offer IQ" },
-  { href: "/provider/slides", label: "Content" },
-  { href: "/provider/uploads", label: "Uploads" },
-  { href: "/provider/speaker-portal", label: "Speakers" },
+  { href: "/provider/astro-ai", label: "Webinar Chat" },
+  { href: "/provider/offer-iq", label: "Webinar Offer" },
+  { href: "/provider/slides", label: "Webinar Content" },
+  { href: "/provider/uploads", label: "Webinar Upload" },
+  { href: "/provider/speaker-portal", label: "Webinar Speakar" },
 ];
 
 export default function ProviderNavbar() {
@@ -36,7 +36,7 @@ export default function ProviderNavbar() {
         <Link href="/provider" className="mr-auto min-w-0">
           <span className="flex items-baseline gap-2">
             <span className="text-base font-bold uppercase tracking-[-0.01em] text-[var(--nav-ink)]">
-              AstroCraft
+              WebinarKit
             </span>
             <span className="hidden font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--nav-muted)] sm:inline">
               Creation Studio

@@ -22,10 +22,10 @@ export function OnboardingProgress({
         {/* Brand */}
         <div className="flex items-center gap-3">
           <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--card)] border border-[var(--border)] shadow-xs">
-            <span className="font-mono text-xs font-bold text-[var(--primary)]">AC</span>
+            <span className="font-mono text-xs font-bold text-[var(--primary)]">WK</span>
           </div>
           <span className="text-sm font-bold tracking-tight text-[var(--foreground)]">
-            AstroCraft
+            WebinarKit
           </span>
           <span className="hidden sm:inline-block text-xs text-[var(--muted-foreground)] border-l border-[var(--border)] pl-3">
             {stepTitle}

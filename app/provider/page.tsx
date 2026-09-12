@@ -5,6 +5,7 @@ import {
   FilePlus2,
   Layers3,
   MessageSquare,
+  Mic,
   UploadCloud,
 } from "lucide-react";
 import Link from "next/link";
@@ -13,7 +14,7 @@ import { usePathname } from "next/navigation";
 const modules = [
   {
     href: "/provider/astro-ai",
-    label: "Avatar IQ",
+    label: "Webinar Chat",
     description: "Brainstorm buyer personas, offers, and presentation strategy through an AI chat.",
     icon: MessageSquare,
     accent: "text-emerald-700",
@@ -21,7 +22,7 @@ const modules = [
   },
   {
     href: "/provider/offer-iq",
-    label: "Offer IQ",
+    label: "Webinar Offer",
     description: "Shape a direct-response offer powered by your buyer blueprint and uploads.",
     icon: Layers3,
     accent: "text-amber-700",
@@ -29,7 +30,7 @@ const modules = [
   },
   {
     href: "/provider/slides",
-    label: "Content",
+    label: "Webinar Content",
     description: "Generate and edit webinar decks, sales slides, and pitch presentations.",
     icon: FilePlus2,
     accent: "text-sky-700",
@@ -37,11 +38,19 @@ const modules = [
   },
   {
     href: "/provider/uploads",
-    label: "Uploads",
+    label: "Webinar Upload",
     description: "Upload logos, brand photos, briefs, and PDFs so every AI module has context.",
     icon: UploadCloud,
     accent: "text-violet-700",
     bg: "bg-violet-50",
+  },
+  {
+    href: "/provider/speaker-portal",
+    label: "Webinar Speakar",
+    description: "Run live broadcasts with real-time teleprompter and audience engagement controls.",
+    icon: Mic,
+    accent: "text-rose-700",
+    bg: "bg-rose-50",
   },
 ];
 
@@ -55,16 +64,16 @@ export default function ProviderHomePage() {
           Creation Studio
         </p>
         <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
-          Welcome to AstroCraft.
+          Welcome to WebinarKit.
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
           Your buyer intelligence, offer strategy, and presentation creation workspace.
-          Start with Avatar IQ to brainstorm, then flow into Offer IQ and Content.
-          Upload logos, brand colors, and brief PDFs so every module knows your business.
+          Start with Webinar Chat to brainstorm, then flow into Webinar Offer and Webinar Content.
+          Upload logos, brand colors, and brief PDFs in Webinar Upload so every module knows your business.
         </p>
       </header>
 
-      <div className="mt-8 grid gap-5 sm:grid-cols-2">
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {modules.map((item) => {
           const active = pathname.startsWith(item.href);
           const Icon = item.icon;
@@ -107,13 +116,13 @@ export default function ProviderHomePage() {
               01 — Upload context
             </p>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Add logos, brand colors, and a brief PDF in Uploads so Avatar IQ and
-              Offer IQ know your business.
+              Add logos, brand colors, and a brief PDF in Webinar Upload so Webinar Chat and
+              Webinar Offer know your business.
             </p>
           </li>
           <li className="rounded-2xl border border-border bg-background p-4">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-foreground">
-              02 — Brainstorm with Avatar IQ
+              02 — Brainstorm with Webinar Chat
             </p>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               Chat through your buyer, offer, and presentation ideas. Fill the
@@ -122,7 +131,7 @@ export default function ProviderHomePage() {
           </li>
           <li className="rounded-2xl border border-border bg-background p-4">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-foreground">
-              03 — Ship with Offer IQ + Content
+              03 — Ship with Webinar Offer + Webinar Content
             </p>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               Build an offer strategy, then generate a full presentation deck with

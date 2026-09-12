@@ -205,11 +205,11 @@ export default function CosmicConstellationGraphic() {
           Cosmic Core
         </span>
         <span className="text-[10px] text-slate-400 font-medium">
-          AstroCraft AI
+          WebinarKit AI
         </span>
       </motion.div>
 
-      {/* Floating Beveled Glass Chip 1: Avatar IQ (Top-Left) */}
+      {/* Floating Beveled Glass Chip 1: Webinar Chat (Top-Left) */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: [0, -7, 0] }}
@@ -221,14 +221,14 @@ export default function CosmicConstellationGraphic() {
         </div>
         <div>
           <div className="flex items-center gap-1.5">
-            <p className="text-xs font-semibold text-white">Avatar IQ</p>
+            <p className="text-xs font-semibold text-white">Webinar Chat</p>
             <ShieldCheck className="size-3 text-emerald-400" />
           </div>
           <p className="text-[10px] text-slate-400">Buyer Persona Synced</p>
         </div>
       </motion.div>
 
-      {/* Floating Beveled Glass Chip 2: Offer IQ (Top-Right) */}
+      {/* Floating Beveled Glass Chip 2: Webinar Offer (Top-Right) */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: [0, 7, 0] }}
@@ -240,14 +240,14 @@ export default function CosmicConstellationGraphic() {
         </div>
         <div>
           <div className="flex items-center gap-1.5">
-            <p className="text-xs font-semibold text-white">Offer IQ</p>
+            <p className="text-xs font-semibold text-white">Webinar Offer</p>
             <span className="font-mono text-[9px] px-1.5 py-0.2 bg-amber-400/15 border border-amber-400/30 text-amber-300 rounded font-semibold">$25k-$40k</span>
           </div>
           <p className="text-[10px] text-slate-400">Direct-Response Funnel</p>
         </div>
       </motion.div>
 
-      {/* Floating Beveled Glass Chip 3: Content Maker (Bottom-Right) */}
+      {/* Floating Beveled Glass Chip 3: Webinar Content (Bottom-Right) */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: [0, -8, 0] }}
@@ -259,7 +259,7 @@ export default function CosmicConstellationGraphic() {
         </div>
         <div>
           <div className="flex items-center gap-1.5">
-            <p className="text-xs font-semibold text-white">Content Maker</p>
+            <p className="text-xs font-semibold text-white">Webinar Content</p>
             <span className="font-mono text-[9px] px-1.5 py-0.2 bg-sky-400/15 border border-sky-400/30 text-sky-300 rounded font-semibold">16:9</span>
           </div>
           <p className="text-[10px] text-slate-400">Presentation Deck Ready</p>

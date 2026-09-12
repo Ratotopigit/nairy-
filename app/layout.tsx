@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AstroCraft",
+  title: "WebinarKit",
   description: "Buyer intelligence, offer strategy, and presentation creation in one workspace.",
 };
 

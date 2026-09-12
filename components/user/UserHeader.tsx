@@ -27,7 +27,7 @@ export default function UserHeader() {
           <div className="h-10 w-10 rounded-xl overflow-hidden bg-emerald-50 border border-emerald-100 flex items-center justify-center">
             <img
               src={logo}
-              alt="AstroCraft Logo"
+              alt="WebinarKit Logo"
               width={40}
               height={40}
               draggable={false}
@@ -35,7 +35,7 @@ export default function UserHeader() {
             />
           </div>
           <span className="text-2xl font-extrabold tracking-tight text-slate-900 hidden sm:block">
-            AstroCraft
+            WebinarKit
           </span>
         </div>
       </motion.div>

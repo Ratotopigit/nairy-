@@ -83,7 +83,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const INITIAL_GREETING: Message = {
   id: "welcome",
   role: "assistant",
-  text: "Hi — I’m **Antigravity**, your elite Business Strategy and Brainstorming AI.\n\nTell me about your business, the core offer, or the presentation you want to create. I’ll collaborate with you to formulate high-impact strategies, synthesize your uploaded assets, and when you're ready, output a presentation-ready blueprint.",
+  text: "Hi — I’m **WebKit AI**, your elite Business Strategy and Brainstorming AI.\n\nTell me about your business, the core offer, or the presentation you want to create. I’ll collaborate with you to formulate high-impact strategies, synthesize your uploaded assets, and when you're ready, output a presentation-ready blueprint.",
   timestamp: new Date().toISOString(),
 };
 
@@ -654,63 +654,6 @@ export default function PresentationChat() {
 
       {/* Main Chat Interface */}
       <section className="flex flex-1 flex-col min-w-0 bg-background">
-        {/* Top Header */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 lg:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="hidden lg:grid size-8 place-items-center rounded-lg border border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
-              title="Toggle sidebar"
-            >
-              {sidebarOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-              <h1 className="text-sm font-semibold tracking-tight text-foreground truncate max-w-[200px] sm:max-w-md">
-                {activeBlueprint.persona_name || "Antigravity · Strategy & Ideation"}
-              </h1>
-              <span className="hidden sm:inline-flex rounded-md bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                Strategy AI
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => mergeBlueprintIntoDraft()}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-amber-500/20 transition shadow-sm"
-              title="Merge active blueprint into prompt box"
-            >
-              <Sparkles className="size-3.5 text-amber-500" />
-              <span>Merge into Box</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleInitiateBuild}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-foreground px-3 py-1.5 text-xs font-semibold text-background hover:opacity-90 shadow-sm transition"
-              title="Trigger Mode 2: Full Strategy Synthesis & PPT Blueprint"
-            >
-              <FilePlus2 className="size-3.5 text-amber-300" />
-              <span className="hidden xs:inline">⚡ Initiate Build</span>
-              <span className="xs:hidden">Build</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setBlueprintDrawerOpen(!blueprintDrawerOpen)}
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
-                blueprintDrawerOpen
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border bg-background text-foreground hover:bg-secondary"
-              }`}
-            >
-              <Target className="size-3.5" />
-              Idea Blueprint
-            </button>
-          </div>
-        </header>
-
         {/* Content Body: Chat + Side Panel */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Messages Area */}
@@ -731,7 +674,7 @@ export default function PresentationChat() {
               {busy && (
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <Loader2 className="size-4 animate-spin text-primary" />
-                  <span>Antigravity is formulating strategy...</span>
+                  <span>WebKit AI is formulating strategy...</span>
                 </div>
               )}
               <div ref={endRef} />
@@ -758,10 +701,22 @@ export default function PresentationChat() {
                         void handleSend();
                       }
                     }}
-                    placeholder="Message Antigravity... (Brainstorm ideas, ask strategy questions, or plan your presentation)"
+                    placeholder="Message WebKit AI... (Brainstorm ideas, ask strategy questions, or plan your presentation)"
                     className="max-h-48 min-h-[48px] flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
                   />
                   <div className="flex items-center gap-2 p-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setBlueprintDrawerOpen((prev) => !prev)}
+                      title={blueprintDrawerOpen ? "Close Idea Blueprint" : "Open Idea Blueprint"}
+                      className={`grid size-9 place-items-center rounded-xl border transition ${
+                        blueprintDrawerOpen
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border bg-secondary text-foreground hover:bg-surface-raised"
+                      }`}
+                    >
+                      <Target className="size-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => mergeBlueprintIntoDraft()}
@@ -839,7 +794,7 @@ export default function PresentationChat() {
                     className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 py-2 text-center text-xs font-semibold text-foreground transition hover:border-foreground/40 shadow-sm"
                   >
                     <Layers3 className="size-3.5" />
-                    Shape in Offer IQ
+                    Shape in Webinar Offer
                   </button>
                 </div>
 
@@ -955,7 +910,7 @@ export default function PresentationChat() {
                     className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-medium text-foreground transition hover:border-foreground/40"
                   >
                     <Layers3 className="size-3.5" />
-                    Continue to Offer IQ
+                    Continue to Webinar Offer
                   </button>
                 </div>
               </div>
@@ -970,7 +925,7 @@ export default function PresentationChat() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  {handoffOpen === "ppt" ? "Send to Content Maker" : "Send to Offer IQ"}
+                  {handoffOpen === "ppt" ? "Send to Webinar Content" : "Send to Webinar Offer"}
                 </p>
                 <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em]">
                   Check the prompt and sections before we continue.
@@ -1014,7 +969,7 @@ export default function PresentationChat() {
                 className="inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background"
               >
                 {handoffOpen === "ppt" ? <FilePlus2 className="size-4" /> : <Layers3 className="size-4" />}
-                {handoffOpen === "ppt" ? "Build PPT" : "Open Offer IQ"}
+                {handoffOpen === "ppt" ? "Build PPT" : "Open Webinar Offer"}
               </button>
             </div>
           </div>
@@ -1192,7 +1147,7 @@ function MessageBubble({
     <div className={`flex items-start gap-3 ${isAssistant ? "" : "justify-end"}`}>
       {isAssistant && (
         <div className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-[10px] font-bold text-background">
-          AG
+          WK
         </div>
       )}
       <div
@@ -1220,7 +1175,7 @@ function MessageBubble({
               className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
             >
               <Layers3 className="size-3" />
-              Offer IQ
+              Webinar Offer
             </button>
             <button
               type="button"

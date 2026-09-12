@@ -9,7 +9,7 @@ export default function SpeakerPortalPage() {
             Event Ops
           </p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-            Speaker Portal
+            Webinar Speakar Portal
           </h1>
         </div>
       </div>

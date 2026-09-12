@@ -17,7 +17,7 @@ export default function ErrorPage({
     <main className="grid min-h-screen place-items-center px-6 text-[#0f281c]">
       <section className="w-full max-w-lg rounded-3xl border border-[#a3d9be] bg-white p-8 text-center shadow-xl">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#2d6a4f]">
-          AstroCraft
+          WebinarKit
         </p>
         <h1 className="mt-3 text-2xl font-bold">This page could not load</h1>
         <p className="mt-3 text-sm leading-6 text-[#456357]">

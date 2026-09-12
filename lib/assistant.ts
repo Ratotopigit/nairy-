@@ -124,7 +124,7 @@ export async function askAssistant(ctx: AssistantContext): Promise<AssistantActi
     if (res.ok) {
       const raw = await readN8nJson<Record<string, unknown> | Array<Record<string, unknown>>>(
         res,
-        "Content Maker workflow",
+        "Webinar Content workflow",
       );
       const data = Array.isArray(raw) ? raw[0] : raw;
       const candidate = ((data?.actions ?? data?.result ?? data) as AssistantActions) ?? {};
@@ -137,7 +137,7 @@ export async function askAssistant(ctx: AssistantContext): Promise<AssistantActi
       }
     }
   } catch (error) {
-    console.warn("Content Maker webhook error:", error);
+    console.warn("Webinar Content webhook error:", error);
   }
 
   // Resilient local intelligent command interpreter

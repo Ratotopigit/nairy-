@@ -18,7 +18,7 @@ export default function GlobalError({ reset }: { reset: () => void }) {
           }}
         >
           <section style={{ maxWidth: 520, textAlign: "center" }}>
-            <h1 style={{ fontSize: 28, margin: 0 }}>AstroCraft needs to reload</h1>
+            <h1 style={{ fontSize: 28, margin: 0 }}>WebinarKit needs to reload</h1>
             <p style={{ lineHeight: 1.6, margin: "16px 0 24px" }}>
               A shared part of the application failed to load. Retry to restore the workspace.
             </p>

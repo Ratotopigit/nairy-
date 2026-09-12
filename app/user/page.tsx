@@ -86,7 +86,7 @@ export default function UserPage() {
           <div className="flex items-center gap-2">
             <X className="w-6 h-6 text-slate-400 hover:text-slate-600 transition-colors" />
             <span className="text-xl font-extrabold tracking-tight text-slate-900">
-              AstroCraft
+              WebinarKit
             </span>
           </div>
           <span className="text-sm font-medium text-slate-500">

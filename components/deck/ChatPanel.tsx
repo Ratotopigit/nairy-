@@ -44,7 +44,7 @@ export function ChatPanel({ messages, busy, hasContent, onSend, onUseIdea }: Pro
           <p className="font-serif text-[15px] leading-relaxed text-muted-foreground">
             {hasContent
               ? "Ask for a specific edit. I know the selected slide, your saved business, audience, offer, and deck structure."
-              : "Brainstorm here. I already know your saved business, audience, offer, quotes, logo, and brand assets. When an idea is ready, send it into Content Maker."}
+              : "Brainstorm here. I already know your saved business, audience, offer, quotes, logo, and brand assets. When an idea is ready, send it into Webinar Content."}
           </p>
         ) : null}
 

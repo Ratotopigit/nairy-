@@ -17,7 +17,7 @@ export function StepBusiness({ data, onChange }: StepBusinessProps) {
           What is your business or brand called?
         </h2>
         <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed max-w-md mx-auto">
-          This will establish your core brand identity across Avatar IQ, Offer IQ, and your presentation decks.
+          This will establish your core brand identity across Webinar Chat, Webinar Offer, and your presentation decks.
         </p>
       </div>
 

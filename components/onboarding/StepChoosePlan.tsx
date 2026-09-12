@@ -29,7 +29,7 @@ const PLANS: Array<{
     buttonLabel: "Get Started Free",
     features: [
       "Foundational Academy blueprints",
-      "1 AI Avatar exploration session",
+      "1 AI Webinar Chat exploration session",
       "Basic presentation templates",
     ],
   },
@@ -43,7 +43,7 @@ const PLANS: Array<{
     buttonLabel: "Select Pro",
     features: [
       "Full Academy learning paths",
-      "Unlimited Avatar & Offer IQ",
+      "Unlimited Webinar Chat & Webinar Offer",
       "Slide deck AI generation & PPTX",
     ],
   },

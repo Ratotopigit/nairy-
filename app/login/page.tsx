@@ -97,7 +97,7 @@ export default function LoginPage() {
           <div className="relative w-full max-w-lg aspect-square flex items-end justify-start">
             <img
               src={girlImg}
-              alt="AstroCraft assistant at desk"
+              alt="WebinarKit assistant at desk"
               width={520}
               height={520}
               draggable={false}
@@ -206,7 +206,7 @@ export default function LoginPage() {
               <div className="h-10 w-10 rounded-xl overflow-hidden bg-emerald-50 border border-emerald-100 flex items-center justify-center">
                 <img
                   src={logo}
-                  alt="AstroCraft Logo"
+                  alt="WebinarKit Logo"
                   width={40}
                   height={40}
                   draggable={false}
@@ -214,7 +214,7 @@ export default function LoginPage() {
                 />
               </div>
               <span className="text-2xl font-extrabold tracking-tight text-slate-900">
-                AstroCraft
+                WebinarKit
               </span>
             </div>
 
@@ -223,7 +223,7 @@ export default function LoginPage() {
                 Welcome back
               </h1>
               <p className="text-sm text-slate-500 mt-1">
-                Enter your credentials to access the AstroCraft Provider
+                Enter your credentials to access the WebinarKit Provider
                 Workspace.
               </p>
             </div>
