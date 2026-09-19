@@ -693,6 +693,7 @@ export default function PresentationChat() {
 
       let assistantReplyText = "";
       let updatedBlueprint: BuyerBlueprint | null = result;
+      let requestedHandoff: "deck" | "offer" | null = null;
 
       const updatedAnswers: WebinarAnswers = answers;
       const nextStep: number = step;
@@ -737,6 +738,7 @@ export default function PresentationChat() {
         }
         assistantReplyText = chat.reply;
         if (chat.blueprint) updatedBlueprint = chat.blueprint;
+        requestedHandoff = chat.handoff;
       } catch (webhookErr) {
         if (webhookErr instanceof DOMException && webhookErr.name === "AbortError") {
           throw new Error("Webinar Chat timed out. Please try again.");
@@ -780,6 +782,17 @@ export default function PresentationChat() {
         if (base.some((m) => m.id === assistantMsg.id)) return base;
         return [...base, assistantMsg];
       });
+
+      // The assistant asked to move them on. Launch with the blueprint from
+      // this very reply -- `result` state has not committed yet -- so the
+      // builder receives what was just learned rather than the prior turn.
+      if (requestedHandoff) {
+        handleDirectLaunch(
+          requestedHandoff === "deck" ? "ppt" : "offer",
+          assistantReplyText,
+          updatedBlueprint,
+        );
+      }
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Could not process message.";
       setWebhookError(reason);
@@ -840,16 +853,20 @@ export default function PresentationChat() {
     router.push(handoffOpen === "ppt" ? "/provider/webinar-content" : "/provider/webinar-offer");
   }
 
-  function handleDirectLaunch(destination: "ppt" | "offer", ideaText?: string) {
+  function handleDirectLaunch(destination: "ppt" | "offer", ideaText?: string, blueprintOverride?: BuyerBlueprint | null) {
+    // The blueprint is passed in when launching straight off a webhook reply:
+    // `result` state has not committed yet at that point, so reading it would
+    // send the previous turn's blueprint to the builder.
+    const blueprint = blueprintOverride ?? result;
     const idea = (ideaText ?? messages.filter((item) => item.role === "assistant").at(-1)?.text ?? "").trim();
-    const sections = suggestedSections(result, idea);
+    const sections = suggestedSections(blueprint, idea);
     const prompt = buildGenerationPrompt({
-      blueprint: result,
+      blueprint,
       ideaText: idea,
       sections,
       assetContext,
     });
-    if (result) sessionStorage.setItem(HANDOFF.blueprint, JSON.stringify(result));
+    if (blueprint) sessionStorage.setItem(HANDOFF.blueprint, JSON.stringify(blueprint));
     storeHandoff({
       session: sessionId,
       idea,

@@ -26,6 +26,12 @@ export type AvatarBlueprint = {
 
 export type AvatarChatResponse = {
   reply: string;
+  /**
+   * Where the assistant decided to send the user next. Set when they ask
+   * for the deck or the offer; the chat navigates there instead of replying
+   * that it cannot build one.
+   */
+  handoff: "deck" | "offer" | null;
   blueprint: AvatarBlueprint | null;
   answers?: WebinarAnswers;
   step?: number;
@@ -56,6 +62,8 @@ export function parseAvatarChatPayload(
   const data = asRecord((candidate as { data?: unknown })?.data ?? candidate);
   const nestedBlueprint = asRecord(data.blueprint);
   const source = nestedBlueprint.persona_name || data.persona_name ? { ...data, ...nestedBlueprint } : nestedBlueprint;
+  const rawHandoff = asString(data.handoff) || asString(source.handoff);
+  const handoff = rawHandoff === "deck" || rawHandoff === "offer" ? rawHandoff : null;
   const reply = asString(data.reply)
     || asString(data.message)
     || asString(data.text)
@@ -98,7 +106,7 @@ export function parseAvatarChatPayload(
 
   const hasPersona = Boolean(extractedPersona || previous?.persona_name);
   if (!hasPersona && !asString(source.persona_name) && !reply.includes("Core Offer & Strategy")) {
-    return { reply, blueprint: previous, answers: existingAnswers };
+    return { reply, handoff, blueprint: previous, answers: existingAnswers };
   }
 
   const merged: AvatarBlueprint = {
@@ -127,6 +135,7 @@ export function parseAvatarChatPayload(
 
   return {
     reply,
+    handoff,
     blueprint: merged.persona_name ? merged : previous,
     answers: existingAnswers,
   };
