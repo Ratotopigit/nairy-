@@ -90,7 +90,7 @@ type BlueprintSession = {
 
 const WEBHOOK_URL = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL
   ? `${process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL.replace(/\/+$/, "")}/avatar-iq`
-  : "/api/n8n/avatar-iq";
+  : "https://explosionmarketing.app.n8n.cloud/webhook/avatar-iq";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CHAT_PATH = "/provider/webinar-chat";
 
