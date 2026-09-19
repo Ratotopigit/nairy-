@@ -442,6 +442,19 @@ export default function Builder() {
     return () => window.clearTimeout(timeout);
   }, [blueprintSessionId, description, fontSetId, messages, motion, paletteId, projectId, purpose, ratio, slideCount, slides, styleId]);
 
+  // Keep the project id in the URL so a reload, a bookmark or a shared link
+  // lands back on this deck instead of an empty studio.
+  //
+  // history.replaceState rather than router.replace: the router would update
+  // searchParams, which re-runs the loader effect and reloads the deck that
+  // was just generated, throwing away unsaved work.
+  useEffect(() => {
+    if (typeof window === "undefined" || !projectId) return;
+    const current = new URLSearchParams(window.location.search).get("projectId");
+    if (current === projectId) return;
+    window.history.replaceState(null, "", `${window.location.pathname}?projectId=${projectId}`);
+  }, [projectId]);
+
   /** Uploads stay untouched until the user explicitly applies an image action. */
   const ingestBrandArt = async (dataUrl: string | null, kind: "logo" | "image") => {
     if (!dataUrl) {
@@ -622,9 +635,7 @@ export default function Builder() {
       setSlides(generatedSlides);
       setSelectedId(generatedSlides[0]?.id ?? null);
       if (remote.reply) setMessages(nextMessages);
-      if (activeProjectId !== routeProjectId) {
-        window.history.replaceState(null, "", `/provider/webinar-content/${activeProjectId}`);
-      }
+
       setStatus(`${generatedSlides.length} slides ready.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Webinar Content could not generate the deck");
@@ -680,9 +691,7 @@ export default function Builder() {
         setSlideCount(String(remote.slides.length));
         setSelectedId((current) => remote.slides!.some((slide) => slide.id === current) ? current : remote.slides![0]?.id ?? null);
       }
-      if (activeProjectId !== routeProjectId) {
-        window.history.replaceState(null, "", `/provider/webinar-content/${activeProjectId}`);
-      }
+
       setDescription((current) => current.trim() ? current : text);
       const nextMessages = [...messages, userMessage, { id: `${id}r`, role: "assistant" as const, text: remote.reply ?? "Your deck has been updated." }];
       setMessages(nextMessages);
@@ -747,8 +756,12 @@ export default function Builder() {
         fileName: `${(slides[0]?.title || description.split(/[.\n]/)[0] || "presentation").slice(0, 40).trim()}.pptx`,
       });
       setStatus(`Downloaded .pptx — ${slides.length} slides`);
-    } catch {
-      setStatus("Could not build the .pptx file");
+    } catch (error) {
+      // The blanket message hid the actual cause for a long time; say what
+      // broke so the next report is diagnosable.
+      const detail = error instanceof Error ? error.message : "";
+      console.error("pptx export failed:", error);
+      setStatus(detail ? `Could not build the .pptx file — ${detail}` : "Could not build the .pptx file");
     }
   };
 

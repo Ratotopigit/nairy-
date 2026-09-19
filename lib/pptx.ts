@@ -100,7 +100,18 @@ export async function exportPptx(opts: {
     const bullets = Array.isArray(s.bullets) ? s.bullets.filter(Boolean) : [];
     const metrics = Array.isArray(s.metrics) ? s.metrics.filter(Boolean) : [];
     const chart = Array.isArray(s.chart) && s.chart.length ? s.chart : [];
-    const slideImage = s.image ?? opts.image;
+    const rawImage = s.image ?? opts.image;
+    /**
+     * pptxgenjs only validates `data` when the file is written, not when the
+     * image is added, so a remote URL that slipped through does not fail one
+     * picture -- it throws from writeFile and takes the entire export down
+     * with "Could not build the .pptx file". Art is normally inlined as a
+     * data URI by resolveArtForExport first; if that did not happen, drop the
+     * image and still produce a deck.
+     */
+    const slideImage = typeof rawImage === "string" && rawImage.startsWith("data:")
+      ? rawImage
+      : null;
     const slideKind = s.imageKind ?? "photo";
     const isTitle = s.type === "title" || s.type === "closing";
 
