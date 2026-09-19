@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { Download, History } from "lucide-react";
 import { Seg, SegItem } from "./controls";
 import { MOTIONS, RATIOS, STYLES, type Motion, type RatioId, type StyleId } from "@/lib/deck";
 
@@ -13,9 +13,10 @@ type Props = {
   hasContent: boolean;
   onGenerate: () => void | Promise<void>;
   onExport: () => void;
+  onHistory: () => void;
 };
 
-export function Toolbar({ ratio, onRatio, style, onStyle, motion, onMotion, generating, hasContent, onGenerate, onExport }: Props) {
+export function Toolbar({ ratio, onRatio, style, onStyle, motion, onMotion, generating, hasContent, onGenerate, onExport, onHistory }: Props) {
   return (
     <header className="flex h-16 min-w-0 shrink-0 items-center gap-4 border-b border-border bg-card px-3 sm:px-5">
       <div className="hidden shrink-0 text-[12px] font-medium uppercase tracking-[0.28em] text-foreground lg:block">
@@ -48,6 +49,16 @@ export function Toolbar({ ratio, onRatio, style, onStyle, motion, onMotion, gene
         </Seg>
 
         <div className="mx-1 h-6 w-px bg-border" />
+
+        <button
+          type="button"
+          onClick={onHistory}
+          title="Open a past presentation"
+          className="flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-secondary"
+        >
+          <History className="h-3.5 w-3.5" strokeWidth={1.75} />
+          History
+        </button>
 
         <button
           type="button"

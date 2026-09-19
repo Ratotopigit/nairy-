@@ -8,6 +8,7 @@ import { LeftPanel, type CustomColors } from "@/components/deck/LeftPanel";
 import { LayoutBar } from "@/components/deck/LayoutBar";
 import { SlideStrip } from "@/components/deck/SlideStrip";
 import { SlideView } from "@/components/deck/SlideView";
+import { DeckHistory } from "@/components/deck/DeckHistory";
 import { ChatPanel, type ChatMessage } from "@/components/deck/ChatPanel";
 import { GenerationStage } from "@/components/deck/GenerationStage";
 import {
@@ -141,6 +142,7 @@ export default function Builder() {
   const [chatBusy, setChatBusy] = useState(false);
   const [projectId, setProjectId] = useState<string>(routeProjectId || "");
   const [blueprintSessionId, setBlueprintSessionId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const [slides, setSlides] = useState<Slide[]>(initialSlides);
   const [selectedId, setSelectedId] = useState<string | null>(initialSlides[0]?.id ?? null);
@@ -152,6 +154,10 @@ export default function Builder() {
   );
   const slideImageRef = useRef<HTMLInputElement>(null);
   const pendingAutoBuildRef = useRef("");
+  // True while a project is being loaded. projectId switches to the new deck
+  // before its slides arrive, so without this the autosave debounce can fire
+  // in the gap and write the previous deck's slides into the new document.
+  const loadingProjectRef = useRef(false);
   const hasContent = slides.length > 0;
   const generating = step >= 0;
 
@@ -162,7 +168,10 @@ export default function Builder() {
   useEffect(() => {
     const selectedAsset = sessionStorage.getItem("astrocraft:selected-asset");
     if (selectedAsset) setImage(selectedAsset);
-    void loadLatestBuyerContext();
+    loadingProjectRef.current = true;
+    void loadLatestBuyerContext().finally(() => {
+      loadingProjectRef.current = false;
+    });
 
     async function loadLatestBuyerContext() {
       const requestedProjectId = routeProjectId && isSessionUuid(routeProjectId)
@@ -403,6 +412,7 @@ export default function Builder() {
   // Continuous autosave to localStorage & Firestore
   useEffect(() => {
     if (!projectId || !slides.length) return;
+    if (loadingProjectRef.current) return;
     const sessionPayload = {
       project_id: projectId,
       blueprint_session_id: blueprintSessionId,
@@ -793,6 +803,19 @@ export default function Builder() {
         hasContent={hasContent}
         onGenerate={handleGenerate}
         onExport={() => void handleExport()}
+        onHistory={() => setHistoryOpen(true)}
+      />
+
+      <DeckHistory
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        currentProjectId={projectId}
+        onOpenDeck={(id) => {
+          setHistoryOpen(false);
+          // Query param, not /webinar-content/<id>: this is a static export and
+          // that dynamic route only prerenders "default", so a UUID path 404s.
+          router.push(`/provider/webinar-content?projectId=${id}`);
+        }}
       />
 
       <div className="flex min-h-0 flex-1">
