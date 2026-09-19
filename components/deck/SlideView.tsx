@@ -548,9 +548,41 @@ export function SlideView({ slide: rawSlide, palette, spec, image, removeBg, log
   // Title & closing
   if (slide.type === "title" || slide.type === "closing") {
     const centered = slide.layout === "B" || slide.layout === "D";
-    const withImage = Boolean(slide.useImage && image && slide.layout !== "D");
+    const hasArt = Boolean(slide.useImage && image);
+    /**
+     * A photo is a full-bleed backdrop for the whole slide; a cutout is an
+     * object standing beside or above the headline.
+     *
+     * Layout D used to suppress art outright, which silently blanked exactly
+     * the closing slides the deck agent had chosen art for — the bookends are
+     * the two slides that most need to look finished.
+     */
+    const bleedPhoto = hasArt && !isCutout;
+    const sideCutout = hasArt && isCutout && slide.layout !== "D";
+    const topCutout = hasArt && isCutout && slide.layout === "D";
+
     return (
       <div style={root}>
+        {bleedPhoto ? (
+          <>
+            <img
+              src={image!}
+              alt=""
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                // Tinted with the deck's own background so the existing ink and
+                // muted colours stay readable over any photograph.
+                background: centered
+                  ? `radial-gradient(ellipse at center, ${withAlpha(palette.background, 0.93)} 0%, ${withAlpha(palette.background, 0.7)} 100%)`
+                  : `linear-gradient(90deg, ${withAlpha(palette.background, 0.96)} 0%, ${withAlpha(palette.background, 0.88)} 48%, ${withAlpha(palette.background, 0.4)} 100%)`,
+              }}
+            />
+          </>
+        ) : null}
         <Frame palette={palette} logo={logo} pad={pad} name={slide.name} />
         <div
           style={{
@@ -564,20 +596,25 @@ export function SlideView({ slide: rawSlide, palette, spec, image, removeBg, log
             ...anim,
           }}
         >
+          {topCutout ? (
+            <div style={{ width: cq(26), height: "26%", marginBottom: cq(1.8) }}>
+              <Portrait />
+            </div>
+          ) : null}
           <div
             style={{
               ...stackStyle(centered ? "center" : "start"),
-              // Keep the headline clear of the portrait pinned to the right edge.
-              maxWidth: withImage ? "62%" : "100%",
+              // Keep the headline clear of the cutout pinned to the right edge.
+              maxWidth: sideCutout ? "62%" : "100%",
             }}
           >
             <Eyebrow />
-            <Heading size={h1 * 1.5} comfy={withImage ? 30 : 42} />
+            <Heading size={h1 * 1.5} comfy={sideCutout ? 30 : 42} />
             <Rule />
-            <Body comfy={withImage ? 110 : 170} />
+            <Body comfy={sideCutout ? 110 : 170} />
           </div>
         </div>
-        {withImage ? (
+        {sideCutout ? (
           <div
             style={{
               position: "absolute",
@@ -735,6 +772,16 @@ function mix(a: string, b: string, t: number) {
   const pb = hex(b);
   const c = pa.map((v, i) => Math.round(v + (pb[i]! - v) * t));
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+
+/**
+ * A translucent version of a palette colour, used for the scrim over a
+ * full-bleed photo. Tinting with the deck's own background is what lets the
+ * existing ink and muted tones stay legible over an arbitrary photograph.
+ */
+function withAlpha(c: string, a: number) {
+  const [r, g, b] = hex(c);
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
 function hex(h: string): number[] {

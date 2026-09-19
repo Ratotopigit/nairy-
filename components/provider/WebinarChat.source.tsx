@@ -27,7 +27,7 @@ import { type WebinarAnswers, getQuestionnaireStatus } from "@/lib/webinar-quest
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { parseAvatarChatPayload } from "@/lib/avatar-chat";
-import { loadChatHistory, newSessionId, resolveSessionId } from "@/lib/chat-history";
+import { isSessionUuid, loadChatHistory, newSessionId, resolveSessionId } from "@/lib/chat-history";
 import {
   buildGenerationPrompt,
   HANDOFF,
@@ -89,7 +89,6 @@ type BlueprintSession = {
   updated_at: string;
 };
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CHAT_PATH = "/provider/webinar-chat";
 
 // A Gemini agent synthesizing a full buyer blueprint regularly needs over a minute.
@@ -171,7 +170,7 @@ export default function PresentationChat() {
     searchParams?.get("id") ||
     (typeof params?.chatId === "string" && params.chatId !== "default" ? params.chatId : "");
   const routeChatId =
-    rawRouteChatId && (UUID_PATTERN.test(rawRouteChatId) || rawRouteChatId.length > 5)
+    rawRouteChatId && (rawRouteChatId.length > 5 || isSessionUuid(rawRouteChatId))
       ? rawRouteChatId
       : "";
 

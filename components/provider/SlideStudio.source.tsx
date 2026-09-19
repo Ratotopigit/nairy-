@@ -34,6 +34,7 @@ import { askAssistant, type AssistantActions } from "@/lib/assistant";
 import { HANDOFF } from "@/lib/creation-handoff";
 import { extractPalette, removeBackground } from "@/lib/image";
 import { exportPptx } from "@/lib/pptx";
+import { isSessionUuid } from "@/lib/chat-history";
 import { resolveArtForExport } from "@/lib/deck-art";
 import { auth, db } from "@/lib/firebase/config";
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
@@ -49,7 +50,6 @@ const DEFAULT_CUSTOM: CustomColors = {
 };
 
 const CONTENT_PROJECT_KEY = "astrocraft:content-project-id";
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const contentProjectKey = (userId: string) => `${CONTENT_PROJECT_KEY}:${userId}`;
 
@@ -79,16 +79,16 @@ export default function Builder() {
   const router = useRouter();
   const queryProjectId = searchParams?.get("projectId") || searchParams?.get("id") || "";
   const paramProjectId = typeof params?.projectId === "string" ? params.projectId : "";
-  const routeProjectId = (paramProjectId && UUID_PATTERN.test(paramProjectId))
+  const routeProjectId = (paramProjectId && isSessionUuid(paramProjectId))
     ? paramProjectId
-    : (queryProjectId && UUID_PATTERN.test(queryProjectId))
+    : (queryProjectId && isSessionUuid(queryProjectId))
       ? queryProjectId
       : paramProjectId || queryProjectId || "";
   
   // Try synchronous initial state recovery from localStorage if routeProjectId is present
   const initialLocalData = useMemo(() => {
     if (typeof window === "undefined") return null;
-    if (routeProjectId && UUID_PATTERN.test(routeProjectId)) {
+    if (routeProjectId && isSessionUuid(routeProjectId)) {
       return loadLocalSession(routeProjectId);
     }
     return null;
@@ -165,7 +165,7 @@ export default function Builder() {
     void loadLatestBuyerContext();
 
     async function loadLatestBuyerContext() {
-      const requestedProjectId = routeProjectId && UUID_PATTERN.test(routeProjectId)
+      const requestedProjectId = routeProjectId && isSessionUuid(routeProjectId)
         ? routeProjectId
         : "";
       if (routeProjectId && !requestedProjectId) {
