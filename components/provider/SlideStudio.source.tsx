@@ -1,0 +1,956 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ListTree } from "lucide-react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Toolbar } from "@/components/deck/Toolbar";
+import { LeftPanel, type CustomColors } from "@/components/deck/LeftPanel";
+import { LayoutBar } from "@/components/deck/LayoutBar";
+import { SlideStrip } from "@/components/deck/SlideStrip";
+import { SlideView } from "@/components/deck/SlideView";
+import { ChatPanel, type ChatMessage } from "@/components/deck/ChatPanel";
+import { GenerationStage } from "@/components/deck/GenerationStage";
+import {
+  FONT_SETS,
+  GENERATION_STEPS,
+  PALETTES,
+  PURPOSES,
+  RATIOS,
+  STYLES,
+  STYLE_FONT,
+  STYLE_LAYOUT,
+  STYLE_SPECS,
+  generateDeck,
+  type FontSetId,
+  type LayoutVariant,
+  type Motion,
+  type Palette,
+  type Purpose,
+  type RatioId,
+  type Slide,
+  type StyleId,
+} from "@/lib/deck";
+import { askAssistant, type AssistantActions } from "@/lib/assistant";
+import { HANDOFF } from "@/lib/creation-handoff";
+import { extractPalette, removeBackground } from "@/lib/image";
+import { exportPptx } from "@/lib/pptx";
+import { auth, db } from "@/lib/firebase/config";
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { loadStudioContext } from "@/lib/workspace-context";
+import { saveWorkspaceMemory } from "@/lib/workspace-memory";
+
+
+const DEFAULT_CUSTOM: CustomColors = {
+  primary: "#A84E2B",
+  secondary: "#E7B49A",
+  accent: "#5D2C1C",
+  background: "#FBF6F0",
+};
+
+const CONTENT_PROJECT_KEY = "astrocraft:content-project-id";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const contentProjectKey = (userId: string) => `${CONTENT_PROJECT_KEY}:${userId}`;
+
+function saveLocalSession(projectId: string, data: Record<string, unknown>) {
+  if (typeof window === "undefined" || !projectId) return;
+  try {
+    localStorage.setItem(`astrocraft:content-session:${projectId}`, JSON.stringify(data));
+    localStorage.setItem("astrocraft:last-content-project", projectId);
+  } catch (e) {
+    console.warn("Could not save presentation to localStorage:", e);
+  }
+}
+
+function loadLocalSession(projectId: string): Record<string, unknown> | null {
+  if (typeof window === "undefined" || !projectId) return null;
+  try {
+    const raw = localStorage.getItem(`astrocraft:content-session:${projectId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export default function Builder() {
+  const params = useParams<{ projectId?: string }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const queryProjectId = searchParams?.get("projectId") || searchParams?.get("id") || "";
+  const paramProjectId = typeof params?.projectId === "string" ? params.projectId : "";
+  const routeProjectId = (paramProjectId && UUID_PATTERN.test(paramProjectId))
+    ? paramProjectId
+    : (queryProjectId && UUID_PATTERN.test(queryProjectId))
+      ? queryProjectId
+      : paramProjectId || queryProjectId || "";
+  
+  // Try synchronous initial state recovery from localStorage if routeProjectId is present
+  const initialLocalData = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    if (routeProjectId && UUID_PATTERN.test(routeProjectId)) {
+      return loadLocalSession(routeProjectId);
+    }
+    return null;
+  }, [routeProjectId]);
+
+  const initialSlides = useMemo(() => {
+    if (Array.isArray(initialLocalData?.slides) && initialLocalData.slides.length > 0) {
+      return initialLocalData.slides as Slide[];
+    }
+    return [];
+  }, [initialLocalData]);
+
+  const initialBrief = initialLocalData?.brief as Record<string, unknown> | undefined;
+  const initialTheme = initialLocalData?.theme as Record<string, unknown> | undefined;
+
+  const [description, setDescription] = useState<string>(
+    typeof initialBrief?.description === "string" ? initialBrief.description : ""
+  );
+  const [purpose, setPurpose] = useState<Purpose>(
+    (PURPOSES.find((p) => p === initialBrief?.purpose) as Purpose) || "Company Profile"
+  );
+  const [slideCount, setSlideCount] = useState<string>(
+    String(initialSlides.length || initialBrief?.slide_count || "8")
+  );
+  const [image, setImage] = useState<string | null>(null);
+  const [removeBg, setRemoveBg] = useState(false);
+  const [logo, setLogo] = useState<string | null>(null);
+  const [imageProcessing, setImageProcessing] = useState<"palette" | "background" | null>(null);
+  const [paletteId, setPaletteId] = useState<string>(
+    typeof initialTheme?.palette === "string" ? initialTheme.palette : "clay"
+  );
+  const [custom, setCustom] = useState<CustomColors>(DEFAULT_CUSTOM);
+  const [motion, setMotion] = useState<Motion>(
+    (["None", "Professional", "Dynamic"].find((m) => m === initialTheme?.motion) as Motion) || "Professional"
+  );
+  const [ratio, setRatio] = useState<RatioId>(
+    (RATIOS.find((r) => r.id === initialTheme?.ratio)?.id as RatioId) || "16:9"
+  );
+  const [styleId, setStyleId] = useState<StyleId>(
+    (STYLES.find((s) => s.id === initialTheme?.style)?.id as StyleId) || "modern"
+  );
+  const [fontSetId, setFontSetId] = useState<FontSetId>(
+    (FONT_SETS.find((f) => f.id === initialTheme?.font_set)?.id as FontSetId) || "grotesk"
+  );
+  const [brandNote, setBrandNote] = useState<string | null>(null);
+  const [assetContext, setAssetContext] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    Array.isArray(initialLocalData?.messages) ? (initialLocalData.messages as ChatMessage[]) : []
+  );
+  const [chatBusy, setChatBusy] = useState(false);
+  const [projectId, setProjectId] = useState<string>(routeProjectId || "");
+  const [blueprintSessionId, setBlueprintSessionId] = useState<string | null>(null);
+
+  const [slides, setSlides] = useState<Slide[]>(initialSlides);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSlides[0]?.id ?? null);
+  const [step, setStep] = useState(-1);
+  const [status, setStatus] = useState<string | null>(null);
+  // The optional note stays collapsed unless a brief was actually carried in.
+  const [noteOpen, setNoteOpen] = useState<boolean>(
+    typeof initialBrief?.description === "string" && initialBrief.description.trim().length > 0
+  );
+  const slideImageRef = useRef<HTMLInputElement>(null);
+  const pendingAutoBuildRef = useRef("");
+  const hasContent = slides.length > 0;
+  const generating = step >= 0;
+
+  useEffect(() => {
+    if (!selectedId && slides[0]) setSelectedId(slides[0].id);
+  }, [slides, selectedId]);
+
+  useEffect(() => {
+    const selectedAsset = sessionStorage.getItem("astrocraft:selected-asset");
+    if (selectedAsset) setImage(selectedAsset);
+    void loadLatestBuyerContext();
+
+    async function loadLatestBuyerContext() {
+      const requestedProjectId = routeProjectId && UUID_PATTERN.test(routeProjectId)
+        ? routeProjectId
+        : "";
+      if (routeProjectId && !requestedProjectId) {
+        router.replace("/provider/webinar-content");
+        return;
+      }
+
+      // Check local storage session cache
+      let localSessionData: Record<string, unknown> | null = requestedProjectId
+        ? loadLocalSession(requestedProjectId)
+        : null;
+
+      if (!localSessionData && !requestedProjectId && typeof window !== "undefined") {
+        const lastId = localStorage.getItem("astrocraft:last-content-project");
+        if (lastId) {
+          localSessionData = loadLocalSession(lastId);
+        }
+      }
+
+      let blueprint: Record<string, unknown> | null = null;
+      const handoff = sessionStorage.getItem("astrocraft:latest-blueprint");
+      if (handoff) {
+        try {
+          blueprint = JSON.parse(handoff) as Record<string, unknown>;
+        } catch {
+          sessionStorage.removeItem("astrocraft:latest-blueprint");
+        }
+      }
+      const avatarIdea = sessionStorage.getItem(HANDOFF.idea);
+      const generationPrompt = sessionStorage.getItem(HANDOFF.prompt);
+      const shouldAutoBuild = sessionStorage.getItem(HANDOFF.autoBuild) === "true";
+      if (avatarIdea) sessionStorage.removeItem(HANDOFF.idea);
+      if (generationPrompt) sessionStorage.removeItem(HANDOFF.prompt);
+      if (shouldAutoBuild) sessionStorage.removeItem(HANDOFF.autoBuild);
+      const handedSession = sessionStorage.getItem(HANDOFF.session);
+
+      let studioAssetContext = "";
+      const user = auth.currentUser;
+
+      if (user) {
+        try {
+          const studio = await loadStudioContext(user.uid);
+          studioAssetContext = studio.assetContext;
+          const memory = studio.memory;
+          const signedAssets = studio.assets;
+          if (studio.palette) {
+            setCustom({
+              primary: studio.palette.primary ?? DEFAULT_CUSTOM.primary,
+              secondary: studio.palette.secondary ?? DEFAULT_CUSTOM.secondary,
+              accent: studio.palette.accent ?? DEFAULT_CUSTOM.accent,
+              background: studio.palette.background ?? DEFAULT_CUSTOM.background,
+            });
+            setPaletteId("custom");
+          }
+          const latestLogo = signedAssets.find((asset) => asset.asset_role === "logo" && asset.mime_type.startsWith("image/"));
+          const latestVisual = signedAssets.find((asset) =>
+            ["brand_photo", "product", "background"].includes(asset.asset_role ?? "") &&
+            asset.mime_type.startsWith("image/")
+          );
+          if (!selectedAsset && latestVisual?.signedUrl) setImage(latestVisual.signedUrl);
+          if (latestLogo?.signedUrl) setLogo(latestLogo.signedUrl);
+
+          let buyerSessions: Array<{ session_id?: string; blueprint?: Record<string, unknown>; updated_at?: string }> = [];
+          try {
+            const q = query(
+              collection(db, "blueprint_sessions"),
+              where("owner_id", "==", user.uid)
+            );
+            const snap = await getDocs(q);
+            buyerSessions = snap.docs.map((d) => d.data() as any);
+            buyerSessions.sort((a, b) => {
+              const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+              const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+              return tB - tA;
+            });
+            if (handedSession) {
+              buyerSessions = buyerSessions.filter((s) => s.session_id === handedSession);
+            }
+          } catch (e) {
+            console.warn("Blueprint query failed:", e);
+          }
+
+          const buyerSession = buyerSessions[0];
+          blueprint ??= (buyerSession?.blueprint as Record<string, unknown> | undefined)
+            ?? memory?.audience_profile
+            ?? null;
+          const savedSessionId = buyerSession?.session_id as string | undefined;
+          setBlueprintSessionId(savedSessionId ?? memory?.source_session_id ?? null);
+        } catch (e) {
+          console.warn("Studio context lookup failed:", e);
+        }
+      }
+
+      let savedContent: {
+        project_id?: string;
+        slides?: unknown;
+        messages?: unknown;
+        theme?: unknown;
+        brief?: unknown;
+      } | null = (localSessionData as unknown as {
+        project_id?: string;
+        slides?: unknown;
+        messages?: unknown;
+        theme?: unknown;
+        brief?: unknown;
+      }) ?? null;
+
+      if (user) {
+        if (requestedProjectId) {
+          // Decks are keyed by the bare project UUID, which is what the n8n
+          // workflow upserts. The prefixed id is the pre-Firebase layout.
+          for (const docId of [requestedProjectId, `${user.uid}_${requestedProjectId}`]) {
+            try {
+              const docSnap = await getDoc(doc(db, "content_sessions", docId));
+              if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (Array.isArray(data?.slides) && data.slides.length > 0) {
+                  savedContent = data as any;
+                  break;
+                }
+              }
+            } catch {}
+          }
+        }
+        if (requestedProjectId && (!savedContent?.slides || !Array.isArray(savedContent.slides) || savedContent.slides.length === 0)) {
+          try {
+            const q = query(
+              collection(db, "content_sessions"),
+              where("owner_id", "==", user.uid)
+            );
+            const snap = await getDocs(q);
+            const allSessions = snap.docs.map((d) => d.data() as any);
+            allSessions.sort((a, b) => {
+              const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+              const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+              return tB - tA;
+            });
+            const fallbackContent = allSessions[0];
+            if (fallbackContent?.slides && Array.isArray(fallbackContent.slides) && fallbackContent.slides.length > 0) {
+              savedContent = fallbackContent;
+            }
+          } catch {}
+        }
+      }
+
+      const savedProjectId = savedContent?.project_id as string | undefined;
+      if (savedProjectId) {
+        setProjectId(savedProjectId);
+        if (user) {
+          sessionStorage.setItem(contentProjectKey(user.uid), savedProjectId);
+        }
+        if (requestedProjectId && savedProjectId !== routeProjectId && Array.isArray(savedContent?.slides) && savedContent.slides.length > 0) {
+          router.replace(`/provider/webinar-content/${savedProjectId}`);
+        }
+      } else if (requestedProjectId) {
+        setProjectId(requestedProjectId);
+      }
+
+      const profile = blueprint ?? {};
+      const list = (value: unknown) =>
+        Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+      const persona = typeof profile.persona_name === "string" ? profile.persona_name : "your audience";
+      const offer = profile.offer && typeof profile.offer === "object"
+        ? profile.offer as Record<string, unknown>
+        : null;
+      setAssetContext(studioAssetContext);
+      const context = [
+        generationPrompt,
+        studioAssetContext,
+        avatarIdea && !generationPrompt ? `Linked Webinar Chat idea:\n${avatarIdea}` : "",
+        `Presentation for ${persona}.`,
+        typeof profile.demographics === "string" ? `Audience: ${profile.demographics}` : "",
+        typeof profile.core_fear === "string" ? `Core problem: ${profile.core_fear}` : "",
+        typeof profile.buying_trigger === "string" ? `Buying trigger: ${profile.buying_trigger}` : "",
+        list(profile.objections).length ? `Objections: ${list(profile.objections).join("; ")}` : "",
+        list(profile.headlines).length ? `Messaging directions: ${list(profile.headlines).join("; ")}` : "",
+        typeof offer?.title === "string" ? `Offer: ${offer.title}` : "",
+        typeof offer?.promise === "string" ? `Promise: ${offer.promise}` : "",
+        typeof offer?.pricing === "string" ? `Investment: ${offer.pricing}` : "",
+        list(offer?.scope).length ? `Scope: ${list(offer?.scope).join("; ")}` : "",
+      ].filter(Boolean).join("\n\n");
+
+      const rememberedBrief = savedContent?.brief as Record<string, unknown> | undefined;
+      const briefDesc = typeof rememberedBrief?.description === "string" && rememberedBrief.description.trim() ? rememberedBrief.description : "";
+
+      // Only an explicit, human-authored brief pre-fills the optional note. The derived
+      // buyer/brand `context` blob is no longer pushed into the box: the workflow reads
+      // the same saved context itself, and a pre-filled note would silently override the
+      // stored deck command. `context` is still used for the auto-build handoff below.
+      setDescription((current) => current.trim() ? current : (briefDesc || generationPrompt || ""));
+      if (briefDesc || generationPrompt) setNoteOpen(true);
+      setBrandNote(`${offer ? "Buyer, offer, and brand" : "Buyer and brand"} context loaded for ${persona}.`);
+      
+      const rememberedSlides = Array.isArray(savedContent?.slides) && savedContent.slides.length > 0
+        ? savedContent.slides as Slide[]
+        : [];
+
+      if (!rememberedSlides.length && shouldAutoBuild) {
+        pendingAutoBuildRef.current = generationPrompt || context;
+      }
+
+      if (rememberedSlides.length > 0) {
+        const rememberedTheme = savedContent?.theme as Record<string, unknown> | undefined;
+        const rememberedStyle = STYLES.find((item) => item.id === rememberedTheme?.style)?.id;
+        const rememberedFont = FONT_SETS.find((item) => item.id === rememberedTheme?.font_set)?.id;
+        const rememberedRatio = RATIOS.find((item) => item.id === rememberedTheme?.ratio)?.id;
+        const rememberedMotion = ["None", "Professional", "Dynamic"].find((item) => item === rememberedTheme?.motion) as Motion | undefined;
+        const rememberedPurpose = PURPOSES.find((item) => item === rememberedBrief?.purpose);
+        if (rememberedStyle) setStyleId(rememberedStyle);
+        if (rememberedFont) setFontSetId(rememberedFont);
+        if (rememberedRatio) setRatio(rememberedRatio);
+        if (rememberedMotion) setMotion(rememberedMotion);
+        if (rememberedPurpose) setPurpose(rememberedPurpose);
+        if (typeof rememberedTheme?.palette === "string") setPaletteId(rememberedTheme.palette);
+        if (Array.isArray(savedContent?.messages)) setMessages(savedContent.messages as ChatMessage[]);
+        setSlideCount(String(rememberedSlides.length));
+        setSlides(rememberedSlides);
+        setSelectedId(rememberedSlides[0]?.id ?? null);
+      } else if (slides.length === 0 && sessionStorage.getItem(HANDOFF.intent) === "ideas") {
+        setPurpose("Sales");
+        setSlideCount("10");
+        setDescription((current) => current || `Generate ten strong presentation and content ideas for ${persona}. Each idea should include a hook, audience promise, example visual, and recommended icon.`);
+        setNoteOpen(true);
+      }
+    }
+  }, [routeProjectId, router]);
+
+  useEffect(() => {
+    if (!pendingAutoBuildRef.current || generating || projectId || slides.length) return;
+    const brief = pendingAutoBuildRef.current;
+    pendingAutoBuildRef.current = "";
+    window.setTimeout(() => void handleGenerate(brief), 0);
+  }, [description, generating, projectId, slides.length]);
+
+  // Continuous autosave to localStorage & Firestore
+  useEffect(() => {
+    if (!projectId || !slides.length) return;
+    const sessionPayload = {
+      project_id: projectId,
+      blueprint_session_id: blueprintSessionId,
+      status: slides.length ? "completed" : "draft",
+      title: slides[0]?.title || "Untitled presentation",
+      brief: { description, purpose, slide_count: slideCount },
+      slides,
+      messages,
+      theme: { style: styleId, font_set: fontSetId, palette: paletteId, ratio, motion },
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    };
+    saveLocalSession(projectId, sessionPayload);
+
+    const timeout = window.setTimeout(() => {
+      const user = auth.currentUser;
+      if (!user) return;
+      void setDoc(
+        doc(db, "content_sessions", projectId),
+        {
+          ...sessionPayload,
+          owner_id: user.uid,
+        },
+        { merge: true }
+      ).catch((e) => console.warn("Autosave content_sessions failed:", e));
+    }, 500);
+    return () => window.clearTimeout(timeout);
+  }, [blueprintSessionId, description, fontSetId, messages, motion, paletteId, projectId, purpose, ratio, slideCount, slides, styleId]);
+
+  /** Uploads stay untouched until the user explicitly applies an image action. */
+  const ingestBrandArt = async (dataUrl: string | null, kind: "logo" | "image") => {
+    if (!dataUrl) {
+      if (kind === "logo") setLogo(null);
+      else setImage(null);
+      return;
+    }
+    if (kind === "logo") setLogo(dataUrl);
+    else {
+      setImage(dataUrl);
+      setRemoveBg(false);
+    }
+    setBrandNote(null);
+  };
+
+  const generatePaletteFromUpload = async () => {
+    const source = logo ?? image;
+    if (!source) return;
+    setImageProcessing("palette");
+    const pal = await extractPalette(source);
+    if (pal) {
+      setCustom(pal);
+      setPaletteId("custom");
+      setBrandNote("Palette generated from your upload. You can fine-tune each colour below.");
+      const user = auth.currentUser;
+      if (user) await saveWorkspaceMemory(user.uid, { brand_profile: { palette: pal } });
+    }
+    setImageProcessing(null);
+  };
+
+  const removeUploadedBackground = async () => {
+    if (!image) return;
+    setImageProcessing("background");
+    const cleaned = await removeBackground(image, 46);
+    setImage(cleaned);
+    setRemoveBg(true);
+    setBrandNote("Photo background removed. Click the photo whenever you want to replace it.");
+    setImageProcessing(null);
+  };
+
+  const palette: Palette = useMemo(() => {
+    if (paletteId === "custom") {
+      return {
+        id: "custom",
+        name: "Custom",
+        primary: custom.primary,
+        secondary: custom.secondary,
+        accent: custom.accent,
+        background: custom.background,
+        ink: "#181816",
+        muted: "#706E68",
+      };
+    }
+    return PALETTES.find((p) => p.id === paletteId) ?? PALETTES[0]!;
+  }, [paletteId, custom]);
+
+  const fontSet = FONT_SETS.find((f) => f.id === fontSetId) ?? FONT_SETS[0]!;
+  const baseSpec = STYLE_SPECS[styleId];
+  const spec = useMemo(
+    () => ({
+      ...baseSpec,
+      headingFont: fontSet.headingFont,
+      bodyFont: fontSet.bodyFont,
+      headingWeight: fontSet.headingWeight,
+      tracking: fontSet.tracking,
+    }),
+    [baseSpec, fontSet],
+  );
+  const ratioValue = RATIOS.find((r) => r.id === ratio)!.value;
+  const selected = slides.find((s) => s.id === selectedId) ?? slides[0] ?? null;
+
+  const patch = (id: string, next: Partial<Slide>) =>
+    setSlides((prev) => prev.map((s) => (s.id === id ? { ...s, ...next } : s)));
+
+  const applyStyle = (s: StyleId) => {
+    setStyleId(s);
+    setFontSetId(STYLE_FONT[s]);
+    const layout = STYLE_LAYOUT[s];
+    setSlides((prev) => prev.map((sl) => ({ ...sl, layout }))); 
+  };
+
+  const handleGenerate = async (briefOverride?: unknown) => {
+    if (generating) return;
+    const activeDescription = typeof briefOverride === "string" && briefOverride.trim()
+      ? briefOverride.trim()
+      : description.trim();
+    // No guard on an empty description: the backend supplies the stored deck
+    // command when nothing is typed here. Anything typed is still sent as an override.
+    const user = auth.currentUser;
+    const activeProjectId = projectId || crypto.randomUUID();
+    const requestedCount = Math.min(90, Math.max(1, Number.parseInt(slideCount, 10) || 8));
+    setSlideCount(String(requestedCount));
+    setStatus(null);
+    setStep(0);
+    const progress = window.setInterval(() => {
+      setStep((current) => Math.min(current + 1, GENERATION_STEPS.length - 1));
+    }, 1100);
+    try {
+      const remote: AssistantActions = await askAssistant({
+          mode: "generate",
+          projectId: activeProjectId,
+          blueprintSessionId,
+          message: `Generate exactly ${requestedCount} slides. Include a deliberate opening, a logical middle sequence, and a clear closing or thank-you slide. Keep each slide concise.${activeDescription ? ` Brief: ${activeDescription}` : ""}`,
+          description: activeDescription,
+          purpose,
+          slideCount: String(requestedCount),
+          style: styleId,
+          fontSet: fontSetId,
+          palette: paletteId,
+          ratio,
+          slides,
+          selectedSlideId: selectedId,
+          messages,
+          assetContext,
+        });
+      const generatedSlides = remote.slides ?? [];
+      if (!generatedSlides.length) {
+        throw new Error(remote.reply || "The Content Maker workflow returned no slides.");
+      }
+      if (remote.style) applyStyle(remote.style);
+      if (remote.fontSet) setFontSetId(remote.fontSet);
+      if (remote.palette) setPaletteId(remote.palette);
+      if (remote.purpose) setPurpose(remote.purpose);
+      if (remote.ratio) setRatio(remote.ratio);
+      const nextMessages = remote.reply
+        ? [...messages, { id: `generation-${Date.now()}`, role: "assistant" as const, text: remote.reply }]
+        : messages;
+      
+      const sessionPayload = {
+        project_id: activeProjectId,
+        blueprint_session_id: blueprintSessionId,
+        status: "completed",
+        title: generatedSlides[0]?.title || "Untitled presentation",
+        brief: { description: activeDescription, purpose: remote.purpose ?? purpose, slide_count: generatedSlides.length },
+        slides: generatedSlides,
+        messages: nextMessages,
+        theme: {
+          style: remote.style ?? styleId,
+          font_set: remote.fontSet ?? fontSetId,
+          palette: remote.palette ?? paletteId,
+          ratio: remote.ratio ?? ratio,
+          motion,
+        },
+        last_error: null,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Save to localStorage immediately
+      saveLocalSession(activeProjectId, sessionPayload);
+
+      if (user) {
+        void Promise.all([
+          saveWorkspaceMemory(user.uid, {
+            creation_preferences: {
+              purpose: remote.purpose ?? purpose,
+              slide_count: generatedSlides.length,
+              style: remote.style ?? styleId,
+              font_set: remote.fontSet ?? fontSetId,
+              palette: remote.palette ?? paletteId,
+              ratio: remote.ratio ?? ratio,
+              motion,
+            },
+          }),
+          setDoc(
+            doc(db, "content_sessions", activeProjectId),
+            {
+              ...sessionPayload,
+              owner_id: user.uid,
+            },
+            { merge: true }
+          ),
+        ]).catch(() => {});
+        sessionStorage.setItem(contentProjectKey(user.uid), activeProjectId);
+      }
+
+      setProjectId(activeProjectId);
+      setSlideCount(String(generatedSlides.length));
+      setSlides(generatedSlides);
+      setSelectedId(generatedSlides[0]?.id ?? null);
+      if (remote.reply) setMessages(nextMessages);
+      if (activeProjectId !== routeProjectId) {
+        window.history.replaceState(null, "", `/provider/webinar-content/${activeProjectId}`);
+      }
+      setStatus(`${generatedSlides.length} slides ready.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Webinar Content could not generate the deck");
+    } finally {
+      window.clearInterval(progress);
+      setStep(-1);
+    }
+  };
+
+  const handleChat = async (text: string) => {
+    const id = `m${Date.now().toString(36)}`;
+    const userMessage: ChatMessage = { id, role: "user", text };
+    setMessages((prev) => [...prev, userMessage]);
+    setChatBusy(true);
+    try {
+      const user = auth.currentUser;
+      const activeProjectId = projectId || crypto.randomUUID();
+      if (!projectId) {
+        setProjectId(activeProjectId);
+        if (user) {
+          sessionStorage.setItem(contentProjectKey(user.uid), activeProjectId);
+        }
+      }
+      const wantsBuild = !hasContent && /\b(build|generate|create|make|deck|ppt|presentation|slides?)\b/i.test(text);
+      const remote = await askAssistant({
+        mode: wantsBuild || !hasContent ? "generate" : "assistant",
+        projectId: activeProjectId,
+        blueprintSessionId,
+        message: text,
+        description,
+        purpose,
+        slideCount,
+        style: styleId,
+        fontSet: fontSetId,
+        palette: paletteId,
+        ratio,
+        slides,
+        selectedSlideId: selectedId,
+        messages: [...messages, userMessage],
+        assetContext,
+      });
+      if (remote.style) applyStyle(remote.style);
+      if (remote.fontSet) setFontSetId(remote.fontSet);
+      if (remote.palette) setPaletteId(remote.palette);
+      if (remote.purpose) setPurpose(remote.purpose);
+      if (remote.ratio) setRatio(remote.ratio);
+      if (remote.motion) setMotion(remote.motion);
+      if (remote.slideCount) setSlideCount(String(remote.slideCount));
+      let nextSlides = slides;
+      if (Array.isArray(remote.slides) && remote.slides.length > 0) {
+        nextSlides = remote.slides;
+        setSlides(remote.slides);
+        setSlideCount(String(remote.slides.length));
+        setSelectedId((current) => remote.slides!.some((slide) => slide.id === current) ? current : remote.slides![0]?.id ?? null);
+      }
+      if (activeProjectId !== routeProjectId) {
+        window.history.replaceState(null, "", `/provider/webinar-content/${activeProjectId}`);
+      }
+      setDescription((current) => current.trim() ? current : text);
+      const nextMessages = [...messages, userMessage, { id: `${id}r`, role: "assistant" as const, text: remote.reply ?? "Your deck has been updated." }];
+      setMessages(nextMessages);
+
+      // Save updated chat / slides locally
+      saveLocalSession(activeProjectId, {
+        project_id: activeProjectId,
+        blueprint_session_id: blueprintSessionId,
+        status: nextSlides.length ? "completed" : "draft",
+        title: nextSlides[0]?.title || "Untitled presentation",
+        brief: { description, purpose, slide_count: slideCount },
+        slides: nextSlides,
+        messages: nextMessages,
+        theme: { style: styleId, font_set: fontSetId, palette: paletteId, ratio, motion },
+        last_error: null,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      const fallback = error instanceof Error ? error.message : "Webinar Content could not process that request.";
+      setMessages((prev) => [...prev, {
+        id: `${id}e`,
+        role: "assistant",
+        text: `${fallback}\n\nThe deck is still editable. Try a direct command like "regenerate this selected slide shorter" or click Generate again to rebuild the full deck.`,
+      }]);
+    } finally {
+      setChatBusy(false);
+    }
+  };
+
+  const regenerateSelectedSlide = () => {
+    if (!selected) return;
+    void handleChat(`Regenerate only the selected slide "${selected.title}". Keep its position in the deck, improve the copy and visual concept, use no more than four concise bullets, and return the complete deck with only that slide changed.`);
+  };
+
+  const useIdeaAsBrief = (text: string, build = false) => {
+    const nextBrief = [
+      description.trim(),
+      `Selected idea from brainstorm:\n${text}`,
+      assetContext ? `Use saved brand assets and lines:\n${assetContext}` : "",
+    ].filter(Boolean).join("\n\n");
+    setDescription(nextBrief);
+    setNoteOpen(true);
+    if (build) {
+      window.setTimeout(() => void handleGenerate(nextBrief), 0);
+    }
+  };
+
+  const handleExport = async () => {
+    setStatus("Building .pptx…");
+    try {
+      await exportPptx({
+        slides,
+        palette,
+        spec,
+        ratio,
+        image,
+        logo,
+        fileName: `${(slides[0]?.title || description.split(/[.\n]/)[0] || "presentation").slice(0, 40).trim()}.pptx`,
+      });
+      setStatus(`Downloaded .pptx — ${slides.length} slides`);
+    } catch {
+      setStatus("Could not build the .pptx file");
+    }
+  };
+
+  const addSlide = () => {
+    const base = generateDeck({ purpose, count: 10, company: description, hasImage: Boolean(image) });
+    const pick = { ...base[slides.length % base.length]!, id: `s${Date.now().toString(36)}` };
+    setSlides((prev) => [...prev, pick]);
+    setSelectedId(pick.id);
+  };
+
+  const duplicate = (id: string) => {
+    const i = slides.findIndex((s) => s.id === id);
+    if (i < 0) return;
+    const copy = { ...slides[i]!, id: `s${Date.now().toString(36)}` };
+    setSlides((prev) => [...prev.slice(0, i + 1), copy, ...prev.slice(i + 1)]);
+    setSelectedId(copy.id);
+  };
+
+  const remove = (id: string) => {
+    setSlides((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      if (id === selectedId) setSelectedId(next[0]?.id ?? null);
+      return next;
+    });
+  };
+
+  return (
+    <div className="deck-builder flex h-[calc(100dvh-4rem-1px)] min-h-0 flex-col overflow-hidden bg-background text-foreground">
+      <input
+        ref={slideImageRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (!file || !selected) return;
+          const reader = new FileReader();
+          reader.onload = () => patch(selected.id, { image: String(reader.result), useImage: true });
+          reader.readAsDataURL(file);
+          event.target.value = "";
+        }}
+      />
+      <h1 className="sr-only">PowerPoint presentation builder</h1>
+      <Toolbar
+        ratio={ratio}
+        onRatio={setRatio}
+        style={styleId}
+        onStyle={(s) => applyStyle(s)}
+        motion={motion}
+        onMotion={setMotion}
+        generating={generating}
+        hasContent={hasContent}
+        onGenerate={handleGenerate}
+        onExport={() => void handleExport()}
+      />
+
+      <div className="flex min-h-0 flex-1">
+        {hasContent ? <LeftPanel
+          image={image}
+          onImage={(v: string | null) => void ingestBrandArt(v, "image")}
+          logo={logo}
+          onLogo={(v: string | null) => void ingestBrandArt(v, "logo")}
+          onExtractPalette={() => void generatePaletteFromUpload()}
+          onRemoveBackground={() => void removeUploadedBackground()}
+          processing={imageProcessing}
+          brandNote={brandNote}
+          paletteId={paletteId}
+          onPaletteId={setPaletteId}
+          custom={custom}
+          onCustom={setCustom}
+        /> : null}
+
+        <main className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 items-center justify-center px-5 py-6 sm:px-8">
+            {generating ? (
+              <GenerationStage
+                step={step}
+                slideCount={Math.min(90, Math.max(1, Number.parseInt(slideCount, 10) || 8))}
+              />
+            ) : selected ? <div
+              className="max-h-full w-full overflow-hidden rounded-[12px] border border-border bg-card transition-[max-width] duration-200"
+              style={{
+                aspectRatio: String(ratioValue),
+                maxWidth: `min(100%, calc((100vh - 340px) * ${ratioValue}))`,
+              }}
+            >
+              <SlideView
+                  key={`${selected.id}-${selected.layout}-${styleId}-${paletteId}`}
+                  slide={selected}
+                  palette={palette}
+                  spec={spec}
+                  image={selected.useImage ? selected.image ?? image : null}
+                  removeBg={removeBg}
+                  logo={logo}
+                  motion={motion}
+                  onEdit={(patchData) => patch(selected.id, patchData)}
+                  onRequestImage={() => slideImageRef.current?.click()}
+                />
+            </div> : (
+              <section className="w-full max-w-3xl rounded-[28px] border border-border bg-card p-6 shadow-[0_24px_80px_rgba(20,52,40,0.08)] sm:p-9">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <ListTree className="h-4 w-4" />
+                  Webinar Content
+                </div>
+                <h2 className="mt-4 max-w-xl text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
+                  Ready when you are
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Your saved business, buyer, offer, and brand context are already attached. Pick a format and page count, then generate.
+                </p>
+
+                <div className="mt-7 grid gap-3 sm:grid-cols-[1fr_150px]">
+                  <label className="rounded-2xl border border-border bg-background px-4 py-3">
+                    <span className="block text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Format</span>
+                    <select value={purpose} onChange={(event) => setPurpose(event.target.value as Purpose)} className="mt-1.5 w-full bg-transparent text-sm outline-none">
+                      {PURPOSES.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  </label>
+                  <label className="rounded-2xl border border-border bg-background px-4 py-3">
+                    <span className="block text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Pages, 1-90</span>
+                    <input type="number" min={1} max={90} value={slideCount} onChange={(event) => setSlideCount(event.target.value)} className="mt-1.5 w-full bg-transparent text-sm outline-none" />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void handleGenerate()}
+                  disabled={generating}
+                  className="mt-4 w-full rounded-2xl bg-foreground px-5 py-3.5 text-sm font-semibold text-background transition disabled:opacity-40"
+                >
+                  {generating ? "Building your presentation..." : `Generate ${Math.min(90, Math.max(1, Number.parseInt(slideCount, 10) || 8))} pages`}
+                </button>
+                {status ? <p className="mt-3 text-xs leading-5 text-muted-foreground">{status}</p> : null}
+
+                <div className="mt-6 border-t border-border pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setNoteOpen((open) => !open)}
+                    aria-expanded={noteOpen}
+                    className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground transition hover:text-foreground"
+                  >
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${noteOpen ? "rotate-180" : ""}`} />
+                    Add a note (optional)
+                  </button>
+                  {noteOpen ? (
+                    <>
+                      <textarea
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                        rows={4}
+                        placeholder="Anything specific for this deck. Leave empty and your saved setup is used."
+                        className="mt-3 w-full resize-none rounded-2xl border border-border bg-background px-4 py-3 text-sm leading-6 outline-none transition focus:border-foreground/35"
+                      />
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        Only needed when this deck should differ from your saved setup.
+                      </p>
+                    </>
+                  ) : null}
+                </div>
+              </section>
+            )}
+          </div>
+
+          <div className="flex h-8 shrink-0 items-center gap-3 px-8 text-[12px] text-muted-foreground">
+            {generating ? (
+              <span className="generation-working text-foreground">{GENERATION_STEPS[step]}</span>
+            ) : (
+              <span>{status ?? (hasContent ? `${slides.length} slides · ${ratio} · ${styleId} theme · click text to edit` : "")}</span>
+            )}
+          </div>
+
+          {selected ? (
+            <LayoutBar
+              slide={selected}
+              onLayout={(l: LayoutVariant) => patch(selected.id, { layout: l })}
+              onAllLayout={(l: LayoutVariant) =>
+                setSlides((prev) => prev.map((s) => ({ ...s, layout: l })))
+              }
+              onRegenerate={regenerateSelectedSlide}
+              regenerating={chatBusy}
+            />
+          ) : null}
+
+          {hasContent ? <SlideStrip
+            slides={slides}
+            selectedId={selected?.id ?? null}
+            onSelect={setSelectedId}
+            onAdd={addSlide}
+            onDuplicate={duplicate}
+            onDelete={remove}
+          /> : null}
+        </main>
+
+        <ChatPanel
+          messages={messages}
+          busy={chatBusy}
+          hasContent={hasContent}
+          onSend={handleChat}
+          onUseIdea={useIdeaAsBrief}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function brainstormReply(input: string, hasAssetContext: boolean) {
+  const idea = input.trim();
+  return [
+    "I added this to the working brief as a brainstormed direction.",
+    "",
+    `Angle: ${idea}`,
+    "Content direction: turn this into a focused deck with a clear opening problem, one main promise, proof or example slides, and a direct next step.",
+    "Suggested structure: Hook, audience fit, problem, insight, method, example, offer or recommendation, closing.",
+    hasAssetContext
+      ? "Brand context: saved logo, visual assets, business lines, quotes, and usage notes will be attached when you build from this."
+      : "Brand context: add logos, quotes, and source files in Brand Assets if you want them attached automatically.",
+    "",
+    "Use Add to brief if you want to keep shaping it, or Build from this when you want Webinar Content to create the PPT/PDF-ready deck.",
+  ].join("\n");
+}
