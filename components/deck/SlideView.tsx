@@ -557,9 +557,13 @@ export function SlideView({ slide: rawSlide, palette, spec, image, removeBg, log
      * the closing slides the deck agent had chosen art for — the bookends are
      * the two slides that most need to look finished.
      */
-    const bleedPhoto = hasArt && !isCutout;
-    const sideCutout = hasArt && isCutout && slide.layout !== "D";
-    const topCutout = hasArt && isCutout && slide.layout === "D";
+    // Only art resolved by the deck-art pipeline carries an explicit kind. An
+    // image the user uploaded themselves has none, and keeps the original
+    // side-portrait treatment rather than silently taking over the slide.
+    const artKind = rawSlide?.imageKind ?? null;
+    const bleedPhoto = hasArt && artKind === "photo";
+    const sideCutout = hasArt && artKind !== "photo" && slide.layout !== "D";
+    const topCutout = hasArt && artKind === "cutout" && slide.layout === "D";
 
     return (
       <div style={root}>

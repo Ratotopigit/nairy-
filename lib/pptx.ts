@@ -492,20 +492,76 @@ export async function exportPptx(opts: {
 
     // ---------------- Title & closing ----------------
     if (isTitle) {
-      const withImage = Boolean(s.useImage && slideImage && s.layout !== "D");
       const centered = s.layout === "B" || s.layout === "D";
-      const textW = withImage ? contentW * 0.62 : contentW;
+      const hasArt = Boolean(s.useImage && slideImage);
+      /**
+       * Mirrors SlideView: a photo is a full-bleed backdrop, a cutout stands
+       * beside or above the headline. Layout D used to drop art entirely,
+       * which blanked the closing slides that are guaranteed art.
+       *
+       * Only pipeline art carries an explicit kind; a user's own upload has
+       * none and keeps the original side-portrait treatment.
+       */
+      const artKind = s.imageKind ?? null;
+      const bleedPhoto = hasArt && artKind === "photo";
+      const sideCutout = hasArt && artKind !== "photo" && s.layout !== "D";
+      const topCutout = hasArt && artKind === "cutout" && s.layout === "D";
+
+      // Backdrop first — pptxgenjs paints in call order, so the headline has
+      // to come after the photo and its scrim or it ends up underneath.
+      if (bleedPhoto && slideImage) {
+        try {
+          slide.addImage({
+            data: slideImage,
+            x: 0,
+            y: 0,
+            w: dim.w,
+            h: dim.h,
+            sizing: { type: "cover", w: dim.w, h: dim.h },
+          });
+        } catch {
+          /* ignore unsupported image data */
+        }
+        // PowerPoint shape fills are solid, so the on-screen gradient becomes
+        // one or two translucent bands in the deck's own background colour.
+        if (centered) {
+          slide.addShape("rect", {
+            x: 0, y: 0, w: dim.w, h: dim.h,
+            fill: { color: bg, transparency: 20 },
+            line: { type: "none" },
+          });
+        } else {
+          slide.addShape("rect", {
+            x: 0, y: 0, w: dim.w * 0.55, h: dim.h,
+            fill: { color: bg, transparency: 6 },
+            line: { type: "none" },
+          });
+          slide.addShape("rect", {
+            x: dim.w * 0.55, y: 0, w: dim.w * 0.45, h: dim.h,
+            fill: { color: bg, transparency: 45 },
+            line: { type: "none" },
+          });
+        }
+      }
+
+      const textW = sideCutout ? contentW * 0.62 : contentW;
       const geo = {
         w: textW,
         titleCqw: h1 * 1.5,
-        titleComfy: withImage ? 30 : 42,
-        bodyComfy: withImage ? 110 : 170,
+        titleComfy: sideCutout ? 30 : 42,
+        bodyComfy: sideCutout ? 110 : 170,
       };
       const h = stackH(geo);
-      const startY = s.layout === "C" ? pad : pad + Math.max((contentH - h) / 2, 0);
-      drawStack({ x: pad, y: startY, ...geo, align: centered ? "center" : "left" });
+      const cutoutH = topCutout ? dim.h * 0.26 + inch(RHYTHM) : 0;
+      const startY = s.layout === "C" ? pad : pad + Math.max((contentH - h - cutoutH) / 2, 0);
 
-      if (withImage && slideImage) {
+      if (topCutout) {
+        const iw = inch(26);
+        drawMedia(centered ? (dim.w - iw) / 2 : pad, startY, iw, dim.h * 0.26);
+      }
+      drawStack({ x: pad, y: startY + cutoutH, ...geo, align: centered ? "center" : "left" });
+
+      if (sideCutout && slideImage) {
         const iw = inch(30);
         const ih = dim.h * 0.72;
         drawMedia(dim.w - inch(opts.spec.pad * 0.6) - iw, dim.h - inch(opts.spec.pad * 0.9) - ih, iw, ih);
