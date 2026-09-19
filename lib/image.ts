@@ -74,6 +74,34 @@ export async function removeBackground(src: string, tolerance = 34): Promise<str
   }
 }
 
+/**
+ * Downscales art to what a slide actually needs, before it gets embedded.
+ *
+ * A media frame on a 16:9 slide is roughly 6.7in wide, so 1200px on the long
+ * edge is already oversampled at print DPI — anything beyond that is weight
+ * with no visible gain, and base64 inflates whatever we keep by a third.
+ *
+ * Cutouts re-encode to PNG to preserve alpha. Photos go to JPEG rather than
+ * WEBP: WEBP is smaller, but PowerPoint's support for it is unreliable and a
+ * backdrop never needs transparency anyway.
+ */
+export async function fitForSlide(
+  src: string,
+  options: { cutout?: boolean; max?: number } = {},
+): Promise<string> {
+  try {
+    const img = await loadImage(src);
+    const max = options.max ?? 1200;
+    if (Math.max(img.width, img.height) <= max) return src;
+    const { canvas } = toCanvas(img, max);
+    return options.cutout
+      ? canvas.toDataURL("image/png")
+      : canvas.toDataURL("image/jpeg", 0.86);
+  } catch {
+    return src;
+  }
+}
+
 type RGB = [number, number, number];
 
 const hex = ([r, g, b]: RGB) =>
@@ -129,22 +157,28 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number)
 
 export async function prepareImageForStorage(
   file: File,
-  options: { logo?: boolean; max?: number } = {},
+  options: { logo?: boolean; cutout?: boolean; max?: number } = {},
 ): Promise<PreparedImage> {
+  /**
+   * Anything with an alpha channel has to survive as PNG. WEBP would keep the
+   * alpha but PowerPoint's support for it is unreliable, and a lossy pass on a
+   * cutout's feathered edge is exactly where the artefacts show.
+   */
+  const keepsAlpha = Boolean(options.logo || options.cutout);
   const originalUrl = await readFileAsDataUrl(file);
   const cleanedUrl = options.logo ? await removeBackground(originalUrl, 46) : originalUrl;
   const img = await loadImage(cleanedUrl);
-  const max = options.max ?? (options.logo ? 1200 : 1800);
+  const max = options.max ?? (keepsAlpha ? 1200 : 1800);
   const { canvas } = toCanvas(img, max);
-  const mimeType = options.logo ? "image/png" : "image/webp";
-  const blob = options.logo
+  const mimeType = keepsAlpha ? "image/png" : "image/webp";
+  const blob = keepsAlpha
     ? await canvasToBlob(canvas, mimeType)
     : await canvasToBlob(canvas, mimeType, 0.84);
   const baseName = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9._-]+/g, "-") || "asset";
   return {
     blob,
     mimeType,
-    fileName: `${baseName}.${options.logo ? "png" : "webp"}`,
+    fileName: `${baseName}.${keepsAlpha ? "png" : "webp"}`,
     previewUrl: URL.createObjectURL(blob),
     backgroundRemoved: Boolean(options.logo && blob.size <= file.size * 1.2),
   };

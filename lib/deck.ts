@@ -38,6 +38,28 @@ export type Slide = {
   chart: number[];
   useImage: boolean;
   image?: string | null;
+  /**
+   * How `image` should be fitted. A cutout has an alpha channel and must never
+   * be cropped — cropping one lops the subject's head off. A photo is a
+   * backdrop and is cover-cropped to fill its frame.
+   */
+  imageKind?: ImageKind;
+  /**
+   * What art this slide *wants*, as intent rather than pixels. The deck agent
+   * fills this in; `lib/deck-art.ts` resolves it to a URL. Kept separate from
+   * `image` so a slide can be re-resolved without losing the brief.
+   */
+  art?: SlideArt | null;
+};
+
+export type ImageKind = "photo" | "cutout";
+
+export type SlideArt = {
+  /** Search term the agent chose for this slide's theme. */
+  query: string;
+  kind: ImageKind;
+  /** Resolved Pixabay page URL, kept for attribution. */
+  source?: string | null;
 };
 
 export type Palette = {

@@ -34,6 +34,7 @@ import { askAssistant, type AssistantActions } from "@/lib/assistant";
 import { HANDOFF } from "@/lib/creation-handoff";
 import { extractPalette, removeBackground } from "@/lib/image";
 import { exportPptx } from "@/lib/pptx";
+import { resolveArtForExport } from "@/lib/deck-art";
 import { auth, db } from "@/lib/firebase/config";
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { loadStudioContext } from "@/lib/workspace-context";
@@ -722,8 +723,12 @@ export default function Builder() {
   const handleExport = async () => {
     setStatus("Building .pptx…");
     try {
+      // Inline any remote art first — a .pptx must carry the bytes, not a link.
+      setStatus("Fetching images…");
+      const exportSlides = await resolveArtForExport(slides).catch(() => slides);
+      setStatus("Building .pptx…");
       await exportPptx({
-        slides,
+        slides: exportSlides,
         palette,
         spec,
         ratio,

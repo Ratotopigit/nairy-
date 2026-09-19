@@ -10,6 +10,7 @@ import type {
 } from "./deck";
 import { readN8nJson } from "./n8n-response";
 import { auth } from "./firebase/config";
+import { n8nWebhookUrl } from "@/lib/n8n-url";
 
 export type AssistantActions = {
   reply?: string;
@@ -43,9 +44,6 @@ export type AssistantContext = {
   assetContext?: string;
 };
 
-const WEBHOOK_URL = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL
-  ? `${process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL.replace(/\/+$/, "")}/content-maker`
-  : "https://explosionmarketing.app.n8n.cloud/webhook/content-maker";
 
 // A Gemini agent building up to 90 slides routinely runs past a minute.
 const ASSISTANT_TIMEOUT_MS = 120_000;
@@ -77,6 +75,14 @@ export function normalizeSlide(raw: Partial<Slide>, index: number): Slide {
       : [35, 55, 75, 90],
     useImage: Boolean(raw.useImage),
     image: raw.image ?? null,
+    imageKind: raw.imageKind === "cutout" || raw.imageKind === "photo" ? raw.imageKind : undefined,
+    art: raw.art && typeof raw.art.query === "string" && raw.art.query.trim()
+      ? {
+          query: raw.art.query.trim().slice(0, 100),
+          kind: raw.art.kind === "photo" ? "photo" : "cutout",
+          source: raw.art.source ?? null,
+        }
+      : null,
   };
 }
 
@@ -102,7 +108,7 @@ export async function askAssistant(ctx: AssistantContext): Promise<AssistantActi
   const timeoutId = setTimeout(() => controller.abort(), ASSISTANT_TIMEOUT_MS);
 
   try {
-    const res = await fetch(WEBHOOK_URL, {
+    const res = await fetch(n8nWebhookUrl("content-maker"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -137,7 +143,21 @@ export async function askAssistant(ctx: AssistantContext): Promise<AssistantActi
     const candidate = ((data?.actions ?? data?.result ?? data) as AssistantActions) ?? {};
 
     if (Array.isArray(candidate.slides) && candidate.slides.length > 0) {
-      candidate.slides = candidate.slides.map(normalizeSlide);
+      // Images are stripped on the way out, so the agent never echoes them
+      // back. Re-attach what each slide already had, or the resolved art is
+      // wiped on every assistant turn.
+      const keptArt = new Map(currentSlides.map((s) => [s.id, s]));
+      candidate.slides = candidate.slides.map(normalizeSlide).map((slide) => {
+        if (slide.image) return slide;
+        const previous = keptArt.get(slide.id);
+        if (!previous?.image) return slide;
+        return {
+          ...slide,
+          image: previous.image,
+          imageKind: slide.imageKind ?? previous.imageKind,
+          art: slide.art ?? previous.art ?? null,
+        };
+      });
       return candidate;
     }
     if (candidate.reply) {

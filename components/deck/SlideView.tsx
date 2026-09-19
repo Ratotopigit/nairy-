@@ -100,6 +100,9 @@ export function SlideView({ slide: rawSlide, palette, spec, image, removeBg, log
     type: rawSlide?.type ?? "bullets",
   };
   const pad = spec.pad;
+  // `removeBg` is the studio's older global toggle; a slide's own imageKind
+  // wins when the art came from the deck-art webhook and already has alpha.
+  const isCutout = (rawSlide?.imageKind ?? (removeBg ? "cutout" : "photo")) === "cutout";
   const h1 = 5.4 * spec.headingScale;
   const dur = motion === "None" ? 0 : motion === "Dynamic" ? 420 : 260;
 
@@ -425,14 +428,16 @@ export function SlideView({ slide: rawSlide, palette, spec, image, removeBg, log
         cursor: onRequestImage ? "pointer" : "default",
       }}
     >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: mix(palette.background, palette.secondary, 0.55),
-          borderRadius: 4,
-        }}
-      />
+      {isCutout ? null : (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: mix(palette.background, palette.secondary, 0.55),
+            borderRadius: 4,
+          }}
+        />
+      )}
       {image ? (
         <img
           src={image}
@@ -441,10 +446,10 @@ export function SlideView({ slide: rawSlide, palette, spec, image, removeBg, log
             position: "relative",
             height: "100%",
             width: "100%",
-            objectFit: "cover",
-            borderRadius: 4,
-            mixBlendMode: removeBg ? "multiply" : "normal",
-            filter: removeBg ? "contrast(1.04) saturate(1.02)" : "none",
+            // Matches lib/pptx.ts drawMedia: a cutout is contained so the
+            // subject stays whole, a photo is cover-cropped to fill.
+            objectFit: isCutout ? "contain" : "cover",
+            borderRadius: isCutout ? 0 : 4,
           }}
         />
       ) : (

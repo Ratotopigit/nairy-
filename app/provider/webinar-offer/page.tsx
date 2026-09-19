@@ -10,6 +10,7 @@ import { auth, db } from "@/lib/firebase/config";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { loadStudioContext } from "@/lib/workspace-context";
 import { saveWorkspaceMemory } from "@/lib/workspace-memory";
+import { n8nWebhookUrl } from "@/lib/n8n-url";
 
 type OfferBlueprint = {
   title: string;
@@ -34,9 +35,6 @@ type BuyerBlueprint = Record<string, unknown> & {
   offer?: OfferBlueprint;
 };
 
-const OFFER_WEBHOOK_URL = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL
-  ? `${process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL.replace(/\/+$/, "")}/offer-iq`
-  : "https://explosionmarketing.app.n8n.cloud/webhook/offer-iq";
 
 // A Gemini agent composing a full offer regularly needs over a minute.
 const OFFER_TIMEOUT_MS = 120_000;
@@ -152,7 +150,7 @@ export default function OfferIQPage() {
       const timeoutId = window.setTimeout(() => controller.abort(), OFFER_TIMEOUT_MS);
 
       try {
-        const response = await fetch(OFFER_WEBHOOK_URL, {
+        const response = await fetch(n8nWebhookUrl("offer-iq"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

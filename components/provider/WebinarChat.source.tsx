@@ -42,6 +42,7 @@ import { collection, deleteDoc, doc, onSnapshot, query, setDoc, where } from "fi
 import { loadStudioContext } from "@/lib/workspace-context";
 import { saveWorkspaceMemory, type WorkspaceMemory } from "@/lib/workspace-memory";
 import { resolveUserFirstName } from "@/lib/onboarding";
+import { n8nWebhookUrl } from "@/lib/n8n-url";
 
 export type Message = {
   id: string;
@@ -88,9 +89,6 @@ type BlueprintSession = {
   updated_at: string;
 };
 
-const WEBHOOK_URL = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL
-  ? `${process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL.replace(/\/+$/, "")}/avatar-iq`
-  : "https://explosionmarketing.app.n8n.cloud/webhook/avatar-iq";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CHAT_PATH = "/provider/webinar-chat";
 
@@ -711,7 +709,7 @@ export default function PresentationChat() {
       const timeoutId = window.setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
 
       try {
-        const response = await fetch(WEBHOOK_URL, {
+        const response = await fetch(n8nWebhookUrl("avatar-iq"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

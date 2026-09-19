@@ -101,6 +101,7 @@ export async function exportPptx(opts: {
     const metrics = Array.isArray(s.metrics) ? s.metrics.filter(Boolean) : [];
     const chart = Array.isArray(s.chart) && s.chart.length ? s.chart : [];
     const slideImage = s.image ?? opts.image;
+    const slideKind = s.imageKind ?? "photo";
     const isTitle = s.type === "title" || s.type === "closing";
 
     /**
@@ -416,17 +417,29 @@ export async function exportPptx(opts: {
     };
 
     const drawMedia = (x: number, y: number, w: number, h: number) => {
-      slide.addShape("rect", {
-        x,
-        y,
-        w,
-        h,
-        fill: { color: secondary },
-        line: { type: "none" },
-      });
+      // A cutout is transparent art sitting on the slide, not a framed photo:
+      // no tinted panel behind it, and `contain` so nothing gets cropped away.
+      const isCutout = slideKind === "cutout";
+      if (!isCutout) {
+        slide.addShape("rect", {
+          x,
+          y,
+          w,
+          h,
+          fill: { color: secondary },
+          line: { type: "none" },
+        });
+      }
       if (slideImage) {
         try {
-          slide.addImage({ data: slideImage, x, y, w, h, sizing: { type: "cover", w, h } });
+          slide.addImage({
+            data: slideImage,
+            x,
+            y,
+            w,
+            h,
+            sizing: { type: isCutout ? "contain" : "cover", w, h },
+          });
         } catch {
           /* ignore unsupported image data */
         }
