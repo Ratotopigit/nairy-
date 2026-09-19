@@ -2,3 +2,27 @@ name = "webinarkit"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "out"
+
+# Build-time configuration for Cloudflare Pages.
+#
+# This is a static export, so every NEXT_PUBLIC_* value is inlined into the
+# JavaScript during `next build` — it has to exist when the build runs, not
+# when the page is served. Dashboard entries saved as "Secret" are only
+# exposed at runtime, which is why two deploys failed here with
+# "Firebase is not configured" during prerender of /onboarding.
+#
+# Nothing below is a secret. The Firebase web config is public by design and
+# ships inside the client bundle of every Firebase app; access is controlled
+# by firestore.rules and storage.rules, not by hiding these. The n8n webhook
+# base is called directly from the browser. Real secrets — the Firebase
+# service account and the Pixabay key — live in n8n credentials and must
+# never appear here.
+[vars]
+NEXT_PUBLIC_FIREBASE_API_KEY = "AIzaSyDEc-zNxEGcYEpKFKuSgZUllsCTQ1xSCdg"
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = "nirey-f2faf.firebaseapp.com"
+NEXT_PUBLIC_FIREBASE_PROJECT_ID = "nirey-f2faf"
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = "nirey-f2faf.firebasestorage.app"
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = "84398638524"
+NEXT_PUBLIC_FIREBASE_APP_ID = "1:84398638524:web:73049a61ee5baedc5097b9"
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID = "G-FEFS6JDC96"
+NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL = "https://explosionmarketing.app.n8n.cloud/webhook"
