@@ -75,7 +75,9 @@ export function normalizeSlide(raw: Partial<Slide>, index: number): Slide {
       : [35, 55, 75, 90],
     useImage: Boolean(raw.useImage),
     image: raw.image ?? null,
-    imageKind: raw.imageKind === "cutout" || raw.imageKind === "photo" ? raw.imageKind : undefined,
+    // null, never undefined: these slides are written straight to Firestore,
+    // and setDoc rejects an undefined field value outright.
+    imageKind: raw.imageKind === "cutout" || raw.imageKind === "photo" ? raw.imageKind : null,
     art: raw.art && typeof raw.art.query === "string" && raw.art.query.trim()
       ? {
           query: raw.art.query.trim().slice(0, 100),

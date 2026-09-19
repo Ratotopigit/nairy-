@@ -43,7 +43,7 @@ export type Slide = {
    * be cropped — cropping one lops the subject's head off. A photo is a
    * backdrop and is cover-cropped to fill its frame.
    */
-  imageKind?: ImageKind;
+  imageKind?: ImageKind | null;
   /**
    * What art this slide *wants*, as intent rather than pixels. The deck agent
    * fills this in; `lib/deck-art.ts` resolves it to a URL. Kept separate from

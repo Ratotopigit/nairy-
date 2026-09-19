@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth, type User } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { initializeFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -29,7 +29,10 @@ export const app: FirebaseApp =
   getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export const auth: Auth = getAuth(app);
-export const db: Firestore = getFirestore(app);
+// A single undefined field anywhere in a slide makes setDoc throw and the
+// autosave lose the whole deck. Skipping undefined is far better here than
+// failing the write.
+export const db: Firestore = initializeFirestore(app, { ignoreUndefinedProperties: true });
 export const storage: FirebaseStorage = getStorage(app);
 
 export async function getCurrentUser(): Promise<User | null> {
