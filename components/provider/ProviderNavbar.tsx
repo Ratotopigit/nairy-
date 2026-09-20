@@ -32,27 +32,17 @@ export default function ProviderNavbar() {
 
   return (
     <header className="provider-nav sticky top-0 z-50 shrink-0 border-b border-border bg-background">
-      <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-5 px-4 sm:px-6">
+      <div className="mx-auto flex h-[64px] w-full max-w-[1440px] items-center gap-5 px-4 sm:px-6">
         <Link
           href="/provider"
-          aria-label="WebinarKit home"
-          className="mr-auto flex min-w-0 items-center gap-2.5"
+          aria-label="Webinar Stack home"
+          className="mr-auto flex shrink-0 items-center"
         >
-          <div className="size-8 rounded-lg overflow-hidden border border-border bg-card p-0.5 shadow-2xs flex items-center justify-center shrink-0">
-            <img
-              src="/assets/webinarkit-logo.png"
-              alt="WebinarKit"
-              className="size-full object-contain"
-            />
-          </div>
-          <span className="flex items-baseline gap-2">
-            <span className="text-base font-bold uppercase tracking-[-0.01em] text-foreground">
-              WebinarKit
-            </span>
-            <span className="hidden font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground sm:inline">
-              Creation Studio
-            </span>
-          </span>
+          <img
+            src="/assets/webinarstackai-logo.png"
+            alt="Webinar Stack"
+            className="h-[48px] sm:h-[52px] md:h-[56px] w-[185px] sm:w-[210px] md:w-[230px] object-fill transition-opacity hover:opacity-90"
+          />
         </Link>
 
         <nav aria-label="Primary" className="hidden items-center gap-6 md:flex">

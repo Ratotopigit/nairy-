@@ -7,7 +7,7 @@ import { ArrowLeft, Bell } from "lucide-react";
 
 import UserProfileDropdown from "@/components/provider/UserProfileDropdown";
 
-const logo = "/assets/webinarkit-logo.png";
+const logo = "/assets/webinarstackai-logo.png";
 
 export default function UserHeader() {
   return (
@@ -26,19 +26,12 @@ export default function UserHeader() {
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </Link>
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl overflow-hidden bg-card border border-border flex items-center justify-center p-1">
-            <img
-              src={logo}
-              alt="WebinarKit Logo"
-              width={40}
-              height={40}
-              draggable={false}
-              className="select-none pointer-events-none h-full w-auto object-contain"
-            />
-          </div>
-          <span className="hidden text-base font-bold uppercase tracking-[-0.01em] text-foreground sm:block">
-            WebinarKit
-          </span>
+          <img
+            src={logo}
+            alt="Webinar Stack Logo"
+            draggable={false}
+            className="select-none pointer-events-none h-8 sm:h-9 w-auto object-contain"
+          />
         </div>
       </motion.div>
 

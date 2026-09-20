@@ -2001,8 +2001,8 @@ function MessageBubble({
       {/* Circular Avatar Logo */}
       <div className="size-8 sm:size-9 shrink-0 rounded-full overflow-hidden border border-border bg-card p-0.5 shadow-xs flex items-center justify-center">
         <img
-          src="/assets/webinarkit-logo.png"
-          alt="WebinarKit"
+          src="/assets/webinarstackai-logo.png"
+          alt="Webinar Stack"
           className="size-full object-contain"
         />
       </div>

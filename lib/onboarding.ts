@@ -56,7 +56,7 @@ export const INITIAL_ONBOARDING_DATA: OnboardingData = {
 
 // Legacy localStorage namespace. Kept verbatim on purpose: it is a storage key,
 // never user-visible copy, and renaming it would orphan every existing user's
-// cached onboarding state. Product naming is "Webinar Chat" / "WebinarKit".
+// cached onboarding state. Product naming is "Webinar Chat" / "Webinar Stack".
 const STORAGE_PREFIX = "astrocraft_onboarding_";
 
 /**

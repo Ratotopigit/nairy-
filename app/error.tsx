@@ -17,7 +17,7 @@ export default function ErrorPage({
     <main className="grid min-h-screen place-items-center bg-background px-4 text-foreground sm:px-6">
       <section className="w-full max-w-lg rounded-3xl border border-border bg-card p-8 text-center">
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          WebinarKit
+          Webinar Stack
         </p>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight">This page could not load</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">

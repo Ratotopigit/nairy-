@@ -21,16 +21,11 @@ export function OnboardingProgress({
       <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-card border border-border overflow-hidden p-0.5 shrink-0">
-            <img
-              src="/assets/webinarkit-logo.png"
-              alt="WebinarKit"
-              className="size-full object-contain"
-            />
-          </div>
-          <span className="text-sm font-bold tracking-tight text-foreground">
-            WebinarKit
-          </span>
+          <img
+            src="/assets/webinarstackai-logo.png"
+            alt="Webinar Stack"
+            className="h-7 sm:h-8 w-auto object-contain"
+          />
           <span className="hidden sm:inline-block text-xs text-muted-foreground border-l border-border pl-3">
             {stepTitle}
           </span>

@@ -205,7 +205,7 @@ export default function CosmicConstellationGraphic() {
           Cosmic Core
         </span>
         <span className="text-[10px] text-slate-400 font-medium">
-          WebinarKit AI
+          Webinar Stack AI
         </span>
       </motion.div>
 

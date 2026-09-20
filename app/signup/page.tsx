@@ -34,7 +34,7 @@ const isFirebaseConfigured = Boolean(
 );
 
 
-const logo = "/assets/webinarkit-logo.png";
+const logo = "/assets/webinarstackai-logo.png";
 const girlImg = "/assets/login-img/girl.png";
 const ideaImg = "/assets/login-img/idea.png";
 const pptImg = "/assets/login-img/ppt.png";
@@ -131,7 +131,7 @@ export default function SignupPage() {
           <div className="relative w-full max-w-lg aspect-square flex items-end justify-start">
             <img
               src={girlImg}
-              alt="WebinarKit assistant at desk"
+              alt="Webinar Stack assistant at desk"
               width={520}
               height={520}
               draggable={false}
@@ -223,17 +223,14 @@ export default function SignupPage() {
           className="lg:col-span-5 w-full max-w-md mx-auto"
         >
           <div className="rounded-3xl border border-border bg-card p-6 sm:p-8 lg:p-10">
-            {/* Brand Lockup: Logo beside WebinarKit */}
-            <div className="flex items-center justify-center gap-2.5 mb-6">
+            {/* Brand Lockup: Webinar Stack Logo */}
+            <div className="flex items-center justify-center mb-6 sm:mb-8">
               <img
                 src={logo}
-                alt="WebinarKit Logo"
+                alt="Webinar Stack"
                 draggable={false}
-                className="select-none pointer-events-none h-9 w-auto object-contain"
+                className="select-none pointer-events-none w-64 sm:w-72 max-w-full h-auto object-contain"
               />
-              <span className="text-lg font-bold uppercase tracking-[-0.01em] text-foreground">
-                WebinarKit
-              </span>
             </div>
 
             <div className="mb-8 text-center">
@@ -241,7 +238,7 @@ export default function SignupPage() {
                 Create your account
               </h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Join the WebinarKit provider workspace.
+                Join the Webinar Stack provider workspace.
               </p>
             </div>
 

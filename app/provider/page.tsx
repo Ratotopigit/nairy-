@@ -54,7 +54,7 @@ export default function ProviderHomePage() {
           Creation Studio
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
-          Welcome to WebinarKit.
+          Welcome to Webinar Stack.
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
           Your buyer intelligence, offer strategy, and presentation creation workspace.

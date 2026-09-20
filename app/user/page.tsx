@@ -84,7 +84,7 @@ export default function UserPage() {
       <header className="relative z-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-border px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <span className="text-lg font-bold uppercase tracking-[-0.01em] text-foreground">
-            WebinarKit
+            Webinar Stack
           </span>
           <span className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground sm:inline">
             45 min remaining
