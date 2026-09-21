@@ -8,6 +8,8 @@ import {
   FilePlus2,
   Layers3,
   Loader2,
+  Mic,
+  MicOff,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
@@ -43,6 +45,7 @@ import { loadStudioContext } from "@/lib/workspace-context";
 import { saveWorkspaceMemory, type WorkspaceMemory } from "@/lib/workspace-memory";
 import { resolveUserFirstName } from "@/lib/onboarding";
 import { n8nWebhookUrl } from "@/lib/n8n-url";
+import VoiceWaveVisualizer from "./VoiceWaveVisualizer";
 
 export type Message = {
   id: string;
@@ -158,35 +161,213 @@ function formatSessionDate(dateStr?: string): string {
   }
 }
 
+const ACTIVE_SESSION_STORAGE_KEY = "webinarkit:active-session-id";
+const EXPLICIT_NEW_CHAT_KEY = "webinarkit:explicit-new-chat";
+
+function getSessionCacheKey(sessionId: string): string {
+  return `webinarkit:session:${sessionId}`;
+}
+
+function getCachedSession(sessionId: string): Partial<BlueprintSession> | null {
+  if (typeof window === "undefined" || !sessionId) return null;
+  try {
+    const raw =
+      sessionStorage.getItem(getSessionCacheKey(sessionId)) ||
+      localStorage.getItem(getSessionCacheKey(sessionId));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSessionLocally(sessionId: string, data: Partial<BlueprintSession>) {
+  if (typeof window === "undefined" || !sessionId) return;
+  try {
+    const key = getSessionCacheKey(sessionId);
+    const existing = getCachedSession(sessionId) || {};
+    const merged = { ...existing, ...data, session_id: sessionId, updated_at: new Date().toISOString() };
+    const str = JSON.stringify(merged);
+    sessionStorage.setItem(key, str);
+    localStorage.setItem(key, str);
+    localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
+    sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
+  } catch (err) {
+    console.warn("Failed to save session locally:", err);
+  }
+}
+
 export default function PresentationChat() {
   const params = useParams<{ chatId?: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  // `?c=` is the current, user-facing param. `?session=` and `?id=` are kept
-  // for back-compat with links that were already shared.
-  const rawRouteChatId =
+
+  // `?c=` is the current, user-facing param. `?session=` and `?id=` are kept for back-compat.
+  const queryChatId =
     searchParams?.get("c") ||
     searchParams?.get("session") ||
     searchParams?.get("id") ||
     (typeof params?.chatId === "string" && params.chatId !== "default" ? params.chatId : "");
+
+  // If no explicit query param was given and the user didn't explicitly request a new chat,
+  // check if there is an active session from local/session storage.
+  const storedActiveChatId =
+    typeof window !== "undefined" && !sessionStorage.getItem(EXPLICIT_NEW_CHAT_KEY)
+      ? sessionStorage.getItem(ACTIVE_SESSION_STORAGE_KEY) ||
+        localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY) ||
+        ""
+      : "";
+
+  const rawRouteChatId = queryChatId || storedActiveChatId;
+
   const routeChatId =
     rawRouteChatId && (rawRouteChatId.length > 5 || isSessionUuid(rawRouteChatId))
       ? rawRouteChatId
       : "";
 
-  const [messages, setMessages] = useState<Message[]>([INITIAL_GREETING]);
-  const [answers, setAnswers] = useState<WebinarAnswers>({});
-  const [step, setStep] = useState<number>(1);
-  const [draft, setDraft] = useState("");
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (typeof window !== "undefined" && rawRouteChatId) {
+      const cached = getCachedSession(rawRouteChatId);
+      if (cached && Array.isArray(cached.messages) && cached.messages.length > 0) {
+        return cached.messages;
+      }
+    }
+    return [INITIAL_GREETING];
+  });
+  const [answers, setAnswers] = useState<WebinarAnswers>(() => {
+    if (typeof window !== "undefined" && rawRouteChatId) {
+      const cached = getCachedSession(rawRouteChatId);
+      if (cached?.answers) return cached.answers as WebinarAnswers;
+    }
+    return {};
+  });
+  const [step, setStep] = useState<number>(() => {
+    if (typeof window !== "undefined" && rawRouteChatId) {
+      const cached = getCachedSession(rawRouteChatId);
+      if (cached?.step) return cached.step;
+    }
+    return 1;
+  });
+  const [draft, setDraft] = useState(() => {
+    if (typeof window !== "undefined" && rawRouteChatId) {
+      const cached = getCachedSession(rawRouteChatId);
+      if (cached?.draft) return cached.draft;
+    }
+    return "";
+  });
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const baseDraftRef = useRef<string>("");
+
+  // Clean up speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+      }
+    };
+  }, []);
+
+  function toggleVoiceInput() {
+    if (isListening) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+      setIsListening(false);
+      return;
+    }
+
+    if (typeof window === "undefined") return;
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Voice input is not supported in this browser. Please use Chrome, Safari, or Edge.");
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang =
+        typeof navigator !== "undefined" && navigator.language
+          ? navigator.language
+          : "en-US";
+
+      baseDraftRef.current = draft ? draft.trim() + " " : "";
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        let transcript = "";
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        setDraft(baseDraftRef.current + transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("Speech recognition error:", event.error);
+        if (event.error === "not-allowed") {
+          alert(
+            "Microphone access was denied. Please allow microphone permissions in your browser settings to use voice input."
+          );
+        }
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error("Failed to start speech recognition:", err);
+      setIsListening(false);
+    }
+  }
+
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<BuyerBlueprint | null>(null);
+  const [result, setResult] = useState<BuyerBlueprint | null>(() => {
+    if (typeof window !== "undefined" && rawRouteChatId) {
+      const cached = getCachedSession(rawRouteChatId);
+      if (cached?.blueprint) return cached.blueprint as BuyerBlueprint;
+    }
+    return null;
+  });
+
+  // A chat id exists from the very first render, so the composer is usable
+  // immediately and we never post an empty `session_id` to n8n.
+  const [sessionId, setSessionId] = useState<string>(() => resolveSessionId(rawRouteChatId));
+
+  // Immediate local cache sync so switching pages never loses unsaved progress
+  useEffect(() => {
+    if (!sessionId) return;
+    const hasUserMsg = messages.some((m) => m.role === "user");
+    if (hasUserMsg || draft.trim() || result) {
+      saveSessionLocally(sessionId, {
+        session_id: sessionId,
+        step,
+        answers,
+        messages,
+        draft,
+        blueprint: result,
+        status: result ? "completed" : busy ? "generating" : "draft",
+      });
+    }
+  }, [messages, draft, result, sessionId, step, answers, busy]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [blueprintDrawerOpen, setBlueprintDrawerOpen] = useState(true);
   const [mobileBlueprintOpen, setMobileBlueprintOpen] = useState(false);
   const [webhookError, setWebhookError] = useState<string | null>(null);
-  // A chat id exists from the very first render, so the composer is usable
-  // immediately and we never post an empty `session_id` to n8n.
-  const [sessionId, setSessionId] = useState<string>(() => resolveSessionId(rawRouteChatId));
   const [history, setHistory] = useState<BlueprintSession[]>([]);
   const [workspaceMemory, setWorkspaceMemory] = useState<WorkspaceMemory | null>(null);
   const [assetContext, setAssetContext] = useState("");
@@ -229,6 +410,15 @@ export default function PresentationChat() {
   useEffect(() => {
     textareaRef.current?.focus();
   }, [sessionId]);
+
+  // Dynamically resize textarea to comfortably accommodate multiple lines
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const nextHeight = Math.min(Math.max(el.scrollHeight, 48), 224);
+    el.style.height = `${nextHeight}px`;
+  }, [draft]);
 
   // Sync user first name whenever memory changes
   useEffect(() => {
@@ -338,21 +528,33 @@ export default function PresentationChat() {
     };
   }, []);
 
-  // Restore a deep-linked chat as soon as we can identify it. With no `?c=` in
-  // the URL there is nothing to restore — the chat minted on mount stays active.
+  // Restore a deep-linked chat or last active chat
   useEffect(() => {
-    if (!routeChatId) return;
-    if (loadedChatIdRef.current === routeChatId) return;
+    const targetId =
+      routeChatId ||
+      (typeof window !== "undefined" && !sessionStorage.getItem(EXPLICIT_NEW_CHAT_KEY)
+        ? (localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY) || history[0]?.session_id || "")
+        : "");
+
+    if (!targetId) return;
+    if (loadedChatIdRef.current === targetId) return;
 
     // Never clobber work the user already started while the deep link resolved.
-    if (sessionId === routeChatId && (draft.trim() || busy || messages.some((m) => m.role === "user"))) {
-      loadedChatIdRef.current = routeChatId;
+    if (sessionId === targetId && (draft.trim() || busy || messages.some((m) => m.role === "user"))) {
+      loadedChatIdRef.current = targetId;
       return;
     }
 
-    const found = history.find((s) => s.session_id === routeChatId);
+    const found = history.find((s) => s.session_id === targetId);
     if (found) {
       restoreSession(found, false);
+      return;
+    }
+
+    // Check local cache if not found in history yet
+    const cached = getCachedSession(targetId);
+    if (cached && Array.isArray(cached.messages) && cached.messages.length > 0) {
+      restoreSession(cached as BlueprintSession, false);
       return;
     }
 
@@ -361,7 +563,7 @@ export default function PresentationChat() {
     if (!hydrated) return;
     restoreSession(
       {
-        session_id: routeChatId,
+        session_id: targetId,
         status: "draft",
         step: 1,
         answers: {},
@@ -435,6 +637,12 @@ export default function PresentationChat() {
   }
 
   function restoreSession(session: BlueprintSession, navigate = false) {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(EXPLICIT_NEW_CHAT_KEY);
+      localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, session.session_id);
+      sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, session.session_id);
+    }
+    saveSessionLocally(session.session_id, session);
     if (navigate && session.session_id !== routeChatId) {
       router.push(`${CHAT_PATH}?c=${session.session_id}`);
     }
@@ -488,6 +696,11 @@ export default function PresentationChat() {
   }
 
   function startNewChat() {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(EXPLICIT_NEW_CHAT_KEY, "true");
+      localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      sessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+    }
     const nextSessionId = newSessionId();
     initializeSession(nextSessionId);
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
@@ -542,6 +755,14 @@ export default function PresentationChat() {
   async function executeDeleteSession(idToDelete: string) {
     const target = history.find((h) => h.session_id === idToDelete);
     setDeleteConfirmSession(null);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(getSessionCacheKey(idToDelete));
+      localStorage.removeItem(getSessionCacheKey(idToDelete));
+      if (localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY) === idToDelete) {
+        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+        sessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      }
+    }
     if (sessionId === idToDelete) {
       startNewChat();
     }
@@ -649,6 +870,13 @@ export default function PresentationChat() {
   }
 
   async function handleSend(customText?: string) {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
+    setIsListening(false);
+
     const text = (customText ?? draft).trim();
     if (!text || busy) return;
 
@@ -674,6 +902,22 @@ export default function PresentationChat() {
     if (routeChatId !== activeSessionId) {
       window.history.replaceState(null, "", `${CHAT_PATH}?c=${activeSessionId}`);
     }
+
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(EXPLICIT_NEW_CHAT_KEY);
+      localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, activeSessionId);
+      sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, activeSessionId);
+    }
+
+    saveSessionLocally(activeSessionId, {
+      session_id: activeSessionId,
+      messages: nextMessages,
+      answers,
+      step,
+      draft: "",
+      blueprint: result,
+      status: "generating",
+    });
 
     try {
       const user = auth.currentUser;
@@ -783,6 +1027,16 @@ export default function PresentationChat() {
         return [...base, assistantMsg];
       });
 
+      saveSessionLocally(activeSessionId, {
+        session_id: activeSessionId,
+        messages: [...nextMessages, assistantMsg],
+        answers: updatedAnswers,
+        step: nextStep,
+        draft: "",
+        blueprint: updatedBlueprint,
+        status: updatedBlueprint ? "completed" : "draft",
+      });
+
       // The assistant asked to move them on. Launch with the blueprint from
       // this very reply -- `result` state has not committed yet -- so the
       // builder receives what was just learned rather than the prior turn.
@@ -796,15 +1050,25 @@ export default function PresentationChat() {
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Could not process message.";
       setWebhookError(reason);
+      const errorMsg: Message = {
+        id: `e-${Date.now()}`,
+        role: "assistant" as const,
+        text: `${reason}\n\nYour message was not answered. Please try sending it again.`,
+        timestamp: new Date().toISOString(),
+      };
       setMessages((prev) => {
         const hasUser = prev.some((m) => m.id === userMsg.id);
         const base = hasUser ? prev : [...prev, userMsg];
-        return [...base, {
-          id: `e-${Date.now()}`,
-          role: "assistant" as const,
-          text: `${reason}\n\nYour message was not answered. Please try sending it again.`,
-          timestamp: new Date().toISOString(),
-        }];
+        return [...base, errorMsg];
+      });
+      saveSessionLocally(activeSessionId, {
+        session_id: activeSessionId,
+        messages: [...nextMessages, errorMsg],
+        answers,
+        step,
+        draft: "",
+        blueprint: result,
+        status: "failed",
       });
     } finally {
       setBusy(false);
@@ -1059,7 +1323,7 @@ export default function PresentationChat() {
     ? getSessionTitle(activeHistoryEntry)
     : messages.some((m) => m.role === "user")
       ? "Webinar Chat"
-      : "New chat";
+      : "";
 
   const historyListContent = (
     <>
@@ -1363,30 +1627,19 @@ export default function PresentationChat() {
         }`}
       >
         <div className="w-[270px] flex flex-col h-full min-h-0">
-          <div className="flex items-center justify-between p-4 pb-2">
+          <div className="flex h-12 shrink-0 items-center px-4">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
               Chat history
             </span>
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(false)}
-              className="rounded-lg p-1 text-muted-foreground hover:bg-surface-raised hover:text-foreground transition cursor-pointer"
-              title="Hide chat history"
-            >
-              <PanelLeftClose className="size-4" />
-            </button>
           </div>
           <div className="px-4 py-2">
             <button
               type="button"
               onClick={startNewChat}
-              className="flex w-full items-center justify-between rounded-xl bg-foreground px-3.5 py-2.5 text-sm font-medium text-background transition hover:opacity-90 cursor-pointer"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-foreground px-3.5 py-2.5 text-sm font-medium text-background transition hover:opacity-90 cursor-pointer"
             >
-              <span className="flex items-center gap-2">
-                <Plus className="size-4" />
-                New chat
-              </span>
-              <span className="font-mono text-[10px] opacity-60">⌘N</span>
+              <Plus className="size-4" />
+              <span>New chat</span>
             </button>
           </div>
 
@@ -1400,7 +1653,7 @@ export default function PresentationChat() {
       <section className="flex flex-1 flex-col min-w-0 bg-card relative">
         {/* Chat toolbar. Product branding lives in the global ProviderNavbar,
             so this bar carries chat-specific controls only. */}
-        <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-3 border-b border-border/60 bg-background/85 px-3 backdrop-blur-md sm:px-5">
+        <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-3 bg-card/80 px-3 backdrop-blur-md sm:px-5">
           <button
             type="button"
             onClick={() => setSidebarOpen((prev) => !prev)}
@@ -1412,9 +1665,11 @@ export default function PresentationChat() {
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              {currentChatTitle}
-            </p>
+            {currentChatTitle && currentChatTitle.toLowerCase() !== "new chat" ? (
+              <p className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                {currentChatTitle}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
@@ -1496,63 +1751,62 @@ export default function PresentationChat() {
                 <span>Blueprint merged into the composer — review, then send.</span>
               </div>
             )}
-            <div className="relative flex items-end rounded-2xl border border-border bg-card shadow-xs focus-within:border-foreground/50 transition">
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={draft}
-                placeholder={
-                  step === 1
-                    ? "Q1: Tell me about your business or business idea..."
-                    : step === 2
-                    ? "Q2: Who do you think your ideal buyer would be?..."
-                    : step === 3
-                    ? "Q3: What’s the biggest problem you solve & the result they achieve?..."
-                    : step === 4
-                    ? "Q4: What’s one hesitation or objection prospects might have?..."
-                    : "Ask anything about your strategy, offer, or presentation..."
-                }
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void handleSend();
+            <div className="relative flex flex-col rounded-2xl border border-border bg-card shadow-xs focus-within:border-foreground/50 transition overflow-hidden">
+              {isListening && (
+                <div className="w-full pt-2 pb-0.5 px-4 flex items-center justify-center animate-in fade-in duration-200">
+                  <VoiceWaveVisualizer isListening={isListening} />
+                </div>
+              )}
+              <div className="relative flex items-end w-full">
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={draft}
+                  placeholder={
+                    isListening
+                      ? "Listening to your voice... (speak now)"
+                      : step === 1
+                      ? "Q1: Tell me about your business or business idea..."
+                      : step === 2
+                      ? "Q2: Who do you think your ideal buyer would be?..."
+                      : step === 3
+                      ? "Q3: What’s the biggest problem you solve & the result they achieve?..."
+                      : step === 4
+                      ? "Q4: What’s one hesitation or objection prospects might have?..."
+                      : "Ask anything about your strategy, offer, or presentation..."
                   }
-                }}
-                className="max-h-48 min-h-[48px] flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-relaxed text-foreground focus:outline-none"
-              />
-              <div className="flex items-center gap-1.5 sm:gap-2 p-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBlueprintDrawerOpen((prev) => !prev);
-                    setMobileBlueprintOpen((prev) => !prev);
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleSend();
+                    }
                   }}
-                  title={blueprintDrawerOpen ? "Close Idea Blueprint" : "Open Idea Blueprint"}
-                  className={`grid size-9 place-items-center rounded-xl border transition cursor-pointer ${
-                    blueprintDrawerOpen
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-secondary text-foreground hover:bg-surface-raised"
-                  }`}
-                >
-                  <Target className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => mergeBlueprintIntoDraft()}
-                  title="Merge sidebar blueprint into box"
-                  className="grid size-9 place-items-center rounded-xl border border-border bg-secondary text-foreground hover:bg-surface-raised transition cursor-pointer"
-                >
-                  <Sparkles className="size-4 text-ochre" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSend()}
-                  disabled={!draft.trim() || busy}
-                  className="grid size-9 place-items-center rounded-xl bg-foreground text-background transition hover:opacity-90 disabled:opacity-40 cursor-pointer"
-                >
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                </button>
+                  className="max-h-56 min-h-[48px] flex-1 resize-none bg-transparent px-4 py-3 text-sm sm:text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/75 focus:outline-none overflow-y-auto"
+                />
+                <div className="flex items-center gap-1.5 sm:gap-2 p-2 pb-2.5 pr-2.5 shrink-0 self-end">
+                  <button
+                    type="button"
+                    onClick={toggleVoiceInput}
+                    title={isListening ? "Stop voice input" : "Voice input — answer or chat with AI"}
+                    aria-label={isListening ? "Stop voice input" : "Voice input"}
+                    className={`grid size-9 place-items-center rounded-xl border transition cursor-pointer ${
+                      isListening
+                        ? "border-foreground bg-foreground text-background animate-pulse shadow-xs"
+                        : "border-border bg-secondary text-foreground hover:bg-surface-raised"
+                    }`}
+                  >
+                    {isListening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSend()}
+                    disabled={!draft.trim() || busy}
+                    className="grid size-9 place-items-center rounded-xl bg-foreground text-background transition hover:opacity-90 disabled:opacity-40 cursor-pointer"
+                  >
+                    {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  </button>
+                </div>
               </div>
             </div>
             {busy && (

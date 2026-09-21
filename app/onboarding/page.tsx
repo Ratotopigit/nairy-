@@ -22,7 +22,6 @@ import { StepBusiness } from "@/components/onboarding/StepBusiness";
 import { StepStageChallenge } from "@/components/onboarding/StepStageChallenge";
 import { StepGoalsAccomplishment } from "@/components/onboarding/StepGoalsAccomplishment";
 import { StepExperience } from "@/components/onboarding/StepExperience";
-import { StepPersonalizeAcademy } from "@/components/onboarding/StepPersonalizeAcademy";
 import { StepChoosePlan } from "@/components/onboarding/StepChoosePlan";
 
 const STEP_TITLES = [
@@ -31,7 +30,6 @@ const STEP_TITLES = [
   "Current Stage",
   "Goals & Vision",
   "Experience",
-  "Academy Path",
   "Choose Plan",
 ];
 
@@ -75,7 +73,7 @@ export default function OnboardingPage() {
           firstName: draft.data.firstName || user.displayName?.split(" ")[0] || prev.firstName,
           lastName: draft.data.lastName || user.displayName?.split(" ").slice(1).join(" ") || prev.lastName,
         }));
-        if (draft.step && draft.step >= 1 && draft.step <= 7) {
+        if (draft.step && draft.step >= 1 && draft.step <= 6) {
           setCurrentStep(draft.step);
         }
       } else if (user.displayName) {
@@ -152,12 +150,6 @@ export default function OnboardingPage() {
             Boolean(formData.knownAreas && formData.knownAreas.length > 0)
           );
         case 6:
-          return (
-            Boolean(formData.primaryLearningInterest) &&
-            Boolean(formData.learningPreference) &&
-            Boolean(formData.weeklyTimeCommitment)
-          );
-        case 7:
           return Boolean(formData.selectedPlan);
         default:
           return true;
@@ -183,7 +175,7 @@ export default function OnboardingPage() {
         }
       } catch {}
     }
-    if (currentStep < 7) {
+    if (currentStep < 6) {
       setDirection(1);
       const nextStep = currentStep + 1;
       setCurrentStep(nextStep);
@@ -225,7 +217,7 @@ export default function OnboardingPage() {
         !e.shiftKey &&
         (e.target as HTMLElement)?.tagName !== "TEXTAREA"
       ) {
-        if (currentStep < 7 && isStepValid(currentStep)) {
+        if (currentStep < 6 && isStepValid(currentStep)) {
           e.preventDefault();
           handleNext();
         }
@@ -294,7 +286,7 @@ export default function OnboardingPage() {
         <div className="shrink-0">
           <AppleStepper
             currentStep={currentStep}
-            totalSteps={7}
+            totalSteps={6}
             stepTitles={STEP_TITLES}
             onStepClick={handleJumpToStep}
           />
@@ -329,9 +321,6 @@ export default function OnboardingPage() {
                 <StepExperience data={formData} onChange={updateData} />
               )}
               {currentStep === 6 && (
-                <StepPersonalizeAcademy data={formData} onChange={updateData} />
-              )}
-              {currentStep === 7 && (
                 <StepChoosePlan
                   data={formData}
                   isSubmitting={isSubmitting}
@@ -370,7 +359,7 @@ export default function OnboardingPage() {
             )}
           </div>
 
-          {currentStep < 7 ? (
+          {currentStep < 6 ? (
             <button
               type="button"
               disabled={!isStepValid(currentStep)}

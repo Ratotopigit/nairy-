@@ -27,13 +27,55 @@ interface UserProfileDropdownProps {
 
 export default function UserProfileDropdown({ className = "" }: UserProfileDropdownProps) {
   const [mounted, setMounted] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [firstName, setFirstName] = useState<string>("Benji");
-  const [lastName, setLastName] = useState<string>("Parker");
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => auth.currentUser || null);
+  const [firstName, setFirstName] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("astrocraft_user_first_name");
+      if (cached) return cached;
+    }
+    if (auth.currentUser?.displayName) {
+      const parts = auth.currentUser.displayName.trim().split(/\s+/).filter(Boolean);
+      if (parts[0]) return parts[0];
+    }
+    return "";
+  });
+  const [lastName, setLastName] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("astrocraft_user_last_name");
+      if (cached) return cached;
+    }
+    if (auth.currentUser?.displayName) {
+      const parts = auth.currentUser.displayName.trim().split(/\s+/).filter(Boolean);
+      if (parts.length > 1) return parts.slice(1).join(" ");
+    }
+    return "";
+  });
+  const [photoUrl, setPhotoUrl] = useState<string | null>(() => {
+    if (auth.currentUser?.photoURL) return auth.currentUser.photoURL;
+    if (typeof window !== "undefined") {
+      return (
+        localStorage.getItem("astrocraft_user_photo") ||
+        localStorage.getItem("astrocraft_google_photo") ||
+        null
+      );
+    }
+    return null;
+  });
   const [imgError, setImgError] = useState(false);
   const [modalImgError, setModalImgError] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [isInitializing, setIsInitializing] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      if (
+        localStorage.getItem("astrocraft_user_first_name") ||
+        localStorage.getItem("astrocraft_user_photo")
+      ) {
+        return false;
+      }
+    }
+    if (auth.currentUser) return false;
+    return true;
+  });
 
   // Modals
   const [isUsernameModalOpen, setIsUsernameModalOpen] = useState(false);
@@ -105,6 +147,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
         if (cachedFirst) setFirstName(cachedFirst);
         if (cachedLast) setLastName(cachedLast);
         if (cachedPhoto) setPhotoUrl(cachedPhoto);
+        setIsInitializing(false);
         return;
       }
 
@@ -125,26 +168,50 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
       // Check localStorage if not in memory
       if (typeof window !== "undefined") {
         if (!resolvedFirst) {
-          resolvedFirst = localStorage.getItem("astrocraft_user_first_name") || "";
+          resolvedFirst =
+            localStorage.getItem(`astrocraft_user_first_name_${user.uid}`) ||
+            localStorage.getItem("astrocraft_user_first_name") ||
+            "";
         }
         if (!resolvedLast) {
-          resolvedLast = localStorage.getItem("astrocraft_user_last_name") || "";
+          resolvedLast =
+            localStorage.getItem(`astrocraft_user_last_name_${user.uid}`) ||
+            localStorage.getItem("astrocraft_user_last_name") ||
+            "";
         }
       }
 
-      // Check user.displayName (e.g. "Benji Parker" or "Demo Provider")
+      // Check user.displayName
       if (user.displayName) {
         const parts = user.displayName.trim().split(/\s+/).filter(Boolean);
         if (!resolvedFirst && parts[0]) resolvedFirst = parts[0];
         if (!resolvedLast && parts.length > 1) resolvedLast = parts.slice(1).join(" ");
       }
 
-      // Fallback defaults
-      if (!resolvedFirst) resolvedFirst = "Benji";
-      if (!resolvedLast && resolvedFirst === "Benji") resolvedLast = "Parker";
+      // Fallback defaults: derive from email or generic label if completely empty
+      if (!resolvedFirst) {
+        if (user.email) {
+          const emailPrefix = user.email.split("@")[0];
+          resolvedFirst = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+        } else {
+          resolvedFirst = "User";
+        }
+      }
 
       setFirstName(resolvedFirst);
       setLastName(resolvedLast);
+
+      // Cache resolved names into localStorage for instant synchronous hydration on next reload
+      if (typeof window !== "undefined") {
+        if (resolvedFirst) {
+          localStorage.setItem("astrocraft_user_first_name", resolvedFirst);
+          localStorage.setItem(`astrocraft_user_first_name_${user.uid}`, resolvedFirst);
+        }
+        if (resolvedLast) {
+          localStorage.setItem("astrocraft_user_last_name", resolvedLast);
+          localStorage.setItem(`astrocraft_user_last_name_${user.uid}`, resolvedLast);
+        }
+      }
 
       // 2. Resolve photo URL (prioritizing Google profile picture)
       const googleProvider = Array.isArray(user.providerData)
@@ -202,6 +269,8 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
       } else {
         setPhotoUrl(null);
       }
+
+      setIsInitializing(false);
     }
 
     if (!isFirebaseConfigured) {
@@ -225,7 +294,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
     setModalImgError(false);
   }, [photoPreview]);
 
-  // Compute initials: Initial of BOTH names (e.g. Benji Parker -> "BP")
+  // Compute initials: Initial of BOTH names (e.g. John Doe -> "JD")
   const displayInitials = (() => {
     const f = (firstName || "").trim();
     const l = (lastName || "").trim();
@@ -242,9 +311,12 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
       return f.slice(0, 2).toUpperCase();
     }
     if (f) {
-      return `${f.charAt(0)}P`.toUpperCase();
+      return f.charAt(0).toUpperCase();
     }
-    return "BP";
+    if (currentUser?.email) {
+      return currentUser.email.charAt(0).toUpperCase();
+    }
+    return "U";
   })();
 
   // Modal preview initials based on live form input
@@ -258,14 +330,25 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
       return f.slice(0, 2).toUpperCase();
     }
     if (f) {
-      return `${f.charAt(0)}P`.toUpperCase();
+      return f.charAt(0).toUpperCase();
     }
-    return "BP";
+    return "U";
   })();
 
   async function handleSignOut() {
     setIsOpen(false);
     try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("astrocraft_user_first_name");
+        localStorage.removeItem("astrocraft_user_last_name");
+        localStorage.removeItem("astrocraft_user_photo");
+        localStorage.removeItem("astrocraft_google_photo");
+        if (currentUser?.uid) {
+          localStorage.removeItem(`astrocraft_user_first_name_${currentUser.uid}`);
+          localStorage.removeItem(`astrocraft_user_last_name_${currentUser.uid}`);
+          localStorage.removeItem(`astrocraft_user_photo_${currentUser.uid}`);
+        }
+      }
       await firebaseSignOut(auth);
     } catch (err) {
       console.warn("Sign out warning:", err);
@@ -523,6 +606,15 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
     }
   }
 
+  if (isInitializing && !firstName && !photoUrl) {
+    return (
+      <div className={`flex items-center gap-2.5 py-1 px-2 ${className}`}>
+        <div className="size-[34px] shrink-0 animate-pulse rounded-full bg-muted" />
+        <div className="h-4 w-14 animate-pulse rounded-md bg-muted hidden sm:block" />
+      </div>
+    );
+  }
+
   return (
     <div className={`relative inline-block ${className}`} ref={dropdownRef}>
       {/* Navigation Profile Trigger Button — Styled exactly as provided */}
@@ -539,7 +631,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
           {photoUrl && !imgError ? (
             <img
               src={photoUrl}
-              alt={`${firstName} ${lastName}`}
+              alt={firstName ? `${firstName} ${lastName}`.trim() : "User avatar"}
               referrerPolicy="no-referrer"
               crossOrigin="anonymous"
               className="size-full object-cover select-none pointer-events-none"
@@ -556,9 +648,11 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
         </div>
 
         {/* 2. First Name with hover effect */}
-        <span className="text-[15px] font-medium tracking-tight text-foreground transition-colors group-hover:text-black">
-          {firstName}
-        </span>
+        {firstName ? (
+          <span className="text-[15px] font-medium tracking-tight text-foreground transition-colors group-hover:text-black">
+            {firstName}
+          </span>
+        ) : null}
 
         {/* 3. Down-facing Arrow */}
         <ChevronDown
@@ -588,7 +682,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                 {photoUrl && !imgError ? (
                   <img
                     src={photoUrl}
-                    alt={`${firstName} ${lastName}`}
+                    alt={firstName ? `${firstName} ${lastName}`.trim() : "User avatar"}
                     referrerPolicy="no-referrer"
                     crossOrigin="anonymous"
                     className="size-full object-cover"
@@ -602,7 +696,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-bold text-[var(--nav-ink)]">
-                  {firstName} {lastName}
+                  {firstName || lastName ? `${firstName} ${lastName}`.trim() : currentUser?.displayName || "Account"}
                 </p>
                 <p className="truncate text-[11px] text-[var(--nav-muted)]">
                   {currentUser?.email || "Provider Account"}
@@ -754,7 +848,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                               setEditFirstName(e.target.value);
                               if (usernameError) setUsernameError("");
                             }}
-                            placeholder="e.g. Benji"
+                            placeholder="e.g. John"
                             autoFocus
                             maxLength={30}
                             className="w-full rounded-xl border border-border-strong bg-card px-3.5 py-2.5 text-sm font-medium text-foreground outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
@@ -776,7 +870,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                               setEditLastName(e.target.value);
                               if (usernameError) setUsernameError("");
                             }}
-                            placeholder="e.g. Parker"
+                            placeholder="e.g. Doe"
                             maxLength={30}
                             className="w-full rounded-xl border border-border-strong bg-card px-3.5 py-2.5 text-sm font-medium text-foreground outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
                           />

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, Layers3, Loader2, Target } from "lucide-react";
+import { ArrowRight, Check, Download, Edit3, Layers3, Loader2, Plus, Save, Target, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { HANDOFF } from "@/lib/creation-handoff";
@@ -11,6 +11,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { loadStudioContext } from "@/lib/workspace-context";
 import { saveWorkspaceMemory } from "@/lib/workspace-memory";
 import { n8nWebhookUrl } from "@/lib/n8n-url";
+import { downloadOfferPdf } from "@/lib/offer-pdf";
 
 type OfferBlueprint = {
   title: string;
@@ -47,20 +48,92 @@ const OFFER_GENERATION_STEPS = [
   "Synthesizing Conversion-Ready Offer Package",
 ];
 
+function computePricingString(min: string, max: string): string {
+  const cleanMin = min.trim().replace(/^\$/, "");
+  const cleanMax = max.trim().replace(/^\$/, "");
+  if (cleanMin && cleanMax) {
+    return `$${cleanMin} - $${cleanMax}`;
+  }
+  if (cleanMin) return `$${cleanMin}`;
+  if (cleanMax) return `$${cleanMax}`;
+  return "$25,000 - $40,000";
+}
+
+function parseMinMax(pricingStr: string): { min: string; max: string } {
+  if (!pricingStr) return { min: "25,000", max: "40,000" };
+  const parts = pricingStr.split(/[-–—]/).map((s) => s.trim().replace(/^\$/, ""));
+  if (parts.length >= 2) {
+    return { min: parts[0], max: parts[1] };
+  }
+  if (parts.length === 1 && parts[0]) {
+    return { min: parts[0], max: "" };
+  }
+  return { min: "25,000", max: "40,000" };
+}
+
 export default function OfferIQPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [buyer, setBuyer] = useState<BuyerBlueprint | null>(null);
   const [delivery, setDelivery] = useState("Done-for-you");
   const [paidTraffic, setPaidTraffic] = useState("No - owned, partners, and organic");
   const [timeline, setTimeline] = useState("6 weeks");
-  const [pricing, setPricing] = useState("$25k-$40k");
+  const [minPrice, setMinPrice] = useState("25,000");
+  const [maxPrice, setMaxPrice] = useState("40,000");
+  const [pricing, setPricing] = useState("$25,000 - $40,000");
   const [focus, setFocus] = useState("Build a revenue-focused webinar and booking funnel");
   const [result, setResult] = useState<OfferBlueprint | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedOffer, setEditedOffer] = useState<OfferBlueprint | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [assetContext, setAssetContext] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  function handleMinPriceChange(val: string) {
+    setMinPrice(val);
+    setPricing(computePricingString(val, maxPrice));
+  }
+
+  function handleMaxPriceChange(val: string) {
+    setMaxPrice(val);
+    setPricing(computePricingString(minPrice, val));
+  }
+
+  function startEditing() {
+    if (!result) return;
+    setEditedOffer(JSON.parse(JSON.stringify(result)));
+    setIsEditing(true);
+  }
+
+  async function handleSaveEditedOffer() {
+    if (!editedOffer) return;
+    setResult(editedOffer);
+    setBuyer((prev) => (prev ? { ...prev, offer: editedOffer } : prev));
+    sessionStorage.setItem("astrocraft:latest-offer", JSON.stringify(editedOffer));
+
+    const user = auth.currentUser;
+    if (user) {
+      const activeSession = resolveSessionId(sessionId);
+      await saveWorkspaceMemory(user.uid, {
+        onboarding_complete: true,
+        audience_profile: (buyer ?? {}) as Record<string, unknown>,
+        offer_profile: editedOffer as unknown as Record<string, unknown>,
+        source_session_id: activeSession,
+      }).catch((err) => console.warn("Could not save edited offer to workspace memory:", err));
+    }
+
+    setIsEditing(false);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  }
+
+  function handleDownloadPdf() {
+    const targetOffer = isEditing && editedOffer ? editedOffer : result;
+    if (!targetOffer) return;
+    downloadOfferPdf(targetOffer);
+  }
 
   useEffect(() => {
     void (async () => {
@@ -118,7 +191,17 @@ export default function OfferIQPage() {
       
       setSessionId(handedSession ?? studio.memory?.source_session_id ?? "00000000-0000-4000-8000-000000000000");
       setBuyer(blueprint);
-      setResult(blueprint?.offer ?? (studio.memory?.offer_profile as OfferBlueprint | undefined) ?? null);
+      const initialOffer = blueprint?.offer ?? (studio.memory?.offer_profile as OfferBlueprint | undefined) ?? null;
+      setResult(initialOffer);
+      if (initialOffer?.timeline) {
+        setTimeline(initialOffer.timeline);
+      }
+      if (initialOffer?.pricing) {
+        setPricing(initialOffer.pricing);
+        const parsed = parseMinMax(initialOffer.pricing);
+        setMinPrice(parsed.min);
+        setMaxPrice(parsed.max);
+      }
       if (handedFocus) setFocus(handedFocus.slice(0, 1200));
       else if (blueprint?.elevator_pitch) setFocus(blueprint.elevator_pitch);
       setLoading(false);
@@ -244,8 +327,46 @@ export default function OfferIQPage() {
           <Field label="Primary outcome"><textarea value={focus} onChange={(event) => setFocus(event.target.value)} rows={3} className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-foreground/35" /></Field>
           <Field label="Delivery model"><Choice value={delivery} onChange={setDelivery} options={["Done-for-you", "Done-with-you", "Advisory"]} /></Field>
           <Field label="Paid traffic included?"><Choice value={paidTraffic} onChange={setPaidTraffic} options={["No - owned, partners, and organic", "Yes - include paid traffic"]} /></Field>
-          <Field label="Delivery timeline"><Choice value={timeline} onChange={setTimeline} options={["4 weeks", "6 weeks", "8 weeks"]} /></Field>
-          <Field label="Investment range"><Choice value={pricing} onChange={setPricing} options={["$10k-$20k", "$25k-$40k", "$40k+"]} /></Field>
+          <Field label="Delivery timeline">
+            <input
+              type="text"
+              value={timeline}
+              onChange={(event) => setTimeline(event.target.value)}
+              placeholder="e.g. 6 weeks"
+              className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-foreground/35"
+            />
+          </Field>
+
+          <Field label="Investment range">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-xs text-muted-foreground">Min value ($)</label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-muted-foreground">$</span>
+                  <input
+                    type="text"
+                    value={minPrice}
+                    onChange={(e) => handleMinPriceChange(e.target.value)}
+                    placeholder="10,000"
+                    className="w-full rounded-xl border border-border bg-background pl-7 pr-3 py-2.5 text-sm outline-none focus:border-foreground/35"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-muted-foreground">Max value ($)</label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-muted-foreground">$</span>
+                  <input
+                    type="text"
+                    value={maxPrice}
+                    onChange={(e) => handleMaxPriceChange(e.target.value)}
+                    placeholder="25,000"
+                    className="w-full rounded-xl border border-border bg-background pl-7 pr-3 py-2.5 text-sm outline-none focus:border-foreground/35"
+                  />
+                </div>
+              </div>
+            </div>
+          </Field>
           {error && <p className="text-xs leading-5 text-accent">{error}</p>}
           <button type="button" onClick={() => void buildOffer()} disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-3.5 text-sm font-semibold text-primary-foreground disabled:opacity-50 transition hover:opacity-90">
             {saving ? <Loader2 className="size-4 animate-spin text-ochre" /> : <Layers3 className="size-4" />}{result ? "Refresh offer strategy" : "Build offer strategy"}
@@ -306,19 +427,294 @@ export default function OfferIQPage() {
               </div>
             </div>
           ) : result ? (
-            <div className="rounded-3xl border border-border bg-card p-6 sm:p-7">
-              <div className="flex items-center gap-2 text-xs font-medium text-primary"><Check className="size-4" /> Saved to this buyer project</div>
-              <h2 className="mt-4 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">{result.title}</h2>
-              <p className="mt-4 text-sm leading-7 text-muted-foreground">{result.promise}</p>
-              <OfferSection title="Positioning" items={[result.core_angle, `For: ${result.audience}`, `Delivery: ${result.delivery_model} over ${result.timeline}`, `Investment: ${result.pricing}`]} />
-              <OfferSection title="Scope" items={result.scope} />
-              <OfferSection title="Success metrics" items={result.success_metrics} />
-              <div className="mt-6 rounded-2xl bg-secondary p-4"><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Risk reversal</p><p className="mt-2 text-sm leading-6">{result.risk_reversal}</p></div>
-              <div className="mt-7 flex flex-wrap gap-3 border-t border-border pt-5">
-                <Link href="/provider/webinar-content" className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90">Create webinar deck <ArrowRight className="size-4" /></Link>
-                <button type="button" onClick={() => window.print()} className="rounded-full border border-border px-5 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted">Save offer as PDF</button>
+            isEditing && editedOffer ? (
+              <div className="rounded-3xl border border-border bg-card p-6 sm:p-7 space-y-6">
+                <div className="flex items-center justify-between border-b border-border pb-4">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                    <Edit3 className="size-4" /> Editing Offer Strategy
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition"
+                    >
+                      <X className="size-3.5" /> Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveEditedOffer()}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition"
+                    >
+                      <Save className="size-3.5" /> Save changes
+                    </button>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Offer Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editedOffer.title}
+                    onChange={(e) => setEditedOffer({ ...editedOffer, title: e.target.value })}
+                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-base font-semibold text-foreground outline-none focus:border-foreground/35"
+                  />
+                </div>
+
+                {/* Promise */}
+                <div>
+                  <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Core Promise
+                  </label>
+                  <textarea
+                    value={editedOffer.promise}
+                    onChange={(e) => setEditedOffer({ ...editedOffer, promise: e.target.value })}
+                    rows={3}
+                    className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-foreground/35"
+                  />
+                </div>
+
+                {/* Commercial Positioning */}
+                <div className="space-y-3 rounded-2xl border border-border bg-background/50 p-4">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Positioning & Commercials
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Target Audience</label>
+                      <input
+                        type="text"
+                        value={editedOffer.audience}
+                        onChange={(e) => setEditedOffer({ ...editedOffer, audience: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-foreground/35"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Core Angle</label>
+                      <input
+                        type="text"
+                        value={editedOffer.core_angle}
+                        onChange={(e) => setEditedOffer({ ...editedOffer, core_angle: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-foreground/35"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Delivery Model</label>
+                      <input
+                        type="text"
+                        value={editedOffer.delivery_model}
+                        onChange={(e) => setEditedOffer({ ...editedOffer, delivery_model: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-foreground/35"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Delivery Timeline</label>
+                      <input
+                        type="text"
+                        value={editedOffer.timeline}
+                        onChange={(e) => setEditedOffer({ ...editedOffer, timeline: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-foreground/35"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-xs text-muted-foreground">Investment Range</label>
+                      <input
+                        type="text"
+                        value={editedOffer.pricing}
+                        onChange={(e) => setEditedOffer({ ...editedOffer, pricing: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-foreground/35"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Scope & Deliverables */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      Scope & Deliverables
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEditedOffer({ ...editedOffer, scope: [...editedOffer.scope, ""] })}
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+                    >
+                      <Plus className="size-3.5" /> Add deliverable
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {editedOffer.scope.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={item}
+                          onChange={(e) => {
+                            const updated = [...editedOffer.scope];
+                            updated[idx] = e.target.value;
+                            setEditedOffer({ ...editedOffer, scope: updated });
+                          }}
+                          placeholder={`Deliverable ${idx + 1}`}
+                          className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-foreground/35"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = editedOffer.scope.filter((_, i) => i !== idx);
+                            setEditedOffer({ ...editedOffer, scope: updated });
+                          }}
+                          className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-accent transition"
+                          title="Remove item"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Success Metrics */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      Success Metrics
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditedOffer({ ...editedOffer, success_metrics: [...editedOffer.success_metrics, ""] })
+                      }
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+                    >
+                      <Plus className="size-3.5" /> Add metric
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {editedOffer.success_metrics.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={item}
+                          onChange={(e) => {
+                            const updated = [...editedOffer.success_metrics];
+                            updated[idx] = e.target.value;
+                            setEditedOffer({ ...editedOffer, success_metrics: updated });
+                          }}
+                          placeholder={`Metric ${idx + 1}`}
+                          className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-foreground/35"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = editedOffer.success_metrics.filter((_, i) => i !== idx);
+                            setEditedOffer({ ...editedOffer, success_metrics: updated });
+                          }}
+                          className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-accent transition"
+                          title="Remove item"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Risk Reversal */}
+                <div>
+                  <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Risk Reversal & Guarantee
+                  </label>
+                  <textarea
+                    value={editedOffer.risk_reversal}
+                    onChange={(e) => setEditedOffer({ ...editedOffer, risk_reversal: e.target.value })}
+                    rows={3}
+                    className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-foreground/35"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-3 border-t border-border pt-4">
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveEditedOffer()}
+                    className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 transition"
+                  >
+                    <Save className="size-4" /> Save changes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="rounded-full border border-border px-5 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-3xl border border-border bg-card p-6 sm:p-7">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-medium text-primary">
+                    <Check className="size-4" /> Saved to this buyer project
+                  </div>
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+                  >
+                    <Edit3 className="size-3.5" /> Edit offer
+                  </button>
+                </div>
+
+                {saveSuccess && (
+                  <div className="mt-3 flex items-center gap-2 rounded-xl bg-primary/10 px-3.5 py-2 text-xs font-medium text-primary animate-in fade-in">
+                    <Check className="size-4" /> Offer changes saved successfully!
+                  </div>
+                )}
+
+                <h2 className="mt-4 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">{result.title}</h2>
+                <p className="mt-4 text-sm leading-7 text-muted-foreground">{result.promise}</p>
+                <OfferSection
+                  title="Positioning"
+                  items={[
+                    result.core_angle,
+                    `For: ${result.audience}`,
+                    `Delivery: ${result.delivery_model} over ${result.timeline}`,
+                    `Investment: ${result.pricing}`,
+                  ]}
+                />
+                <OfferSection title="Scope" items={result.scope} />
+                <OfferSection title="Success metrics" items={result.success_metrics} />
+                <div className="mt-6 rounded-2xl bg-secondary p-4">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Risk reversal
+                  </p>
+                  <p className="mt-2 text-sm leading-6">{result.risk_reversal}</p>
+                </div>
+                <div className="mt-7 flex flex-wrap gap-3 border-t border-border pt-5">
+                  <Link
+                    href="/provider/webinar-content"
+                    className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                  >
+                    Create webinar deck <ArrowRight className="size-4" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    <Edit3 className="size-4" /> Edit offer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadPdf}
+                    className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    <Download className="size-4" /> Save offer as PDF
+                  </button>
+                </div>
+              </div>
+            )
           ) : (
             <div className="grid min-h-[520px] place-items-center rounded-3xl border border-dashed border-border bg-card/40 p-8 text-center">
               <div><Layers3 className="mx-auto size-7 text-muted-foreground" /><h2 className="mt-4 text-xl font-semibold">Your offer strategy will appear here</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Webinar Offer combines these commercial choices with the saved buyer blueprint, then carries the result into Webinar Content.</p></div>
