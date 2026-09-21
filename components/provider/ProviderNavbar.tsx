@@ -32,7 +32,7 @@ export default function ProviderNavbar() {
 
   return (
     <header className="provider-nav sticky top-0 z-50 shrink-0 border-b border-border bg-background">
-      <div className="mx-auto flex h-[64px] w-full max-w-[1440px] items-center gap-5 px-4 sm:px-6">
+      <div className="mx-auto flex h-[66px] w-full max-w-[1440px] items-center gap-5 px-4 sm:px-6">
         <Link
           href="/provider"
           aria-label="Webinar Stack home"
@@ -41,7 +41,7 @@ export default function ProviderNavbar() {
           <img
             src="/assets/webinarstackai-logo.png"
             alt="Webinar Stack"
-            className="h-[48px] sm:h-[52px] md:h-[56px] w-[185px] sm:w-[210px] md:w-[230px] object-fill transition-opacity hover:opacity-90"
+            className="h-[50px] sm:h-[54px] md:h-[58px] w-[185px] sm:w-[210px] md:w-[230px] object-fill transition-opacity hover:opacity-90"
           />
         </Link>
 
