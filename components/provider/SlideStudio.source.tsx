@@ -320,7 +320,13 @@ export default function Builder() {
         }
       }
 
-      const savedProjectId = savedContent?.project_id as string | undefined;
+      // An explicit "build the presentation" handoff from Webinar Chat starts a
+      // NEW deck. Restoring the previous project here set projectId and slides,
+      // which silently suppressed the auto-build below and dropped the user back
+      // into their old deck as if the handoff had never happened.
+      const savedProjectId = shouldAutoBuild
+        ? undefined
+        : (savedContent?.project_id as string | undefined);
       if (savedProjectId) {
         setProjectId(savedProjectId);
         if (user) {
@@ -368,7 +374,11 @@ export default function Builder() {
       if (briefDesc || generationPrompt) setNoteOpen(true);
       setBrandNote(`${offer ? "Buyer, offer, and brand" : "Buyer and brand"} context loaded for ${persona}.`);
       
-      const rememberedSlides = Array.isArray(savedContent?.slides) && savedContent.slides.length > 0
+      // Same reason: on an auto-build handoff the old slides must not load, or
+      // the guard below skips generation. The previous deck stays saved under
+      // its own project id and is reachable from the History button.
+      const rememberedSlides = !shouldAutoBuild
+        && Array.isArray(savedContent?.slides) && savedContent.slides.length > 0
         ? savedContent.slides as Slide[]
         : [];
 
