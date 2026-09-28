@@ -13,20 +13,21 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
-      setUser({
-        uid: "demo-user-id",
-        email: "demo@example.com",
-        displayName: "Demo Provider",
-      } as unknown as User);
+      router.replace("/login");
       return;
     }
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        import("@/lib/user-profile").then(({ syncUserProfile }) => {
+          syncUserProfile(currentUser);
+        });
+      }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (user === null) {

@@ -740,6 +740,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                 </div>
               </button>
 
+
               {/* Divider */}
               <div className="my-1 border-t border-[var(--nav-border)]/70" />
 

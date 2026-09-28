@@ -19,7 +19,6 @@ const navItems = [
   { href: "/provider/webinar-offer", label: "Webinar Offer" },
   { href: "/provider/webinar-content", label: "Webinar Content" },
   { href: "/provider/webinar-upload", label: "Webinar Upload" },
-  { href: "/provider/webinar-speaker", label: "Webinar Speaker" },
 ];
 
 export default function ProviderNavbar() {

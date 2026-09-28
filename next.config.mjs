@@ -23,6 +23,7 @@ const nextConfig = {
   // ── Turbopack (next dev --turbo) ──────────────────────────────────────────
   // Only active in dev with --turbo. Webpack config below is used for builds.
   turbopack: {
+    root: projectDir,
     resolveAlias: {
       // Use the pre-built browser bundle — prevents Turbopack from trying to
       // resolve pptxgenjs's Node.js internals (fs, zlib, etc.)

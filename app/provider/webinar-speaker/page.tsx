@@ -1,5 +1,5 @@
-import SpeakerPortalView from "@/components/provider/SpeakerPortalView";
+import { redirect } from "next/navigation";
 
 export default function SpeakerPortalPage() {
-  return <SpeakerPortalView />;
+  redirect("/provider");
 }
