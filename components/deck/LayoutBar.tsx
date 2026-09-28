@@ -14,41 +14,45 @@ const LAYOUTS: LayoutVariant[] = ["A", "B", "C", "D"];
 
 export function LayoutBar({ slide, onLayout, onAllLayout, onRegenerate, regenerating }: Props) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-3 border-t border-border bg-card px-5 py-2.5">
-      <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Layout</span>
-      <div className="flex gap-1.5">
-        {LAYOUTS.map((l) => (
-          <button
-            key={l}
-            type="button"
-            onClick={() => onLayout(l)}
-            aria-label={`Layout ${l}`}
-            className={cn(
-              "h-8 w-11 rounded-[6px] border bg-background p-1 transition-colors duration-150",
-              slide.layout === l ? "border-accent" : "border-border hover:border-foreground/25",
-            )}
-          >
-            <LayoutGlyph variant={l} active={slide.layout === l} />
-          </button>
-        ))}
+    <div className="flex shrink-0 items-center justify-between gap-2 sm:gap-3 border-t border-border bg-card px-3 sm:px-5 py-2 sm:py-2.5 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.16em] text-muted-foreground hidden sm:inline">Layout</span>
+        <div className="flex gap-1 sm:gap-1.5">
+          {LAYOUTS.map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => onLayout(l)}
+              aria-label={`Layout ${l}`}
+              className={cn(
+                "h-7 w-9 sm:h-8 sm:w-11 rounded-[6px] border bg-background p-0.5 sm:p-1 transition-colors duration-150",
+                slide.layout === l ? "border-accent" : "border-border hover:border-foreground/25",
+              )}
+            >
+              <LayoutGlyph variant={l} active={slide.layout === l} />
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => onAllLayout(slide.layout)}
+          className="rounded-[8px] border border-border bg-background px-2.5 py-1 text-[11px] sm:text-[12px] text-muted-foreground transition-colors duration-150 hover:text-foreground shrink-0"
+        >
+          <span className="hidden sm:inline">Apply to all slides</span>
+          <span className="sm:hidden">All slides</span>
+        </button>
+        <button
+          type="button"
+          onClick={onRegenerate}
+          disabled={regenerating}
+          className="flex items-center gap-1.5 rounded-[8px] border border-border bg-background px-2.5 py-1 text-[11px] sm:text-[12px] text-foreground transition-colors hover:border-foreground/30 disabled:opacity-45 shrink-0"
+        >
+          <RefreshCw className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${regenerating ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">Regenerate this slide</span>
+          <span className="sm:hidden">Regenerate</span>
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={() => onAllLayout(slide.layout)}
-        className="rounded-[8px] border border-border bg-background px-3 py-1.5 text-[12px] text-muted-foreground transition-colors duration-150 hover:text-foreground"
-      >
-        Apply to all slides
-      </button>
-      <button
-        type="button"
-        onClick={onRegenerate}
-        disabled={regenerating}
-        className="flex items-center gap-1.5 rounded-[8px] border border-border bg-background px-3 py-1.5 text-[12px] text-foreground transition-colors hover:border-foreground/30 disabled:opacity-45"
-      >
-        <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
-        Regenerate this slide
-      </button>
-      <span className="ml-auto text-[11.5px] text-muted-foreground">
+      <span className="hidden xl:inline ml-auto text-[11.5px] text-muted-foreground shrink-0">
         Click any text on the slide to edit it
       </span>
     </div>

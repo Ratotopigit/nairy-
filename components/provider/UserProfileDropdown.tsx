@@ -624,7 +624,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
         aria-label="User profile settings"
         aria-haspopup="true"
         aria-expanded={isOpen}
-        className="group flex items-center gap-3 py-1 px-2 rounded-xl transition-colors duration-150 hover:bg-black/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nav-ink)] cursor-pointer select-none"
+        className="group flex items-center gap-1.5 sm:gap-3 py-1 px-1.5 sm:px-2 rounded-xl transition-colors duration-150 hover:bg-black/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nav-ink)] cursor-pointer select-none shrink-0"
       >
         {/* 1. Profile Picture / Initials of both names */}
         <div className="relative flex size-[34px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#9333ea] text-white shadow-xs">
@@ -647,14 +647,14 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
           )}
         </div>
 
-        {/* 2. First Name with hover effect */}
-        <span className="text-[14px] font-medium tracking-tight text-foreground transition-colors group-hover:text-black">
+        {/* 2. First Name with hover effect - hidden on small mobile to prevent header overflow */}
+        <span className="hidden sm:inline text-[13px] md:text-[14px] font-medium tracking-tight text-foreground transition-colors group-hover:text-black max-w-[100px] truncate">
           {firstName || "BENJIVR"}
         </span>
 
         {/* 3. Down-facing Arrow */}
         <ChevronDown
-          className={`size-3.5 text-foreground transition-transform duration-200 group-hover:text-foreground ${
+          className={`size-3 sm:size-3.5 text-foreground transition-transform duration-200 group-hover:text-foreground ${
             isOpen ? "rotate-180 text-foreground" : ""
           }`}
           strokeWidth={2.2}
@@ -670,7 +670,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.96 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
-            className="absolute right-0 top-full z-50 mt-2 w-64 origin-top-right overflow-hidden rounded-2xl border border-[var(--nav-border)] bg-[var(--nav-surface)] p-1.5 shadow-2xl shadow-black/10 backdrop-blur-xl"
+            className="absolute right-0 top-full z-50 mt-2 w-64 max-w-[calc(100vw-24px)] origin-top-right overflow-hidden rounded-2xl border border-[var(--nav-border)] bg-[var(--nav-surface)] p-1.5 shadow-2xl shadow-black/10 backdrop-blur-xl"
             role="menu"
             aria-orientation="vertical"
           >

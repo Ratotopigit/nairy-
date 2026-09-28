@@ -88,7 +88,7 @@ function AdminContentManager() {
     <div className="min-h-screen bg-[#faf8f3] text-[#1f4d3d] font-sans pb-20">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-[#d6e8dc] bg-[#faf8f3]/90 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex min-h-16 max-w-4xl flex-wrap sm:flex-nowrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
               href="/provider"
@@ -103,7 +103,7 @@ function AdminContentManager() {
           </div>
 
           {/* Save Status / Feedback */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <button
               type="button"
               onClick={handleManualRefresh}
@@ -130,7 +130,7 @@ function AdminContentManager() {
             {errorMessage && (
               <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
                 <AlertCircle className="size-3.5" />
-                <span className="truncate max-w-[200px]">{errorMessage}</span>
+                <span className="truncate max-w-[160px] sm:max-w-[200px]">{errorMessage}</span>
               </div>
             )}
           </div>
@@ -138,7 +138,7 @@ function AdminContentManager() {
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto max-w-4xl px-4 pt-8 sm:px-6 space-y-6">
+      <main className="mx-auto max-w-4xl px-4 pt-6 sm:pt-8 sm:px-6 space-y-6">
         {/* Warning Banner if Firestore rejected save */}
         {warningMessage && (
           <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900 shadow-xs flex items-start gap-3">
@@ -156,7 +156,7 @@ function AdminContentManager() {
         <form onSubmit={handleSave} className="space-y-6">
           
           {/* 1. YouTube Video URL & Live Preview */}
-          <div className="rounded-3xl border border-[#d6e8dc] bg-card p-6 sm:p-7 shadow-xs space-y-4">
+          <div className="rounded-2xl sm:rounded-3xl border border-[#d6e8dc] bg-card p-5 sm:p-7 shadow-xs space-y-4">
             <div className="flex items-center gap-2.5">
               <div className="grid size-8 place-items-center rounded-xl bg-[#e3f0e7] text-[#1f4d3d]">
                 <Video className="size-4" />
@@ -177,8 +177,8 @@ function AdminContentManager() {
               />
             </div>
 
-            {/* Live Video Preview */}
-            <div className="relative w-full max-w-lg h-[280px] rounded-2xl border border-[#d6e8dc] bg-black/5 overflow-hidden shadow-xs mt-3">
+            {/* Live Video Preview (Responsive aspect-video) */}
+            <div className="relative w-full max-w-lg aspect-video rounded-2xl border border-[#d6e8dc] bg-black/5 overflow-hidden shadow-xs mt-3">
               {previewId ? (
                 <CustomYouTubePlayer videoId={previewId} autoplay={false} />
               ) : (

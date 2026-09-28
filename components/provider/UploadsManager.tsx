@@ -391,8 +391,8 @@ export default function UploadsManager() {
           </span>
         </div>
 
-        {/* 5-Column Side-by-Side Unified Canvas Row */}
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {/* Progressive Side-by-Side Unified Canvas Row */}
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
           {ROLE_OPTIONS.map((option) => {
             const roleAssets = assets.filter((asset) => (asset.asset_role ?? "reference") === option.role);
             const rolePending = pending.filter((item) => item.role === option.role);
@@ -459,7 +459,7 @@ export default function UploadsManager() {
                         triggerPickerForRole(option.role);
                       }
                     }}
-                    className={`group relative flex min-h-[190px] flex-1 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border-strong bg-surface p-4 text-center transition-colors duration-150 hover:border-muted-foreground hover:bg-background ${
+                    className={`group relative flex min-h-[140px] sm:min-h-[180px] flex-1 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border-strong bg-surface p-3 sm:p-4 text-center transition-colors duration-150 hover:border-muted-foreground hover:bg-background ${
                       isDraggingOver ? "border-primary bg-secondary/60" : ""
                     }`}
                   >

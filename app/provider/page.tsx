@@ -50,11 +50,11 @@ export default function ProviderHomePage() {
   const { settings: homeContent, videoId } = useHomeContent();
 
   return (
-    <div className="w-full max-w-[1360px] mr-auto ml-[69px] sm:ml-[75px] md:ml-[67px] lg:ml-[59px]">
+    <div className="w-full max-w-[1360px] mx-auto">
       {/* Main Studio Section: White Div on Left + Module Cards on Right */}
       <div className="flex flex-col xl:flex-row items-stretch gap-4">
-        {/* Left: White Div (630 X 390 px) */}
-        <div className="relative w-full xl:w-[630px] h-[390px] shrink-0 rounded-3xl border border-border bg-card shadow-sm transition-all overflow-hidden">
+        {/* Left: Video / Studio Div */}
+        <div className="relative w-full xl:w-[630px] h-[220px] sm:h-[300px] md:h-[350px] xl:h-[390px] shrink-0 rounded-2xl sm:rounded-3xl border border-border bg-card shadow-sm transition-all overflow-hidden">
           {videoId ? (
             <CustomYouTubePlayer videoId={videoId} autoplay={true} />
           ) : (
@@ -64,7 +64,7 @@ export default function ProviderHomePage() {
           )}
         </div>
 
-        {/* Right: Module Cards Grid (Height matches 390px) */}
+        {/* Right: Module Cards Grid (Height matches 390px on XL) */}
         <div className="flex-1 w-full min-w-0 h-auto xl:h-[390px] grid grid-cols-1 sm:grid-cols-2 xl:grid-rows-2 gap-3.5">
           {/* Webinar Chat */}
           <div className="relative group/chat flex flex-col min-h-0 h-full">
@@ -259,21 +259,90 @@ export default function ProviderHomePage() {
         </div>
       </div>
 
-      {/* How It Works Section */}
-      <section className="mt-8 rounded-3xl border border-border bg-card p-6 sm:p-7 shadow-sm">
+      {/* Middle Banners Row (Brought UP): Context Highlight Card + Brand Tagline Card */}
+      <div className="mt-4 sm:mt-6 grid grid-cols-1 lg:grid-cols-[1.1fr_1.9fr] gap-4 items-stretch">
+        {/* Left Card: Context Highlight */}
+        <Link
+          href={homeContent.actionHref || "/provider/webinar-upload"}
+          className="group relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#275343] bg-gradient-to-br from-[#1f4d3d] via-[#1a4436] to-[#153a2d] p-5 sm:p-7 text-white flex flex-col justify-between shadow-sm transition-all duration-300 hover:shadow-md hover:border-[#38745d]"
+        >
+          {/* Subtle decorative leaf / ambient graphic */}
+          <div className="pointer-events-none absolute -left-6 -bottom-6 w-36 h-36 rounded-full bg-emerald-500/15 blur-2xl" />
+          <img
+            src="/assets/leaf-watermark 2.png"
+            alt=""
+            className="pointer-events-none absolute -left-3 -bottom-4 w-24 sm:w-28 h-auto opacity-15 select-none object-contain"
+          />
+
+          <div className="relative z-10">
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] font-semibold text-emerald-300/90">
+              {homeContent.tagline}
+            </span>
+            <h2 className="mt-2 text-lg sm:text-xl xl:text-2xl font-bold tracking-tight text-white leading-tight">
+              {homeContent.titleLine1}
+              <br />
+              {homeContent.titleLine2}
+            </h2>
+            <p className="mt-2 sm:mt-2.5 max-w-sm text-xs text-[#c2ded3] leading-relaxed">
+              {homeContent.description}
+            </p>
+          </div>
+
+          <div className="relative z-10 mt-4 sm:mt-5 flex justify-end">
+            <div className="grid size-8 sm:size-9 place-items-center rounded-full bg-white/15 text-white transition-all duration-300 group-hover:bg-white group-hover:text-[#1f4d3d] group-hover:scale-110 shadow-sm">
+              <ArrowRight className="size-3.5 sm:size-4" />
+            </div>
+          </div>
+        </Link>
+
+        {/* Right Card: Brand Tagline */}
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-border bg-card p-6 sm:p-7 shadow-sm flex items-center justify-center min-h-[140px] sm:min-h-[170px]">
+          <div className="relative z-10 flex flex-col items-center text-center">
+            <span className="block font-serif italic font-bold text-xl sm:text-2xl md:text-3xl text-[#1f4d3d] tracking-tight leading-tight">
+              {homeContent.brandTagline1 || "Better Webinars."}
+            </span>
+            <span className="block font-serif italic font-bold text-xl sm:text-2xl md:text-3xl text-[#1f4d3d] tracking-tight leading-tight">
+              {homeContent.brandTagline2 || "Bigger Impact."}
+            </span>
+            <svg
+              aria-hidden="true"
+              className="w-28 sm:w-36 md:w-44 h-3 text-emerald-600 mt-1.5"
+              viewBox="0 0 100 12"
+              fill="none"
+            >
+              <path
+                d="M 2 7 Q 50 1, 98 7"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+
+          {/* Leaf Watermark */}
+          <img
+            src="/assets/leaf-watermark.png"
+            alt=""
+            className="pointer-events-none absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 w-16 sm:w-24 md:w-28 h-auto opacity-25 sm:opacity-35 select-none object-contain"
+          />
+        </div>
+      </div>
+
+      {/* How It Works Section (Brought BELOW the two banners) */}
+      <section className="mt-4 sm:mt-6 rounded-2xl sm:rounded-3xl border border-border bg-card p-5 sm:p-7 shadow-sm">
         <div className="flex flex-col xl:flex-row items-stretch gap-6 xl:gap-8">
           {/* Left Column: Heading & Subtitle */}
           <div className="xl:w-64 shrink-0 flex flex-col justify-center xl:border-r xl:border-border/80 xl:pr-6">
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1f4d3d] leading-tight">
               From idea to impact in 4 simple steps.
             </h2>
-            <p className="mt-2.5 text-xs text-[#526a61] leading-relaxed">
+            <p className="mt-2 sm:mt-2.5 text-xs text-[#526a61] leading-relaxed">
               Let AI handle the heavy lifting while you focus on your audience.
             </p>
           </div>
 
           {/* Right Flow: 4 Step Items */}
-          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 sm:gap-6 items-start">
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 items-start">
             {HOW_IT_WORKS_STEPS.map((stepItem, idx) => {
               const StepIcon = stepItem.icon;
               const isLast = idx === HOW_IT_WORKS_STEPS.length - 1;
@@ -305,75 +374,6 @@ export default function ProviderHomePage() {
           </div>
         </div>
       </section>
-
-      {/* Bottom Banners Row: Context Highlight Card + Stats Card */}
-      <div className="mt-4 grid grid-cols-1 xl:grid-cols-[1.1fr_1.9fr] gap-4 items-stretch">
-        {/* Left Card: Context Highlight */}
-        <Link
-          href={homeContent.actionHref || "/provider/webinar-upload"}
-          className="group relative overflow-hidden rounded-3xl border border-[#275343] bg-gradient-to-br from-[#1f4d3d] via-[#1a4436] to-[#153a2d] p-6 sm:p-7 text-white flex flex-col justify-between shadow-sm transition-all duration-300 hover:shadow-md hover:border-[#38745d]"
-        >
-          {/* Subtle decorative leaf / ambient graphic */}
-          <div className="pointer-events-none absolute -left-6 -bottom-6 w-36 h-36 rounded-full bg-emerald-500/15 blur-2xl" />
-          <img
-            src="/assets/leaf-watermark 2.png"
-            alt=""
-            className="pointer-events-none absolute -left-3 -bottom-4 w-28 h-auto opacity-15 select-none object-contain"
-          />
-
-          <div className="relative z-10">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] font-semibold text-emerald-300/90">
-              {homeContent.tagline}
-            </span>
-            <h2 className="mt-2 text-xl sm:text-2xl font-bold tracking-tight text-white leading-tight">
-              {homeContent.titleLine1}
-              <br />
-              {homeContent.titleLine2}
-            </h2>
-            <p className="mt-2.5 max-w-sm text-xs text-[#c2ded3] leading-relaxed">
-              {homeContent.description}
-            </p>
-          </div>
-
-          <div className="relative z-10 mt-5 flex justify-end">
-            <div className="grid size-9 place-items-center rounded-full bg-white/15 text-white transition-all duration-300 group-hover:bg-white group-hover:text-[#1f4d3d] group-hover:scale-110 shadow-sm">
-              <ArrowRight className="size-4" />
-            </div>
-          </div>
-        </Link>
-
-        {/* Right Card: Brand Tagline */}
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 sm:p-7 shadow-sm flex items-center justify-center">
-          <div className="relative z-10 flex flex-col items-center text-center">
-            <span className="block font-serif italic font-bold text-xl sm:text-2xl text-[#1f4d3d] tracking-tight leading-tight">
-              {homeContent.brandTagline1 || "Better Webinars."}
-            </span>
-            <span className="block font-serif italic font-bold text-xl sm:text-2xl text-[#1f4d3d] tracking-tight leading-tight">
-              {homeContent.brandTagline2 || "Bigger Impact."}
-            </span>
-            <svg
-              aria-hidden="true"
-              className="w-28 sm:w-36 h-3 text-emerald-600 mt-1.5"
-              viewBox="0 0 100 12"
-              fill="none"
-            >
-              <path
-                d="M 2 7 Q 50 1, 98 7"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-
-          {/* Leaf Watermark */}
-          <img
-            src="/assets/leaf-watermark.png"
-            alt=""
-            className="pointer-events-none absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 w-20 sm:w-28 h-auto opacity-35 select-none object-contain"
-          />
-        </div>
-      </div>
     </div>
   );
 }

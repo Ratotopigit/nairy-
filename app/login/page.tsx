@@ -96,7 +96,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen w-full relative overflow-hidden flex items-center justify-center p-4 sm:p-6 font-sans">
+    <main className="min-h-screen w-full relative overflow-y-auto flex items-center justify-center p-3 sm:p-6 py-8 font-sans">
       {/* 
         ========================================================================
         1. TWO-TONE ROOM BACKGROUND (Wall + Horizontal Ground)
@@ -219,22 +219,22 @@ export default function LoginPage() {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="lg:col-span-5 w-full max-w-md mx-auto"
         >
-          <div className="rounded-3xl border border-border bg-card p-6 sm:p-8 lg:p-10">
+          <div className="rounded-2xl sm:rounded-3xl border border-border bg-card p-4 sm:p-8 lg:p-10 shadow-lg">
             {/* Brand Lockup: Webinar Stack Logo */}
             <div className="flex items-center justify-center mb-6 sm:mb-8">
               <img
                 src={logo}
                 alt="Webinar Stack"
                 draggable={false}
-                className="select-none pointer-events-none w-64 sm:w-72 max-w-full h-auto object-contain"
+                className="select-none pointer-events-none w-48 sm:w-64 max-w-full h-auto object-contain"
               />
             </div>
 
-            <div className="mb-8 text-center">
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            <div className="mb-6 sm:mb-8 text-center">
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
                 Welcome back
               </h1>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm leading-6 text-muted-foreground">
                 Sign in to your provider workspace.
               </p>
             </div>

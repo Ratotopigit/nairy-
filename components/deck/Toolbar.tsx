@@ -18,12 +18,12 @@ type Props = {
 
 export function Toolbar({ ratio, onRatio, style, onStyle, motion, onMotion, generating, hasContent, onGenerate, onExport, onHistory }: Props) {
   return (
-    <header className="flex h-16 min-w-0 shrink-0 items-center gap-4 border-b border-border bg-card px-3 sm:px-5">
+    <header className="flex h-14 sm:h-16 min-w-0 shrink-0 items-center justify-between gap-2 sm:gap-4 border-b border-border bg-card px-3 sm:px-5 overflow-x-auto no-scrollbar">
       <div className="hidden shrink-0 text-[12px] font-medium uppercase tracking-[0.28em] text-foreground lg:block">
         PPTX Builder
       </div>
 
-      <div className="ml-auto flex min-w-0 items-center gap-3 overflow-x-auto">
+      <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3 shrink-0">
         <Seg>
           {RATIOS.map((r) => (
             <SegItem key={r.id} active={ratio === r.id} onClick={() => onRatio(r.id)}>
@@ -32,49 +32,54 @@ export function Toolbar({ ratio, onRatio, style, onStyle, motion, onMotion, gene
           ))}
         </Seg>
 
-        <Seg>
-          {STYLES.map((s) => (
-            <SegItem key={s.id} active={style === s.id} onClick={() => onStyle(s.id)}>
-              {s.label}
-            </SegItem>
-          ))}
-        </Seg>
+        <div className="hidden md:block">
+          <Seg>
+            {STYLES.map((s) => (
+              <SegItem key={s.id} active={style === s.id} onClick={() => onStyle(s.id)}>
+                {s.label}
+              </SegItem>
+            ))}
+          </Seg>
+        </div>
 
-        <Seg>
-          {MOTIONS.map((item) => (
-            <SegItem key={item} active={motion === item} onClick={() => onMotion(item)}>
-              {item}
-            </SegItem>
-          ))}
-        </Seg>
+        <div className="hidden sm:block">
+          <Seg>
+            {MOTIONS.map((item) => (
+              <SegItem key={item} active={motion === item} onClick={() => onMotion(item)}>
+                {item}
+              </SegItem>
+            ))}
+          </Seg>
+        </div>
 
-        <div className="mx-1 h-6 w-px bg-border" />
+        <div className="hidden sm:block mx-1 h-6 w-px bg-border shrink-0" />
 
         <button
           type="button"
           onClick={onHistory}
           title="Open a past presentation"
-          className="flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-secondary"
+          className="flex items-center gap-1 sm:gap-1.5 rounded-[10px] border border-border bg-card px-2.5 sm:px-3 py-1.5 text-xs sm:text-[13px] text-foreground transition-colors duration-150 hover:bg-secondary shrink-0"
         >
           <History className="h-3.5 w-3.5" strokeWidth={1.75} />
-          History
+          <span className="hidden sm:inline">History</span>
         </button>
 
         <button
           type="button"
           onClick={onExport}
           disabled={!hasContent}
-          className="flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-35"
+          className="flex items-center gap-1 sm:gap-1.5 rounded-[10px] border border-border bg-card px-2.5 sm:px-3 py-1.5 text-xs sm:text-[13px] text-foreground transition-colors duration-150 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-35 shrink-0"
         >
           <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
-          Export .pptx
+          <span className="hidden sm:inline">Export .pptx</span>
+          <span className="sm:hidden">Export</span>
         </button>
 
         <button
           type="button"
           onClick={() => void onGenerate()}
           disabled={generating}
-          className={`relative overflow-hidden rounded-[10px] bg-foreground px-4 py-1.5 text-[13px] font-medium text-background transition-opacity duration-150 hover:opacity-90 disabled:opacity-75 ${generating ? "generation-button" : ""}`}
+          className={`relative overflow-hidden rounded-[10px] bg-foreground px-3 sm:px-4 py-1.5 text-xs sm:text-[13px] font-medium text-background transition-opacity duration-150 hover:opacity-90 disabled:opacity-75 shrink-0 ${generating ? "generation-button" : ""}`}
         >
           {generating ? "Generating…" : "Generate"}
         </button>

@@ -1321,10 +1321,10 @@ ${result.risk_reversal}`;
                     <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2.5 text-center">
                       OFFER AT A GLANCE
                     </p>
-                    <div className="grid grid-cols-4 divide-x divide-[#e8dfcf] items-center text-center">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-0 sm:divide-x divide-[#e8dfcf] items-center text-center">
                       {/* 1. Timeline */}
-                      <div className="flex flex-col items-center px-1.5 py-1 min-w-0">
-                        <Calendar className="size-4 text-[#1f4d3d] mb-1.5 shrink-0" />
+                      <div className="flex flex-col items-center p-2 sm:px-1.5 sm:py-1 min-w-0 rounded-lg bg-card sm:bg-transparent border border-border/40 sm:border-none">
+                        <Calendar className="size-4 text-[#1f4d3d] mb-1 sm:mb-1.5 shrink-0" />
                         <input
                           type="text"
                           value={result.timeline}
@@ -1338,8 +1338,8 @@ ${result.risk_reversal}`;
                       </div>
 
                       {/* 2. Delivery */}
-                      <div className="flex flex-col items-center px-1.5 py-1 min-w-0">
-                        <Package className="size-4 text-[#1f4d3d] mb-1.5 shrink-0" />
+                      <div className="flex flex-col items-center p-2 sm:px-1.5 sm:py-1 min-w-0 rounded-lg bg-card sm:bg-transparent border border-border/40 sm:border-none">
+                        <Package className="size-4 text-[#1f4d3d] mb-1 sm:mb-1.5 shrink-0" />
                         <input
                           type="text"
                           value={result.delivery_model}
@@ -1353,8 +1353,8 @@ ${result.risk_reversal}`;
                       </div>
 
                       {/* 3. Investment */}
-                      <div className="flex flex-col items-center px-1.5 py-1 min-w-0">
-                        <Coins className="size-4 text-[#1f4d3d] mb-1.5 shrink-0" />
+                      <div className="flex flex-col items-center p-2 sm:px-1.5 sm:py-1 min-w-0 rounded-lg bg-card sm:bg-transparent border border-border/40 sm:border-none">
+                        <Coins className="size-4 text-[#1f4d3d] mb-1 sm:mb-1.5 shrink-0" />
                         <input
                           type="text"
                           value={result.pricing}
@@ -1368,8 +1368,8 @@ ${result.risk_reversal}`;
                       </div>
 
                       {/* 4. Traffic */}
-                      <div className="flex flex-col items-center px-1.5 py-1 min-w-0">
-                        <Megaphone className="size-4 text-[#1f4d3d] mb-1.5 shrink-0" />
+                      <div className="flex flex-col items-center p-2 sm:px-1.5 sm:py-1 min-w-0 rounded-lg bg-card sm:bg-transparent border border-border/40 sm:border-none">
+                        <Megaphone className="size-4 text-[#1f4d3d] mb-1 sm:mb-1.5 shrink-0" />
                         <input
                           type="text"
                           value={getGlanceTrafficDisplay(result.traffic_strategy)}

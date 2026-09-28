@@ -18,7 +18,7 @@ export default function ProviderLayout({
 
   return (
     <AuthGuard>
-    <div className="provider-page-canvas flex min-h-screen flex-col text-foreground">
+    <div className="provider-page-canvas flex min-h-screen flex-col text-foreground overflow-x-hidden">
       <ProviderNavbar />
 
       <AnimatePresence mode="wait">
@@ -30,8 +30,8 @@ export default function ProviderLayout({
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           className={
             isBuilder
-              ? "min-h-0 w-full flex-1"
-              : "mx-auto w-full max-w-[1560px] px-4 pb-16 pt-6 sm:px-6 md:px-8 lg:px-10"
+              ? "min-h-0 w-full flex-1 overflow-x-hidden"
+              : "mx-auto w-full max-w-[1560px] px-3.5 sm:px-6 md:px-8 lg:px-10 pb-16 pt-4 sm:pt-6 overflow-x-hidden"
           }
         >
           {children}

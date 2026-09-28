@@ -1563,7 +1563,7 @@ export default function PresentationChat() {
   );
 
   return (
-    <div className="brief-builder flex h-[calc(100dvh-4rem-1px)] min-h-0 overflow-hidden bg-background text-foreground relative">
+    <div className="brief-builder flex h-[calc(100dvh-66px)] min-h-0 overflow-hidden bg-background text-foreground relative">
       {/* Mobile History Drawer Overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
@@ -1665,15 +1665,18 @@ export default function PresentationChat() {
               <span>New Chat</span>
             </button>
 
-            {!blueprintDrawerOpen && (
+            {!blueprintDrawerOpen && !mobileBlueprintOpen && (
               <button
                 type="button"
-                onClick={() => setBlueprintDrawerOpen(true)}
-                className="ml-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-foreground transition hover:bg-secondary cursor-pointer"
+                onClick={() => {
+                  setBlueprintDrawerOpen(true);
+                  setMobileBlueprintOpen(true);
+                }}
+                className="ml-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 sm:px-3 sm:py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-foreground transition hover:bg-secondary cursor-pointer"
                 title="Open Idea Blueprint"
               >
                 <Target className="size-3.5 text-primary" />
-                <span className="hidden sm:inline">Blueprint</span>
+                <span className="inline">Blueprint</span>
               </button>
             )}
           </div>

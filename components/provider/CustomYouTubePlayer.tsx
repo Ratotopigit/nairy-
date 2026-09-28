@@ -262,7 +262,10 @@ export default function CustomYouTubePlayer({
 
       {/* Transparent Clickable Area to Play/Pause on Video Body */}
       <div
-        onClick={togglePlayPause}
+        onClick={() => {
+          setIsHovered((prev) => !prev);
+          togglePlayPause();
+        }}
         className="absolute inset-0 z-15 cursor-pointer"
         aria-label="Toggle play/pause"
       />
