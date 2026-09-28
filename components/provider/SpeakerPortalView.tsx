@@ -1,113 +1,129 @@
 "use client";
 
-import { Activity, CheckCircle2, Mic, Play, Radio, Users } from "lucide-react";
-
-const teleprompterLines = [
-  "Welcome everyone and thank you for joining us today.",
-  "We are unpacking the practical system behind premium positioning and conversion.",
-  "If you want the full framework, the next step is to review the offer structure and apply for fast-track support.",
-  "As we transition, I want to highlight the strongest opportunities in front of us today.",
-];
+import { useState, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Check } from "lucide-react";
+import {
+  extractYouTubeVideoId,
+  useSpeakerVideo,
+} from "@/lib/speaker-stream";
+import CustomYouTubePlayer from "./CustomYouTubePlayer";
 
 export default function SpeakerPortalView() {
+  const { videoUrl, videoId, isLoaded, updateVideoUrl, removeVideo } =
+    useSpeakerVideo();
+
+  const [inputUrl, setInputUrl] = useState("");
+  const [isSaved, setIsSaved] = useState(false);
+
+  useEffect(() => {
+    if (isLoaded) {
+      setInputUrl(videoUrl);
+    }
+  }, [isLoaded, videoUrl]);
+
+  const previewId = extractYouTubeVideoId(inputUrl) || videoId;
+
+  const handleSave = () => {
+    updateVideoUrl(inputUrl);
+    setIsSaved(true);
+    setTimeout(() => {
+      setIsSaved(false);
+    }, 2200);
+  };
+
+  const handleRemove = () => {
+    setInputUrl("");
+    removeVideo();
+    setIsSaved(false);
+  };
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-      <section className="rounded-3xl border border-border bg-card p-5 sm:p-6">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Stream Status</h2>
-            <p className="text-xs text-muted-foreground">Live event controls</p>
-          </div>
+    <div className="w-full max-w-4xl mx-auto">
+      <div className="rounded-3xl border border-border bg-card p-6 shadow-sm space-y-5">
+        {/* Link adding field */}
+        <input
+          type="text"
+          value={inputUrl}
+          onChange={(e) => {
+            setInputUrl(e.target.value);
+            if (isSaved) setIsSaved(false);
+          }}
+          placeholder="Enter YouTube video link..."
+          className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#1f4d3d] focus:outline-none focus:ring-2 focus:ring-[#1f4d3d]/20 transition-all"
+        />
 
-          {/* Status indicator, not an action — rendered as a pill so it is not
-              mistaken for a button. */}
-          <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-primary px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-primary-foreground">
-            <Radio className="h-3 w-3" />
-            Live
-          </span>
-        </div>
+        {/* Buttons */}
+        <div className="flex items-center gap-3">
+          <motion.button
+            type="button"
+            onClick={handleSave}
+            whileTap={{ scale: 0.96 }}
+            animate={{
+              backgroundColor: isSaved ? "#166534" : "#1f4d3d",
+              scale: isSaved ? [1, 1.04, 1] : 1,
+            }}
+            transition={{ duration: 0.25 }}
+            className="relative inline-flex min-w-[140px] items-center justify-center overflow-hidden rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:opacity-95"
+          >
+            <AnimatePresence mode="wait">
+              {isSaved ? (
+                <motion.span
+                  key="saved"
+                  initial={{ opacity: 0, y: 6, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.8 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="flex items-center gap-1.5 text-white"
+                >
+                  <motion.span
+                    initial={{ scale: 0, rotate: -45 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 18,
+                      delay: 0.05,
+                    }}
+                  >
+                    <Check className="size-4 stroke-[2.5]" />
+                  </motion.span>
+                  <span>Changes Saved</span>
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="save"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 6 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  Save Changes
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
 
-        <div className="grid gap-3 md:grid-cols-3">
-          {[
-            { label: "Live Viewers", value: "2,438", icon: Users },
-            { label: "Form Submissions", value: "189", icon: CheckCircle2 },
-            { label: "Fast-Track Leads", value: "43", icon: Activity },
-          ].map(({ label, value, icon: Icon }) => (
-            <div
-              key={label}
-              className="rounded-2xl border border-border bg-muted p-4"
-            >
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Icon className="h-4 w-4" />
-              </div>
-              <p className="text-2xl font-bold text-foreground">{value}</p>
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 rounded-2xl border border-border bg-muted p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Mic className="h-4 w-4" />
-              </div>
-              <p className="text-sm font-semibold text-foreground">
-                Teleprompter
-              </p>
-            </div>
-            <span className="rounded-full bg-card px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              02:14 left
-            </span>
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm leading-7 text-foreground">
-            {teleprompterLines.map((line, index) => (
-              <p
-                key={line}
-                className={
-                  index === 2
-                    ? "rounded-lg bg-primary/10 px-3 py-2 text-primary"
-                    : ""
-                }
-              >
-                {line}
-              </p>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <aside className="rounded-3xl border border-border bg-card p-5 sm:p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Host Controls</h2>
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2 text-xs font-medium text-muted-foreground hover:border-border-strong hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+            onClick={handleRemove}
+            className="rounded-xl border border-border bg-background px-5 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-all"
           >
-            <Play className="h-3.5 w-3.5" />
-            Start Cue
+            Remove Stream
           </button>
         </div>
 
-        <div className="space-y-3">
-          {[
-            "Open CTA overlay",
-            "Share offer recap",
-            "Trigger attendee form",
-            "Launch fast-track prompt",
-          ].map((action) => (
-            <button
-              key={action}
-              type="button"
-              className="flex w-full items-center justify-between rounded-xl border border-border bg-muted px-3 py-3 text-left text-sm font-medium text-foreground transition-colors hover:border-border-strong hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
-            >
-              <span>{action}</span>
-              <span className="text-muted-foreground">→</span>
-            </button>
-          ))}
+        {/* Video Preview */}
+        <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-border bg-black/5 flex items-center justify-center">
+          {previewId ? (
+            <CustomYouTubePlayer videoId={previewId} autoplay={false} />
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              No video preview
+            </div>
+          )}
         </div>
-      </aside>
+      </div>
     </div>
   );
 }

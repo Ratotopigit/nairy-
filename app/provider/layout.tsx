@@ -31,7 +31,7 @@ export default function ProviderLayout({
           className={
             isBuilder
               ? "min-h-0 w-full flex-1"
-              : "mx-auto w-full max-w-[1440px] px-4 pb-16 pt-8 sm:px-6 md:px-10 lg:px-12"
+              : "mx-auto w-full max-w-[1560px] px-4 pb-16 pt-6 sm:px-6 md:px-8 lg:px-10"
           }
         >
           {children}

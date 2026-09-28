@@ -32,7 +32,7 @@ export default function ProviderNavbar() {
 
   return (
     <header className="provider-nav sticky top-0 z-50 shrink-0 border-b border-border bg-background">
-      <div className="mx-auto flex h-[66px] w-full max-w-[1440px] items-center gap-5 px-4 sm:px-6">
+      <div className="mx-auto flex h-[66px] w-full max-w-[1560px] items-center gap-6 px-4 sm:px-6">
         <Link
           href="/provider"
           aria-label="Webinar Stack home"
@@ -41,11 +41,11 @@ export default function ProviderNavbar() {
           <img
             src="/assets/webinarstackai-logo.png"
             alt="Webinar Stack"
-            className="h-[50px] sm:h-[54px] md:h-[58px] w-[185px] sm:w-[210px] md:w-[230px] object-fill transition-opacity hover:opacity-90"
+            className="h-[46px] sm:h-[50px] w-auto max-w-[220px] object-contain transition-opacity hover:opacity-90"
           />
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-6 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-7 md:flex">
           {navItems.map((item) => {
             const active =
               item.href === "/provider"
@@ -65,7 +65,7 @@ export default function ProviderNavbar() {
               >
                 {item.label}
                 <span
-                  className={`absolute inset-x-0 bottom-0 h-px origin-left bg-foreground transition-transform duration-300 ${
+                  className={`absolute inset-x-0 bottom-0 h-[2px] origin-left bg-[#1f4d3d] transition-transform duration-200 ${
                     active ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
                   }`}
                 />

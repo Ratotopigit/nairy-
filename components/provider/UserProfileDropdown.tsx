@@ -627,7 +627,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
         className="group flex items-center gap-3 py-1 px-2 rounded-xl transition-colors duration-150 hover:bg-black/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nav-ink)] cursor-pointer select-none"
       >
         {/* 1. Profile Picture / Initials of both names */}
-        <div className="relative flex size-[34px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-foreground text-surface shadow-xs">
+        <div className="relative flex size-[34px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#9333ea] text-white shadow-xs">
           {photoUrl && !imgError ? (
             <img
               src={photoUrl}
@@ -641,18 +641,16 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
               }}
             />
           ) : (
-            <span className="font-serif text-[13px] font-semibold tracking-wider text-primary-foreground">
-              {displayInitials}
+            <span className="font-sans text-[13px] font-semibold text-white">
+              {displayInitials || "B"}
             </span>
           )}
         </div>
 
         {/* 2. First Name with hover effect */}
-        {firstName ? (
-          <span className="text-[15px] font-medium tracking-tight text-foreground transition-colors group-hover:text-black">
-            {firstName}
-          </span>
-        ) : null}
+        <span className="text-[14px] font-medium tracking-tight text-foreground transition-colors group-hover:text-black">
+          {firstName || "BENJIVR"}
+        </span>
 
         {/* 3. Down-facing Arrow */}
         <ChevronDown

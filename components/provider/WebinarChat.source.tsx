@@ -2,6 +2,7 @@
 
 import {
   Check,
+  ChevronDown,
   ChevronUp,
   Copy,
   Download,
@@ -20,7 +21,6 @@ import {
   Send,
   Share2,
   Sparkles,
-  SquarePen,
   Target,
   Trash2,
   X,
@@ -46,51 +46,19 @@ import { saveWorkspaceMemory, type WorkspaceMemory } from "@/lib/workspace-memor
 import { resolveUserFirstName } from "@/lib/onboarding";
 import { n8nWebhookUrl } from "@/lib/n8n-url";
 import VoiceWaveVisualizer from "./VoiceWaveVisualizer";
+import {
+  chatService,
+  saveSessionLocally,
+  getCachedSession,
+  ACTIVE_SESSION_STORAGE_KEY,
+  EXPLICIT_NEW_CHAT_KEY,
+  getSessionCacheKey,
+  type Message,
+  type BuyerBlueprint,
+  type BlueprintSession,
+} from "@/lib/chat-service";
 
-export type Message = {
-  id: string;
-  role: "assistant" | "user";
-  text: string;
-  timestamp?: string;
-  category?: string | null;
-};
-
-export type BuyerBlueprint = {
-  persona_name: string;
-  demographics: string;
-  core_fear: string;
-  buying_trigger: string;
-  objections: string[];
-  headlines: string[];
-  social_hooks: string[];
-  email_subject_lines: string[];
-  research_notes?: string;
-  primary_goals?: string[];
-  values_and_beliefs?: string[];
-  decision_style?: string;
-  trusted_influences?: string[];
-  day_in_the_life?: string;
-  elevator_pitch?: string;
-  content_ideas?: string[];
-  search_topics?: string[];
-  conversation_starters?: string[];
-  competitive_edge?: string;
-};
-
-type BlueprintSession = {
-  session_id: string;
-  _docId?: string;
-  custom_title?: string;
-  pinned?: boolean;
-  status: "draft" | "generating" | "completed" | "failed";
-  step: number;
-  answers: WebinarAnswers;
-  messages: Message[];
-  draft: string;
-  selected_category: string | null;
-  blueprint: BuyerBlueprint | null;
-  updated_at: string;
-};
+export type { Message, BuyerBlueprint };
 
 const CHAT_PATH = "/provider/webinar-chat";
 
@@ -161,40 +129,6 @@ function formatSessionDate(dateStr?: string): string {
   }
 }
 
-const ACTIVE_SESSION_STORAGE_KEY = "webinarkit:active-session-id";
-const EXPLICIT_NEW_CHAT_KEY = "webinarkit:explicit-new-chat";
-
-function getSessionCacheKey(sessionId: string): string {
-  return `webinarkit:session:${sessionId}`;
-}
-
-function getCachedSession(sessionId: string): Partial<BlueprintSession> | null {
-  if (typeof window === "undefined" || !sessionId) return null;
-  try {
-    const raw =
-      sessionStorage.getItem(getSessionCacheKey(sessionId)) ||
-      localStorage.getItem(getSessionCacheKey(sessionId));
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveSessionLocally(sessionId: string, data: Partial<BlueprintSession>) {
-  if (typeof window === "undefined" || !sessionId) return;
-  try {
-    const key = getSessionCacheKey(sessionId);
-    const existing = getCachedSession(sessionId) || {};
-    const merged = { ...existing, ...data, session_id: sessionId, updated_at: new Date().toISOString() };
-    const str = JSON.stringify(merged);
-    sessionStorage.setItem(key, str);
-    localStorage.setItem(key, str);
-    localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
-    sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
-  } catch (err) {
-    console.warn("Failed to save session locally:", err);
-  }
-}
 
 export default function PresentationChat() {
   const params = useParams<{ chatId?: string }>();
@@ -335,7 +269,7 @@ export default function PresentationChat() {
     }
   }
 
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(() => (rawRouteChatId ? chatService.isGenerating(rawRouteChatId) : false));
   const [result, setResult] = useState<BuyerBlueprint | null>(() => {
     if (typeof window !== "undefined" && rawRouteChatId) {
       const cached = getCachedSession(rawRouteChatId);
@@ -364,9 +298,67 @@ export default function PresentationChat() {
       });
     }
   }, [messages, draft, result, sessionId, step, answers, busy]);
+
+  // Subscribe to background chat generation updates
+  useEffect(() => {
+    if (!sessionId) return;
+    setBusy(chatService.isGenerating(sessionId));
+
+    // Re-sync messages and blueprint in case a background generation finished while unmounted
+    const cached = getCachedSession(sessionId);
+    if (cached && Array.isArray(cached.messages) && cached.messages.length > messages.length) {
+      setMessages(cached.messages);
+      if (cached.blueprint) setResult(cached.blueprint);
+      if (cached.answers) setAnswers(cached.answers as WebinarAnswers);
+      if (cached.step) setStep(cached.step);
+    }
+
+    const unsubscribe = chatService.subscribe(sessionId, {
+      onStart: () => {
+        setBusy(true);
+        setWebhookError(null);
+      },
+      onSuccess: (res) => {
+        setMessages((prev) => {
+          const hasAssistant = prev.some((m) => m.id === res.assistantMsg.id);
+          if (hasAssistant) return prev;
+          return [...prev, res.assistantMsg];
+        });
+        if (res.updatedBlueprint) {
+          setResult(res.updatedBlueprint);
+        }
+        setAnswers(res.updatedAnswers);
+        setStep(res.nextStep);
+        setBusy(false);
+        setWebhookError(null);
+        if (res.requestedHandoff) {
+          handleDirectLaunch(
+            res.requestedHandoff === "deck" ? "ppt" : "offer",
+            res.assistantMsg.text,
+            res.updatedBlueprint,
+          );
+        }
+      },
+      onError: (err) => {
+        setMessages((prev) => {
+          const hasErr = prev.some((m) => m.id === err.errorMsg.id);
+          if (hasErr) return prev;
+          return [...prev, err.errorMsg];
+        });
+        setWebhookError(err.reason);
+        setBusy(false);
+      },
+      onComplete: () => {
+        setBusy(false);
+      },
+    });
+
+    return () => unsubscribe();
+  }, [sessionId, messages.length]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [blueprintDrawerOpen, setBlueprintDrawerOpen] = useState(true);
   const [mobileBlueprintOpen, setMobileBlueprintOpen] = useState(false);
+  const [blueprintExpanded, setBlueprintExpanded] = useState(false);
   const [webhookError, setWebhookError] = useState<string | null>(null);
   const [history, setHistory] = useState<BlueprintSession[]>([]);
   const [workspaceMemory, setWorkspaceMemory] = useState<WorkspaceMemory | null>(null);
@@ -630,7 +622,7 @@ export default function PresentationChat() {
     setAnswers({});
     setStep(1);
     setDraft("");
-    setBusy(false);
+    setBusy(chatService.isGenerating(sid));
     setResult(null);
     setWebhookError(null);
     setSessionId(sid);
@@ -663,7 +655,7 @@ export default function PresentationChat() {
     setStep(session.step || qStatus.currentStep);
     setDraft(session.draft ?? "");
     setResult(session.blueprint ?? null);
-    setBusy(false);
+    setBusy(chatService.isGenerating(session.session_id));
     setWebhookError(null);
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
       setSidebarOpen(false);
@@ -919,160 +911,39 @@ export default function PresentationChat() {
       status: "generating",
     });
 
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error("You need to be signed in to use Webinar Chat.");
-      }
-      const userId = user.uid;
-
-      // Check if user is asking to synthesize or initiate build
-      const isInitiateBuild =
-        text.includes("[SYSTEM COMMAND: INITIATE BUILD]") ||
-        /initiate build/i.test(text) ||
-        /synthesize/i.test(text);
-      const isBlueprintRequest =
-        isInitiateBuild ||
-        /\b(blueprint|persona|synthesize|generate blueprint|create blueprint|buyer profile|avatar profile|slide outline|presentation outline)\b/i.test(text);
-
-      let assistantReplyText = "";
-      let updatedBlueprint: BuyerBlueprint | null = result;
-      let requestedHandoff: "deck" | "offer" | null = null;
-
-      const updatedAnswers: WebinarAnswers = answers;
-      const nextStep: number = step;
-
-      const token = await user.getIdToken().catch(() => null);
-      if (!token) {
-        throw new Error("Your sign-in session expired. Please sign in again.");
-      }
-
-      // The webhook is the only source of replies. A Gemini agent synthesizing
-      // a full blueprint regularly needs well over a minute.
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
-
-      try {
-        const response = await fetch(n8nWebhookUrl("avatar-iq"), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            session_id: activeSessionId,
-            user_id: userId,
-            message: text,
-            messages: nextMessages,
-            blueprint: result,
-            answers,
-            step,
-            asset_context: assetContext,
-            workspace_context: assetContext,
-            synthesize: isBlueprintRequest,
-            initiate_build: isInitiateBuild,
-          }),
-        });
-
-        const parsed = await readN8nJson<unknown>(response, "Webinar Chat");
-        const chat = parseAvatarChatPayload(parsed, result, answers);
-        if (!chat.reply?.trim()) {
-          throw new Error("Webinar Chat returned an empty reply.");
-        }
-        assistantReplyText = chat.reply;
-        if (chat.blueprint) updatedBlueprint = chat.blueprint;
-        requestedHandoff = chat.handoff;
-      } catch (webhookErr) {
-        if (webhookErr instanceof DOMException && webhookErr.name === "AbortError") {
-          throw new Error("Webinar Chat timed out. Please try again.");
-        }
-        throw webhookErr;
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-
-      setAnswers(updatedAnswers);
-      setStep(nextStep);
-
-      if (updatedBlueprint) {
-        setResult(updatedBlueprint);
-        sessionStorage.setItem("astrocraft:latest-blueprint", JSON.stringify(updatedBlueprint));
-        if (userId) {
-          void saveWorkspaceMemory(userId, {
-            onboarding_complete: true,
-            business_profile: {
-              business: updatedAnswers.q1_business || text,
-              problem: updatedAnswers.q3_problem_transformation || updatedBlueprint.core_fear,
-              objections: updatedAnswers.q4_objection || updatedBlueprint.objections?.join("; ") || "",
-            },
-            audience_profile: updatedBlueprint as unknown as Record<string, unknown>,
-            memory_summary: `Ideal buyer: ${updatedAnswers.q2_buyer || updatedBlueprint.demographics || updatedBlueprint.persona_name}`.trim(),
-            source_session_id: activeSessionId,
-          });
-        }
-      }
-
-      const assistantMsg: Message = {
-        id: `a-${Date.now()}`,
-        role: "assistant",
-        text: assistantReplyText,
-        timestamp: new Date().toISOString(),
-      };
-
-      setMessages((prev) => {
-        const hasUser = prev.some((m) => m.id === userMsg.id);
-        const base = hasUser ? prev : [...prev, userMsg];
-        if (base.some((m) => m.id === assistantMsg.id)) return base;
-        return [...base, assistantMsg];
-      });
-
-      saveSessionLocally(activeSessionId, {
-        session_id: activeSessionId,
-        messages: [...nextMessages, assistantMsg],
-        answers: updatedAnswers,
-        step: nextStep,
-        draft: "",
-        blueprint: updatedBlueprint,
-        status: updatedBlueprint ? "completed" : "draft",
-      });
-
-      // The assistant asked to move them on. Launch with the blueprint from
-      // this very reply -- `result` state has not committed yet -- so the
-      // builder receives what was just learned rather than the prior turn.
-      if (requestedHandoff) {
-        handleDirectLaunch(
-          requestedHandoff === "deck" ? "ppt" : "offer",
-          assistantReplyText,
-          updatedBlueprint,
-        );
-      }
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "Could not process message.";
+    const user = auth.currentUser;
+    if (!user) {
+      const reason = "You need to be signed in to use Webinar Chat.";
       setWebhookError(reason);
-      const errorMsg: Message = {
-        id: `e-${Date.now()}`,
-        role: "assistant" as const,
-        text: `${reason}\n\nYour message was not answered. Please try sending it again.`,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => {
-        const hasUser = prev.some((m) => m.id === userMsg.id);
-        const base = hasUser ? prev : [...prev, userMsg];
-        return [...base, errorMsg];
-      });
-      saveSessionLocally(activeSessionId, {
-        session_id: activeSessionId,
-        messages: [...nextMessages, errorMsg],
-        answers,
-        step,
-        draft: "",
-        blueprint: result,
-        status: "failed",
-      });
-    } finally {
       setBusy(false);
+      return;
     }
+    const userId = user.uid;
+
+    const token = await user.getIdToken().catch(() => null);
+    if (!token) {
+      const reason = "Your sign-in session expired. Please sign in again.";
+      setWebhookError(reason);
+      setBusy(false);
+      return;
+    }
+
+    const existingSession = history.find((h) => h.session_id === activeSessionId);
+    const docId = existingSession?._docId || activeSessionId;
+
+    void chatService.sendMessage({
+      sessionId: activeSessionId,
+      text,
+      userMsg,
+      currentMessages: messages,
+      answers,
+      step,
+      result,
+      assetContext,
+      userId,
+      userToken: token,
+      docId,
+    });
   }
 
   function handleInitiateBuild() {
@@ -1462,122 +1333,232 @@ export default function PresentationChat() {
   );
 
   const blueprintInnerContent = (
-    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-      <div className="space-y-4">
-        {/* Q1: Business Idea */}
-        <EditableCard
-          label="Q1 · Business or Business Idea"
-          description="What you do or want to be known for."
-          value={activeBlueprint.persona_name}
-          placeholder="e.g. Done-for-you outbound lead generation for B2B tech startups"
-          onChange={(val) => updateBlueprintField("persona_name", val)}
-          onMerge={(val) => mergeFieldIntoDraft("Business Idea", val)}
-        />
+    <div className="flex min-h-0 flex-1 flex-col justify-between overflow-hidden">
+      {/* Questions Scrollable / Compact Area */}
+      <div
+        className={`min-h-0 flex-1 transition-all duration-300 ease-in-out ${
+          blueprintExpanded
+            ? "overflow-y-auto no-scrollbar p-4 space-y-4"
+            : "overflow-hidden p-4 relative"
+        }`}
+      >
+        {blueprintExpanded && (
+          <div className="flex items-center justify-between pb-1 px-1">
+            <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              All 8 Blueprint Sections
+            </span>
+            <button
+              type="button"
+              onClick={() => setBlueprintExpanded(false)}
+              className="group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-secondary/80 px-2.5 py-1 text-[10px] font-medium text-muted-foreground transition hover:border-border hover:bg-secondary hover:text-foreground cursor-pointer active:scale-95"
+              title="Collapse to 3 questions"
+            >
+              <span>Collapse</span>
+              <ChevronUp className="size-3 transition-transform duration-200 group-hover:-translate-y-0.5" />
+            </button>
+          </div>
+        )}
 
-        {/* Q2: Ideal Buyer */}
-        <EditableCard
-          label="Q2 · Ideal Buyer Profile"
-          description="Who this program or service is for (age, role, situation)."
-          value={activeBlueprint.demographics}
-          placeholder="e.g. Founders and sales leaders at 10–50 person companies"
-          onChange={(val) => updateBlueprintField("demographics", val)}
-          onMerge={(val) => mergeFieldIntoDraft("Ideal Buyer", val)}
-        />
+        <div className="space-y-3.5">
+          {/* Q1: Business Idea */}
+          <EditableCard
+            label="Q1 · Business or Business Idea"
+            description="What you do or want to be known for."
+            value={activeBlueprint.persona_name}
+            placeholder="e.g. Done-for-you outbound lead generation for B2B tech startups"
+            onChange={(val) => updateBlueprintField("persona_name", val)}
+            onMerge={(val) => mergeFieldIntoDraft("Business Idea", val)}
+          />
 
-        {/* Q3: Problem & Transformation */}
-        <EditableCard
-          label="Q3 · Problem & Transformation"
-          description="The biggest problem you solve and the result they achieve."
-          value={activeBlueprint.core_fear}
-          placeholder="e.g. Unpredictable pipeline — scaling to 15+ enterprise meetings/mo"
-          onChange={(val) => updateBlueprintField("core_fear", val)}
-          onMerge={(val) => mergeFieldIntoDraft("Problem & Transformation", val)}
-        />
+          {/* Q2: Ideal Buyer */}
+          <EditableCard
+            label="Q2 · Ideal Buyer Profile"
+            description="Who this program or service is for (age, role, situation)."
+            value={activeBlueprint.demographics}
+            placeholder="e.g. Founders and sales leaders at 10–50 person companies"
+            onChange={(val) => updateBlueprintField("demographics", val)}
+            onMerge={(val) => mergeFieldIntoDraft("Ideal Buyer", val)}
+          />
 
-        {/* Buying Trigger */}
-        <EditableCard
-          label="Buying Trigger / Transformation Catalyst"
-          description="The catalyst or transformation that makes them act now."
-          value={activeBlueprint.buying_trigger}
-          placeholder="e.g. Hitting an operational capacity ceiling where taking more clients causes burnout"
-          onChange={(val) => updateBlueprintField("buying_trigger", val)}
-          onMerge={(val) => mergeFieldIntoDraft("Buying Trigger", val)}
-        />
+          {/* Q3: Problem & Transformation */}
+          <div className="relative">
+            <EditableCard
+              label="Q3 · Problem & Transformation"
+              description="The biggest problem you solve and the result they achieve."
+              value={activeBlueprint.core_fear}
+              placeholder="e.g. Unpredictable pipeline — scaling to 15+ enterprise meetings/mo"
+              onChange={(val) => updateBlueprintField("core_fear", val)}
+              onMerge={(val) => mergeFieldIntoDraft("Problem & Transformation", val)}
+            />
+            {/* Fog blur effect over Q3 bottom when collapsed */}
+            {!blueprintExpanded && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 rounded-b-2xl bg-gradient-to-t from-card via-card/85 to-transparent backdrop-blur-[2px]" />
+            )}
+          </div>
 
-        {/* Q4: Objections */}
-        <EditableListCard
-          label="Q4 · Key Hesitations & Objections"
-          description="Doubts or skepticisms to neutralize in your offer and presentation."
-          items={activeBlueprint.objections}
-          placeholder="Add an objection…"
-          onAdd={(val) => addArrayField("objections", val)}
-          onRemove={(idx) => removeArrayField("objections", idx)}
-          onUpdate={(idx, val) => updateArrayField("objections", idx, val)}
-          onMerge={(items) => mergeFieldIntoDraft("Top Objections", items.join("; "))}
-        />
+          {/* Additional 5 Questions when expanded */}
+          {blueprintExpanded && (
+            <div className="space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-300">
+              {/* Buying Trigger */}
+              <EditableCard
+                label="Buying Trigger / Transformation Catalyst"
+                description="The catalyst or transformation that makes them act now."
+                value={activeBlueprint.buying_trigger}
+                placeholder="e.g. Hitting an operational capacity ceiling where taking more clients causes burnout"
+                onChange={(val) => updateBlueprintField("buying_trigger", val)}
+                onMerge={(val) => mergeFieldIntoDraft("Buying Trigger", val)}
+              />
 
-        {/* Q6: Winning Hooks & Headlines */}
-        <EditableListCard
-          label="Q6 · Winning Angles & Hooks"
-          description="High-converting marketing angles and slide headlines."
-          items={activeBlueprint.headlines}
-          placeholder="Add a headline / hook (e.g. 'The 3 Bottlenecks Capping Your Growth')..."
-          onAdd={(val) => addArrayField("headlines", val)}
-          onRemove={(idx) => removeArrayField("headlines", idx)}
-          onUpdate={(idx, val) => updateArrayField("headlines", idx, val)}
-          onMerge={(items) => mergeFieldIntoDraft("Winning Hooks", items.join("; "))}
-        />
+              {/* Q4: Objections */}
+              <EditableListCard
+                label="Q4 · Key Hesitations & Objections"
+                description="Doubts or skepticisms to neutralize in your offer and presentation."
+                items={activeBlueprint.objections}
+                placeholder="Add an objection…"
+                onAdd={(val) => addArrayField("objections", val)}
+                onRemove={(idx) => removeArrayField("objections", idx)}
+                onUpdate={(idx, val) => updateArrayField("objections", idx, val)}
+                onMerge={(items) => mergeFieldIntoDraft("Top Objections", items.join("; "))}
+              />
 
-        {/* Q7: Slide Points & Content Flow */}
-        <EditableListCard
-          label="Q7 · Slide Points & Presentation Outline"
-          description="Core points and sections to include in the presentation."
-          items={activeBlueprint.content_ideas}
-          placeholder="Add slide point (e.g. 'Case study: Going from operator to owner')..."
-          onAdd={(val) => addArrayField("content_ideas", val)}
-          onRemove={(idx) => removeArrayField("content_ideas", idx)}
-          onUpdate={(idx, val) => updateArrayField("content_ideas", idx, val)}
-          onMerge={(items) => mergeFieldIntoDraft("Slide Outline", items.join(" -> "))}
-        />
+              {/* Q6: Winning Hooks & Headlines */}
+              <EditableListCard
+                label="Q6 · Winning Angles & Hooks"
+                description="High-converting marketing angles and slide headlines."
+                items={activeBlueprint.headlines}
+                placeholder="Add a headline / hook (e.g. 'The 3 Bottlenecks Capping Your Growth')..."
+                onAdd={(val) => addArrayField("headlines", val)}
+                onRemove={(idx) => removeArrayField("headlines", idx)}
+                onUpdate={(idx, val) => updateArrayField("headlines", idx, val)}
+                onMerge={(items) => mergeFieldIntoDraft("Winning Hooks", items.join("; "))}
+              />
 
-        {/* Elevator Pitch */}
-        <EditableCard
-          label="Elevator Pitch / Hook Summary"
-          description="Concise 1-sentence value pitch for this presentation and offer."
-          value={activeBlueprint.elevator_pitch ?? ""}
-          placeholder="e.g. We help agency founders build self-managing operations in 90 days."
-          onChange={(val) => updateBlueprintField("elevator_pitch", val)}
-          onMerge={(val) => mergeFieldIntoDraft("Elevator Pitch", val)}
-        />
+              {/* Q7: Slide Points & Content Flow */}
+              <EditableListCard
+                label="Q7 · Slide Points & Presentation Outline"
+                description="Core points and sections to include in the presentation."
+                items={activeBlueprint.content_ideas}
+                placeholder="Add slide point (e.g. 'Case study: Going from operator to owner')..."
+                onAdd={(val) => addArrayField("content_ideas", val)}
+                onRemove={(idx) => removeArrayField("content_ideas", idx)}
+                onUpdate={(idx, val) => updateArrayField("content_ideas", idx, val)}
+                onMerge={(items) => mergeFieldIntoDraft("Slide Outline", items.join(" -> "))}
+              />
+
+              {/* Elevator Pitch */}
+              <EditableCard
+                label="Elevator Pitch / Hook Summary"
+                description="Concise 1-sentence value pitch for this presentation and offer."
+                value={activeBlueprint.elevator_pitch ?? ""}
+                placeholder="e.g. We help agency founders build self-managing operations in 90 days."
+                onChange={(val) => updateBlueprintField("elevator_pitch", val)}
+                onMerge={(val) => mergeFieldIntoDraft("Elevator Pitch", val)}
+              />
+
+              {/* Bottom collapse button */}
+              <div className="flex justify-center pt-2 pb-1">
+                <button
+                  type="button"
+                  onClick={() => setBlueprintExpanded(false)}
+                  className="group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-secondary/80 px-3.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-all duration-200 hover:border-border hover:bg-secondary hover:text-foreground cursor-pointer active:scale-95"
+                >
+                  <ChevronUp className="size-3.5 transition-transform duration-200 group-hover:-translate-y-0.5" />
+                  <span>Collapse back to 3 questions</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Downward Arrow on Fog Effect & 3 Side-by-Side Options (when not expanded) */}
+        {!blueprintExpanded && (
+          <div className="relative z-10 flex flex-col items-center justify-center pt-2 pb-1 space-y-3">
+            {/* Downward Arrow only */}
+            <button
+              type="button"
+              onClick={() => setBlueprintExpanded(true)}
+              className="group flex size-8 items-center justify-center rounded-full border border-border/90 bg-card/95 text-foreground shadow-sm backdrop-blur-md transition-all duration-200 hover:border-primary/50 hover:bg-secondary hover:shadow-md hover:scale-110 active:scale-95 cursor-pointer"
+              title="Expand blueprint questions"
+              aria-label="Expand blueprint questions"
+            >
+              <ChevronDown className="size-4 text-primary transition-transform duration-300 group-hover:translate-y-0.5 animate-bounce" />
+            </button>
+
+            {/* 3 options side by side just below the arrow button */}
+            <div className="grid grid-cols-3 gap-2 w-full">
+              {/* Merge Blueprint into Box */}
+              <button
+                type="button"
+                onClick={() => mergeBlueprintIntoDraft()}
+                title="Merge Blueprint into Box"
+                className="group relative flex items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-ochre/40 bg-gradient-to-r from-ochre/15 via-primary/10 to-ochre/15 px-2 py-2 text-[11px] font-bold text-foreground shadow-2xs transition-all duration-200 hover:border-ochre hover:from-ochre/25 hover:via-primary/15 hover:to-ochre/25 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              >
+                <Sparkles className="size-3 text-ochre shrink-0 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                <span className="truncate">Merge Box</span>
+              </button>
+
+              {/* Build PPT from this Idea */}
+              <button
+                type="button"
+                onClick={() => openHandoff("ppt")}
+                title="Build PPT from this Idea"
+                className="group flex items-center justify-center gap-1.5 rounded-xl bg-foreground px-2 py-2 text-[11px] font-semibold text-background shadow-2xs transition-all duration-200 hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              >
+                <FilePlus2 className="size-3 shrink-0 transition-transform duration-200 group-hover:-translate-y-0.5" />
+                <span className="truncate">Build PPT</span>
+              </button>
+
+              {/* Continue to Webinar Offer */}
+              <button
+                type="button"
+                onClick={() => openHandoff("offer")}
+                title="Continue to Webinar Offer"
+                className="group flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 py-2 text-[11px] font-medium text-foreground shadow-2xs transition-all duration-200 hover:border-foreground/40 hover:bg-secondary/60 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              >
+                <Layers3 className="size-3 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+                <span className="truncate">Webinar Offer</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Bottom Action Row */}
-      <div className="pt-2 space-y-2 border-t border-border">
-        <button
-          type="button"
-          onClick={() => mergeBlueprintIntoDraft()}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-ochre/20 via-primary/25 to-ochre/20 border border-ochre/50 p-2.5 text-xs font-bold text-foreground hover:border-ochre transition shadow-sm cursor-pointer"
-        >
-          <Sparkles className="size-3.5 text-ochre" />
-          Merge Blueprint into Box
-        </button>
-        <button
-          type="button"
-          onClick={() => openHandoff("ppt")}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-xs font-semibold text-background transition hover:opacity-90 shadow-sm cursor-pointer"
-        >
-          <FilePlus2 className="size-3.5" />
-          Build PPT from this Idea
-        </button>
-        <button
-          type="button"
-          onClick={() => openHandoff("offer")}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-medium text-foreground transition hover:border-foreground/40 cursor-pointer"
-        >
-          <Layers3 className="size-3.5" />
-          Continue to Webinar Offer
-        </button>
-      </div>
+      {/* When expanded, keep the 3 options side by side docked cleanly at the bottom */}
+      {blueprintExpanded && (
+        <div className="shrink-0 border-t border-border bg-card/95 p-3 backdrop-blur-xs">
+          <div className="grid grid-cols-3 gap-2 w-full">
+            <button
+              type="button"
+              onClick={() => mergeBlueprintIntoDraft()}
+              title="Merge Blueprint into Box"
+              className="group relative flex items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-ochre/40 bg-gradient-to-r from-ochre/15 via-primary/10 to-ochre/15 px-2 py-2 text-[11px] font-bold text-foreground shadow-2xs transition-all duration-200 hover:border-ochre hover:from-ochre/25 hover:via-primary/15 hover:to-ochre/25 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            >
+              <Sparkles className="size-3 text-ochre shrink-0 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+              <span className="truncate">Merge Box</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openHandoff("ppt")}
+              title="Build PPT from this Idea"
+              className="group flex items-center justify-center gap-1.5 rounded-xl bg-foreground px-2 py-2 text-[11px] font-semibold text-background shadow-2xs transition-all duration-200 hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            >
+              <FilePlus2 className="size-3 shrink-0 transition-transform duration-200 group-hover:-translate-y-0.5" />
+              <span className="truncate">Build PPT</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openHandoff("offer")}
+              title="Continue to Webinar Offer"
+              className="group flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 py-2 text-[11px] font-medium text-foreground shadow-2xs transition-all duration-200 hover:border-foreground/40 hover:bg-secondary/60 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            >
+              <Layers3 className="size-3 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+              <span className="truncate">Webinar Offer</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1613,7 +1594,7 @@ export default function PresentationChat() {
                 <span>New chat</span>
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar p-3">
               {historyListContent}
             </div>
           </aside>
@@ -1643,7 +1624,7 @@ export default function PresentationChat() {
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+          <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar px-3 py-2">
             {historyListContent}
           </div>
         </div>
@@ -1676,21 +1657,12 @@ export default function PresentationChat() {
             <button
               type="button"
               onClick={startNewChat}
-              className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:bg-secondary cursor-pointer"
               title="New chat"
               aria-label="New chat"
             >
-              <SquarePen className="size-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => openShareModal()}
-              className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground cursor-pointer"
-              title="Share this chat"
-              aria-label="Share this chat"
-            >
-              <Share2 className="size-4" />
+              <Plus className="size-3.5" />
+              <span>New Chat</span>
             </button>
 
             {!blueprintDrawerOpen && (
@@ -1708,19 +1680,21 @@ export default function PresentationChat() {
         </header>
 
         {/* Messages Area */}
-        <div className="mx-auto w-full min-h-0 max-w-3xl flex-1 space-y-7 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-          {messages.map((message) => {
+        <div className="mx-auto w-full min-h-0 max-w-3xl flex-1 space-y-7 overflow-y-auto no-scrollbar px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          {messages.map((message, index) => {
             const isSynthesized =
               message.role === "assistant" &&
               (message.text.includes("Webinar Strategy, Offer & Presentation Generated!") ||
                message.text.includes("Slide-by-Slide Webinar Presentation Architecture") ||
                message.text.includes("Slide-by-Slide Presentation Outline:"));
+            const isFirstAssistant = messages.findIndex((m) => m.role === "assistant") === index;
 
             return (
               <MessageBubble
                 key={message.id}
                 message={message}
                 userName={userName}
+                showAvatar={isFirstAssistant}
                 isCopied={copiedId === message.id}
                 onCopy={() => copyText(message.text, message.id)}
                 onLink={() => openHandoff("offer", message.text)}
@@ -1734,8 +1708,8 @@ export default function PresentationChat() {
           })}
 
           {busy && (
-            <div className="flex items-center gap-3 text-xs text-muted-foreground pl-11">
-              <Loader2 className="size-4 animate-spin text-primary" />
+            <div className="flex items-center gap-2.5 text-xs text-muted-foreground py-1">
+              <Loader2 className="size-3.5 animate-spin text-primary" />
               <span>Webinar Chat is thinking…</span>
             </div>
           )}
@@ -1782,7 +1756,7 @@ export default function PresentationChat() {
                       void handleSend();
                     }
                   }}
-                  className="max-h-56 min-h-[48px] flex-1 resize-none bg-transparent px-4 py-3 text-sm sm:text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/75 focus:outline-none overflow-y-auto"
+                  className="max-h-56 min-h-[48px] flex-1 resize-none bg-transparent px-4 py-3 text-sm sm:text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/75 focus:outline-none overflow-y-auto no-scrollbar"
                 />
                 <div className="flex items-center gap-1.5 sm:gap-2 p-2 pb-2.5 pr-2.5 shrink-0 self-end">
                   <button
@@ -1823,19 +1797,9 @@ export default function PresentationChat() {
         <aside className="hidden lg:flex w-[380px] xl:w-[420px] shrink-0 border-l border-border bg-card flex-col min-h-0 h-full">
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Target className="size-4 text-primary" />
-              <span>Strategy & Idea Blueprint</span>
+              <span>Strategy and idea plan</span>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleInitiateBuild}
-                title="Synthesize strategy into presentation outline"
-                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-secondary cursor-pointer"
-              >
-                <Sparkles className="size-3 text-ochre" />
-                Synthesize
-              </button>
               <button
                 type="button"
                 onClick={() => setBlueprintDrawerOpen(false)}
@@ -1860,19 +1824,9 @@ export default function PresentationChat() {
           <aside className="relative z-10 flex h-full w-full sm:w-[420px] max-w-full flex-col border-l border-border bg-card shadow-2xl animate-in slide-in-from-right duration-200 min-h-0">
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               <div className="flex items-center gap-2">
-                <Target className="size-4 text-primary" />
-                <span>Strategy Blueprint</span>
+                <span>Strategy and idea plan</span>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleInitiateBuild}
-                  title="Synthesize strategy into presentation outline"
-                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-secondary cursor-pointer"
-                >
-                  <Sparkles className="size-3 text-ochre" />
-                  Synthesize
-                </button>
                 <button
                   type="button"
                   onClick={() => setMobileBlueprintOpen(false)}
@@ -2206,6 +2160,7 @@ function EditableListCard({
 function MessageBubble({
   message,
   userName,
+  showAvatar = true,
   isCopied,
   onCopy,
   onLink,
@@ -2217,6 +2172,7 @@ function MessageBubble({
 }: {
   message: Message;
   userName?: string;
+  showAvatar?: boolean;
   isCopied: boolean;
   onCopy: () => void;
   onLink: () => void;
@@ -2227,42 +2183,54 @@ function MessageBubble({
   onDirectWebinarOffer?: () => void;
 }) {
   const isAssistant = message.role === "assistant";
-  const isWelcome = message.id === "welcome";
+  const isWelcome = message.id === "welcome" || (isAssistant && Boolean(message.text?.includes("welcome to Webinar Chat")));
 
-  // User message: Soft mint-green bubble on the right matching screenshot
+  // User message: styled bubble on the right with copy icon below it
   if (!isAssistant) {
     return (
-      <div className="flex justify-end my-1">
-        <div className="bg-primary/10 text-primary rounded-2xl sm:rounded-[22px] px-4 py-2.5 sm:px-5 sm:py-3 max-w-[85%] sm:max-w-[75%] leading-relaxed text-sm sm:text-[15px] font-normal shadow-2xs">
+      <div className="flex flex-col items-end my-1.5">
+        <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl rounded-br-xs border border-border bg-secondary/80 px-4 py-2.5 sm:px-5 sm:py-3 text-sm sm:text-[15px] font-normal leading-relaxed text-foreground shadow-2xs whitespace-pre-wrap break-words">
           {message.text}
+        </div>
+        <div className="mt-1 flex items-center gap-1 pr-1">
+          <button
+            type="button"
+            onClick={onCopy}
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition cursor-pointer"
+            title={isCopied ? "Copied" : "Copy message"}
+            aria-label="Copy message"
+          >
+            {isCopied ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
+          </button>
         </div>
       </div>
     );
   }
 
   // Assistant message:
-  // Left: Circular avatar mark
-  // Right:
-  // - If not welcome: "Reasoned for a few seconds ⌃"
-  // - Clean unboxed text directly on background (matching screenshot)
+  // - Circular avatar logo only rendered on the first assistant message
+  // - Highlighted headline for welcome greeting
+  // - Clean unboxed text directly on background
   // - Copy icon at bottom left
   // - If synthesized: 1-click action buttons to Slide Studio & Offer IQ
   const displayName = userName?.trim() ? userName.trim() : "there";
   const displayText = isWelcome ? getGreetingText(displayName) : message.text;
 
   return (
-    <div className="flex items-start gap-3 sm:gap-4 my-2">
-      {/* Circular Avatar Logo */}
-      <div className="size-8 sm:size-9 shrink-0 rounded-full overflow-hidden border border-border bg-card p-0.5 shadow-xs flex items-center justify-center">
-        <img
-          src="/assets/webinarstackai-logo.png"
-          alt="Webinar Stack"
-          className="size-full object-contain"
-        />
-      </div>
+    <div className={showAvatar ? "flex items-start gap-3 sm:gap-4 my-2" : "my-2"}>
+      {/* Circular Avatar Logo - only appears on the first message */}
+      {showAvatar && (
+        <div className="size-8 sm:size-9 shrink-0 rounded-full overflow-hidden border border-border bg-card p-0.5 shadow-xs flex items-center justify-center mt-1">
+          <img
+            src="/assets/webinarstackai-logo.png"
+            alt="Webinar Stack"
+            className="size-full object-contain"
+          />
+        </div>
+      )}
 
       <div className="flex-1 min-w-0 pt-0.5">
-        {/* Reasoning indicator above assistant responses (shown on subsequent turns, matching screenshot) */}
+        {/* Reasoning indicator above assistant responses (shown on subsequent turns) */}
         {!isWelcome && (
           <div className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground mb-2 font-normal select-none">
             <span>Reasoned for a few seconds</span>
@@ -2270,10 +2238,42 @@ function MessageBubble({
           </div>
         )}
 
-        {/* Clean Message Body (no card container or border!) */}
-        <div className="text-sm sm:text-base leading-relaxed text-foreground space-y-2">
-          {formatMarkdown(displayText)}
-        </div>
+        {/* Message Body: Highlighted for Welcome greeting, standard formatting for AI questions */}
+        {isWelcome ? (
+          <div className="space-y-3 pb-1">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground leading-snug">
+              {(() => {
+                const lines = displayText.split("\n\n");
+                const firstLine = lines[0];
+                const match = firstLine.match(/^(Hi\s+)([^,]+)(,\s*welcome to Webinar Chat\.?.*)$/i);
+                if (match) {
+                  return (
+                    <>
+                      {match[1]}
+                      <span className="text-primary font-extrabold">{match[2]}</span>
+                      {", "}
+                      <span className="text-black">
+                        welcome to Webinar Chat.
+                      </span>
+                    </>
+                  );
+                }
+                return (
+                  <span className="text-black">
+                    {firstLine}
+                  </span>
+                );
+              })()}
+            </h1>
+            <div className="text-sm sm:text-base text-muted-foreground leading-relaxed space-y-2">
+              {formatMarkdown(displayText.split("\n\n").slice(1).join("\n\n"))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm sm:text-base leading-relaxed text-foreground space-y-2">
+            {formatMarkdown(displayText)}
+          </div>
+        )}
 
         {/* Copy icon at bottom left (matching screenshot) */}
         {!isWelcome && (
