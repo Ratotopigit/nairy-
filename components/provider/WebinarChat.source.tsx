@@ -1334,9 +1334,13 @@ export default function PresentationChat() {
   );
 
   const blueprintInnerContent = (
-    <div className="flex flex-col overflow-hidden">
-      {/* 3 Questions Viewport - displays strictly 3 questions at first, scrollable to see the rest */}
-      <div className="relative h-[390px] shrink-0 overflow-hidden flex flex-col">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* Questions Viewport - 3 questions + fog when collapsed, full sequential list when expanded */}
+      <div
+        className={`relative shrink-0 overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
+          blueprintExpanded ? "min-h-0 flex-1 h-auto" : "h-[615px]"
+        }`}
+      >
         <div
           ref={blueprintScrollRef}
           className="h-full overflow-y-auto no-scrollbar scroll-smooth p-4 space-y-3.5 pb-16"
@@ -1346,7 +1350,6 @@ export default function PresentationChat() {
             label="Q1 · Business or Business Idea"
             description="What you do or want to be known for."
             value={activeBlueprint.persona_name}
-            placeholder="e.g. Done-for-you outbound lead generation for B2B tech startups"
             onChange={(val) => updateBlueprintField("persona_name", val)}
             onMerge={(val) => mergeFieldIntoDraft("Business Idea", val)}
           />
@@ -1356,7 +1359,6 @@ export default function PresentationChat() {
             label="Q2 · Ideal Buyer Profile"
             description="Who this program or service is for (age, role, situation)."
             value={activeBlueprint.demographics}
-            placeholder="e.g. Founders and sales leaders at 10–50 person companies"
             onChange={(val) => updateBlueprintField("demographics", val)}
             onMerge={(val) => mergeFieldIntoDraft("Ideal Buyer", val)}
           />
@@ -1366,7 +1368,6 @@ export default function PresentationChat() {
             label="Q3 · Problem & Transformation"
             description="The biggest problem you solve and the result they achieve."
             value={activeBlueprint.core_fear}
-            placeholder="e.g. Unpredictable pipeline — scaling to 15+ enterprise meetings/mo"
             onChange={(val) => updateBlueprintField("core_fear", val)}
             onMerge={(val) => mergeFieldIntoDraft("Problem & Transformation", val)}
           />
@@ -1376,7 +1377,6 @@ export default function PresentationChat() {
             label="Buying Trigger / Transformation Catalyst"
             description="The catalyst or transformation that makes them act now."
             value={activeBlueprint.buying_trigger}
-            placeholder="e.g. Hitting an operational capacity ceiling where taking more clients causes burnout"
             onChange={(val) => updateBlueprintField("buying_trigger", val)}
             onMerge={(val) => mergeFieldIntoDraft("Buying Trigger", val)}
           />
@@ -1386,7 +1386,6 @@ export default function PresentationChat() {
             label="Q4 · Key Hesitations & Objections"
             description="Doubts or skepticisms to neutralize in your offer and presentation."
             items={activeBlueprint.objections}
-            placeholder="Add an objection…"
             onAdd={(val) => addArrayField("objections", val)}
             onRemove={(idx) => removeArrayField("objections", idx)}
             onUpdate={(idx, val) => updateArrayField("objections", idx, val)}
@@ -1398,7 +1397,6 @@ export default function PresentationChat() {
             label="Q6 · Winning Angles & Hooks"
             description="High-converting marketing angles and slide headlines."
             items={activeBlueprint.headlines}
-            placeholder="Add a headline / hook (e.g. 'The 3 Bottlenecks Capping Your Growth')..."
             onAdd={(val) => addArrayField("headlines", val)}
             onRemove={(idx) => removeArrayField("headlines", idx)}
             onUpdate={(idx, val) => updateArrayField("headlines", idx, val)}
@@ -1410,7 +1408,6 @@ export default function PresentationChat() {
             label="Q7 · Slide Points & Presentation Outline"
             description="Core points and sections to include in the presentation."
             items={activeBlueprint.content_ideas}
-            placeholder="Add slide point (e.g. 'Case study: Going from operator to owner')..."
             onAdd={(val) => addArrayField("content_ideas", val)}
             onRemove={(idx) => removeArrayField("content_ideas", idx)}
             onUpdate={(idx, val) => updateArrayField("content_ideas", idx, val)}
@@ -1422,40 +1419,44 @@ export default function PresentationChat() {
             label="Elevator Pitch / Hook Summary"
             description="Concise 1-sentence value pitch for this presentation and offer."
             value={activeBlueprint.elevator_pitch ?? ""}
-            placeholder="e.g. We help agency founders build self-managing operations in 90 days."
             onChange={(val) => updateBlueprintField("elevator_pitch", val)}
             onMerge={(val) => mergeFieldIntoDraft("Elevator Pitch", val)}
           />
         </div>
 
-        {/* Fog blur effect over 3rd question bottom */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card via-card/85 to-transparent backdrop-blur-[2px]" />
+        {/* Fog blur effect over question 4 when collapsed */}
+        {!blueprintExpanded && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card via-card/85 to-transparent backdrop-blur-[2px]" />
+        )}
       </div>
 
-      {/* Downward Arrow on Fog Effect & 3 Side-by-Side Options below (NOT pushed to screen edge) */}
+      {/* Downward/Upward Arrow & 3 Side-by-Side Options below */}
       <div className="relative z-10 shrink-0 px-4 pt-1 pb-3 flex flex-col items-center justify-center">
-        {/* Downward Arrow only */}
+        {/* Toggle Arrow Button */}
         <button
           type="button"
           onClick={() => {
-            if (blueprintScrollRef.current) {
-              const el = blueprintScrollRef.current;
-              const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
-              if (atBottom) {
-                el.scrollTo({ top: 0, behavior: "smooth" });
-              } else {
-                el.scrollBy({ top: 180, behavior: "smooth" });
-              }
+            if (blueprintExpanded) {
+              setBlueprintExpanded(false);
+              blueprintScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+            } else {
+              setBlueprintExpanded(true);
             }
           }}
-          className="group flex size-8 items-center justify-center rounded-full border border-border/90 bg-card/95 text-foreground shadow-sm backdrop-blur-md transition-all duration-200 hover:border-primary/50 hover:bg-secondary hover:shadow-md hover:scale-110 active:scale-95 cursor-pointer -mt-4 z-20"
-          title="Scroll down through questions"
-          aria-label="Scroll down through questions"
+          className={`group flex size-8 items-center justify-center rounded-full border border-border/90 bg-card/95 text-foreground shadow-sm backdrop-blur-md transition-all duration-200 hover:border-primary/50 hover:bg-secondary hover:shadow-md hover:scale-110 active:scale-95 cursor-pointer z-20 ${
+            blueprintExpanded ? "my-1" : "-mt-4"
+          }`}
+          title={blueprintExpanded ? "Collapse questions" : "Expand all questions"}
+          aria-label={blueprintExpanded ? "Collapse questions" : "Expand all questions"}
         >
-          <ChevronDown className="size-4 text-primary transition-transform duration-300 group-hover:translate-y-0.5 animate-bounce" />
+          {blueprintExpanded ? (
+            <ChevronUp className="size-4 text-primary transition-transform duration-200 group-hover:-translate-y-0.5" />
+          ) : (
+            <ChevronDown className="size-4 text-primary transition-transform duration-300 group-hover:translate-y-0.5 animate-bounce" />
+          )}
         </button>
 
-        {/* 3 options side by side brought down a bit from arrow */}
+        {/* 3 options side by side below arrow */}
         <div className="grid grid-cols-3 gap-2 w-full mt-3.5">
           {/* Merge Blueprint into Box */}
           <button
@@ -1597,23 +1598,20 @@ export default function PresentationChat() {
               <span>New Chat</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                const nextState = !(blueprintDrawerOpen || mobileBlueprintOpen);
-                setBlueprintDrawerOpen(nextState);
-                setMobileBlueprintOpen(nextState);
-              }}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground cursor-pointer"
-              title={blueprintDrawerOpen || mobileBlueprintOpen ? "Close sidebar" : "Open sidebar"}
-              aria-label={blueprintDrawerOpen || mobileBlueprintOpen ? "Close sidebar" : "Open sidebar"}
-            >
-              {blueprintDrawerOpen || mobileBlueprintOpen ? (
-                <PanelRightClose className="size-4" />
-              ) : (
+            {!blueprintDrawerOpen && !mobileBlueprintOpen && (
+              <button
+                type="button"
+                onClick={() => {
+                  setBlueprintDrawerOpen(true);
+                  setMobileBlueprintOpen(true);
+                }}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground cursor-pointer"
+                title="Open sidebar"
+                aria-label="Open sidebar"
+              >
                 <PanelRightOpen className="size-4" />
-              )}
-            </button>
+              </button>
+            )}
           </div>
         </header>
 
@@ -1732,11 +1730,8 @@ export default function PresentationChat() {
 
       {/* Desktop Blueprint Panel */}
       {blueprintDrawerOpen && (
-        <aside className="hidden lg:flex w-[380px] xl:w-[420px] shrink-0 border-l border-border bg-card flex-col min-h-0 h-full">
+        <aside className="hidden lg:flex w-[380px] xl:w-[420px] shrink-0 border-l border-border bg-card flex-col min-h-0 h-full overflow-y-auto no-scrollbar">
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span>Strategy and idea plan</span>
-            </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -1744,11 +1739,15 @@ export default function PresentationChat() {
                   setBlueprintDrawerOpen(false);
                   setMobileBlueprintOpen(false);
                 }}
-                className="rounded-lg p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                className="rounded-lg p-1 text-muted-foreground hover:text-foreground cursor-pointer transition hover:bg-secondary"
                 title="Close sidebar"
+                aria-label="Close sidebar"
               >
                 <PanelRightClose className="size-4" />
               </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>Strategy and idea plan</span>
             </div>
           </div>
           {blueprintInnerContent}
@@ -1765,16 +1764,18 @@ export default function PresentationChat() {
           <aside className="relative z-10 flex h-full w-full sm:w-[420px] max-w-full flex-col border-l border-border bg-card shadow-2xl animate-in slide-in-from-right duration-200 min-h-0">
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               <div className="flex items-center gap-2">
-                <span>Strategy and idea plan</span>
-              </div>
-              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setMobileBlueprintOpen(false)}
-                  className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer"
+                  title="Close sidebar"
+                  aria-label="Close sidebar"
                 >
-                  <X className="size-5" />
+                  <PanelRightClose className="size-4" />
                 </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span>Strategy and idea plan</span>
               </div>
             </div>
             {blueprintInnerContent}
@@ -1990,7 +1991,7 @@ function EditableCard({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full resize-y rounded-xl border border-border bg-secondary/50 px-3 py-2 text-xs leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-foreground focus:bg-background focus:outline-none transition"
+        className="w-full resize-y rounded-xl border border-border bg-white focus:bg-white px-3 py-2 text-xs leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none transition"
       />
     </div>
   );
@@ -2055,7 +2056,7 @@ function EditableListCard({
               type="text"
               value={item}
               onChange={(e) => onUpdate(idx, e.target.value)}
-              className="flex-1 rounded-lg border border-transparent bg-secondary/40 px-2 py-1 text-xs text-foreground hover:border-border focus:border-foreground focus:bg-background focus:outline-none transition"
+              className="flex-1 rounded-lg border border-transparent bg-white focus:bg-white px-2 py-1 text-xs text-foreground hover:border-border focus:border-foreground focus:outline-none transition"
             />
             <button
               type="button"
@@ -2080,8 +2081,8 @@ function EditableListCard({
               handleAdd();
             }
           }}
-          placeholder={placeholder || "Add item..."}
-          className="flex-1 rounded-xl border border-border bg-secondary/40 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-foreground focus:bg-background focus:outline-none transition"
+          placeholder={placeholder || ""}
+          className="flex-1 rounded-xl border border-border bg-white focus:bg-white px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none transition"
         />
         <button
           type="button"

@@ -167,12 +167,12 @@ export default function ProviderHomePage() {
           </div>
 
           {/* Webinar Content (Dark Green Featured Card) */}
-          <div className="relative group/content flex flex-col min-h-0 h-full">
+          <div className="relative group/content flex flex-col min-h-0 h-full hover:z-20">
             {/* Soft, faded emerald ambient lighting below */}
             <div className="pointer-events-none absolute -bottom-3 inset-x-6 h-9 rounded-full bg-emerald-600/30 blur-xl opacity-0 transition-opacity duration-500 ease-out group-hover/content:opacity-100" />
             <Link
               href="/provider/webinar-content"
-              className="group relative z-10 flex-1 overflow-hidden rounded-2xl border border-[#275343] bg-[#1f4d3d] p-4 flex flex-col justify-between text-white shadow-sm transition-all duration-500 ease-out hover:-translate-y-3 hover:-translate-x-1.5 hover:rotate-[-1.5deg] hover:border-[#38745d] hover:shadow-[0_22px_42px_-6px_rgba(31,77,61,0.5)]"
+              className="group relative z-10 flex-1 rounded-2xl border border-[#275343] bg-[#1f4d3d] p-4 flex flex-col justify-between text-white shadow-sm transition-all duration-500 ease-out hover:-translate-y-3 hover:-translate-x-1.5 hover:rotate-[-1.5deg] hover:border-[#38745d] hover:shadow-[0_22px_42px_-6px_rgba(31,77,61,0.5)]"
             >
               {/* Top row with icon & slide mockup */}
               <div className="relative z-10 flex items-start justify-between gap-3">
@@ -180,12 +180,32 @@ export default function ProviderHomePage() {
                   <FileText className="size-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 text-emerald-100" />
                 </div>
 
-                {/* 3D stacked presentation slide illustration */}
-                <div className="relative shrink-0 pointer-events-none hidden sm:block w-20 sm:w-24 h-9 sm:h-10 mr-1 mt-0.5">
-                  <div className="absolute inset-0 translate-x-1.5 -translate-y-1 rotate-[5deg] rounded-lg border border-white/10 bg-white/5 backdrop-blur-sm" />
-                  <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 rotate-[2.5deg] rounded-lg border border-white/15 bg-white/10 backdrop-blur-sm" />
-                  <div className="absolute inset-0 rounded-lg border border-white/20 bg-white/15 px-2 py-1 backdrop-blur-md shadow-md flex items-center gap-1.5">
-                    <div className="size-5 rounded bg-emerald-900/80 border border-white/20 flex items-center justify-center text-emerald-300 shrink-0 transition-transform duration-300 group-hover:scale-110">
+                {/* 3D stacked presentation slide illustration with 'Spread & Fan Out' hover animation */}
+                <div className="relative shrink-0 pointer-events-none hidden sm:block w-20 sm:w-24 h-9 sm:h-10 mr-2 mt-1 sm:mr-2.5 sm:mt-1">
+                  {/* Card 1: Deepest back slide - fans out furthest in an arc */}
+                  <div className="absolute inset-0 translate-x-1.5 -translate-y-1 rotate-[5deg] rounded-lg border border-white/10 bg-white/5 backdrop-blur-sm p-1.5 flex flex-col justify-between overflow-hidden opacity-60 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:-translate-y-3 group-hover:translate-x-3.5 group-hover:rotate-[14deg] group-hover:opacity-90 group-hover:border-white/20 group-hover:bg-white/10 group-hover:shadow-md">
+                    <div className="flex items-center gap-1">
+                      <div className="size-2 rounded-sm bg-emerald-400/50 shrink-0" />
+                      <div className="h-1 w-7 rounded-full bg-white/35" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="h-0.5 w-10 rounded-full bg-white/25" />
+                      <div className="h-0.5 w-6 rounded-full bg-white/20" />
+                    </div>
+                  </div>
+
+                  {/* Card 2: Middle slide - fans out to intermediate position */}
+                  <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 rotate-[2.5deg] rounded-lg border border-white/15 bg-white/10 backdrop-blur-sm px-1.5 py-1 flex items-center gap-1.5 overflow-hidden opacity-75 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:-translate-y-1.5 group-hover:translate-x-2 group-hover:rotate-[7deg] group-hover:opacity-95 group-hover:border-white/25 group-hover:bg-white/15 group-hover:shadow-md">
+                    <div className="size-3.5 rounded-sm bg-emerald-400/40 border border-white/15 shrink-0" />
+                    <div className="flex-1 space-y-1">
+                      <div className="h-1 w-9 rounded-full bg-white/50" />
+                      <div className="h-0.5 w-6 rounded-full bg-white/30" />
+                    </div>
+                  </div>
+
+                  {/* Card 3: Front slide with image icon & text lines */}
+                  <div className="absolute inset-0 rounded-lg border border-white/20 bg-white/15 px-2 py-1 backdrop-blur-md shadow-md flex items-center gap-1.5 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:-translate-y-0.5 group-hover:-rotate-[2deg] group-hover:border-white/30 group-hover:bg-white/20 group-hover:shadow-lg">
+                    <div className="size-5 rounded bg-emerald-900/80 border border-white/20 flex items-center justify-center text-emerald-300 shrink-0 transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110">
                       <ImageIcon className="size-2.5" />
                     </div>
                     <div className="flex-1 space-y-1">

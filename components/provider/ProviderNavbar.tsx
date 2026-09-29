@@ -74,28 +74,18 @@ export default function ProviderNavbar() {
                 href={item.href}
                 prefetch={true}
                 aria-current={active ? "page" : undefined}
-                className={`group relative py-2.5 text-sm transition-colors duration-150 ${
+                className={`group relative py-2.5 text-sm transition-colors duration-200 ${
                   active
                     ? "font-semibold text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {item.label}
-                {active && (
-                  <motion.span
-                    layoutId="activeProviderTabUnderline"
-                    className="absolute inset-x-0 bottom-0 h-[2.5px] rounded-full bg-[#1f4d3d]"
-                    transition={{
-                      type: "spring",
-                      stiffness: 420,
-                      damping: 34,
-                      mass: 0.8,
-                    }}
-                  />
-                )}
-                {!active && (
-                  <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-[#1f4d3d]/30 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
-                )}
+                <span
+                  className={`pointer-events-none absolute bottom-0 left-0 h-[2.5px] rounded-full bg-[#1f4d3d] transition-[width] duration-[400ms] ease-in-out ${
+                    active ? "w-full" : "w-0 group-hover:w-full"
+                  }`}
+                />
               </Link>
             );
           })}
