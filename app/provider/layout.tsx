@@ -21,13 +21,13 @@ export default function ProviderLayout({
     <div className="provider-page-canvas flex min-h-screen flex-col text-foreground overflow-x-hidden">
       <ProviderNavbar />
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait" initial={false}>
         <motion.main
           key={pathname}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          exit={{ opacity: 0, transition: { duration: 0.1 } }}
+          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
           className={
             isBuilder
               ? "min-h-0 w-full flex-1 overflow-x-hidden"

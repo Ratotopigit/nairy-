@@ -14,6 +14,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
+  PanelRightOpen,
   Pencil,
   Pin,
   PinOff,
@@ -21,7 +22,6 @@ import {
   Send,
   Share2,
   Sparkles,
-  Target,
   Trash2,
   X,
 } from "lucide-react";
@@ -386,6 +386,7 @@ export default function PresentationChat() {
 
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const blueprintScrollRef = useRef<HTMLDivElement>(null);
 
   // The chat id whose content is currently loaded into state. When a deep link
   // asks for a chat we have not loaded yet this stays empty, which is what the
@@ -1333,33 +1334,13 @@ export default function PresentationChat() {
   );
 
   const blueprintInnerContent = (
-    <div className="flex min-h-0 flex-1 flex-col justify-between overflow-hidden">
-      {/* Questions Scrollable / Compact Area */}
-      <div
-        className={`min-h-0 flex-1 transition-all duration-300 ease-in-out ${
-          blueprintExpanded
-            ? "overflow-y-auto no-scrollbar p-4 space-y-4"
-            : "overflow-hidden p-4 relative"
-        }`}
-      >
-        {blueprintExpanded && (
-          <div className="flex items-center justify-between pb-1 px-1">
-            <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              All 8 Blueprint Sections
-            </span>
-            <button
-              type="button"
-              onClick={() => setBlueprintExpanded(false)}
-              className="group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-secondary/80 px-2.5 py-1 text-[10px] font-medium text-muted-foreground transition hover:border-border hover:bg-secondary hover:text-foreground cursor-pointer active:scale-95"
-              title="Collapse to 3 questions"
-            >
-              <span>Collapse</span>
-              <ChevronUp className="size-3 transition-transform duration-200 group-hover:-translate-y-0.5" />
-            </button>
-          </div>
-        )}
-
-        <div className="space-y-3.5">
+    <div className="flex flex-col overflow-hidden">
+      {/* 3 Questions Viewport - displays strictly 3 questions at first, scrollable to see the rest */}
+      <div className="relative h-[390px] shrink-0 overflow-hidden flex flex-col">
+        <div
+          ref={blueprintScrollRef}
+          className="h-full overflow-y-auto no-scrollbar scroll-smooth p-4 space-y-3.5 pb-16"
+        >
           {/* Q1: Business Idea */}
           <EditableCard
             label="Q1 · Business or Business Idea"
@@ -1381,184 +1362,135 @@ export default function PresentationChat() {
           />
 
           {/* Q3: Problem & Transformation */}
-          <div className="relative">
-            <EditableCard
-              label="Q3 · Problem & Transformation"
-              description="The biggest problem you solve and the result they achieve."
-              value={activeBlueprint.core_fear}
-              placeholder="e.g. Unpredictable pipeline — scaling to 15+ enterprise meetings/mo"
-              onChange={(val) => updateBlueprintField("core_fear", val)}
-              onMerge={(val) => mergeFieldIntoDraft("Problem & Transformation", val)}
-            />
-            {/* Fog blur effect over Q3 bottom when collapsed */}
-            {!blueprintExpanded && (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 rounded-b-2xl bg-gradient-to-t from-card via-card/85 to-transparent backdrop-blur-[2px]" />
-            )}
-          </div>
+          <EditableCard
+            label="Q3 · Problem & Transformation"
+            description="The biggest problem you solve and the result they achieve."
+            value={activeBlueprint.core_fear}
+            placeholder="e.g. Unpredictable pipeline — scaling to 15+ enterprise meetings/mo"
+            onChange={(val) => updateBlueprintField("core_fear", val)}
+            onMerge={(val) => mergeFieldIntoDraft("Problem & Transformation", val)}
+          />
 
-          {/* Additional 5 Questions when expanded */}
-          {blueprintExpanded && (
-            <div className="space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-300">
-              {/* Buying Trigger */}
-              <EditableCard
-                label="Buying Trigger / Transformation Catalyst"
-                description="The catalyst or transformation that makes them act now."
-                value={activeBlueprint.buying_trigger}
-                placeholder="e.g. Hitting an operational capacity ceiling where taking more clients causes burnout"
-                onChange={(val) => updateBlueprintField("buying_trigger", val)}
-                onMerge={(val) => mergeFieldIntoDraft("Buying Trigger", val)}
-              />
+          {/* Buying Trigger */}
+          <EditableCard
+            label="Buying Trigger / Transformation Catalyst"
+            description="The catalyst or transformation that makes them act now."
+            value={activeBlueprint.buying_trigger}
+            placeholder="e.g. Hitting an operational capacity ceiling where taking more clients causes burnout"
+            onChange={(val) => updateBlueprintField("buying_trigger", val)}
+            onMerge={(val) => mergeFieldIntoDraft("Buying Trigger", val)}
+          />
 
-              {/* Q4: Objections */}
-              <EditableListCard
-                label="Q4 · Key Hesitations & Objections"
-                description="Doubts or skepticisms to neutralize in your offer and presentation."
-                items={activeBlueprint.objections}
-                placeholder="Add an objection…"
-                onAdd={(val) => addArrayField("objections", val)}
-                onRemove={(idx) => removeArrayField("objections", idx)}
-                onUpdate={(idx, val) => updateArrayField("objections", idx, val)}
-                onMerge={(items) => mergeFieldIntoDraft("Top Objections", items.join("; "))}
-              />
+          {/* Q4: Objections */}
+          <EditableListCard
+            label="Q4 · Key Hesitations & Objections"
+            description="Doubts or skepticisms to neutralize in your offer and presentation."
+            items={activeBlueprint.objections}
+            placeholder="Add an objection…"
+            onAdd={(val) => addArrayField("objections", val)}
+            onRemove={(idx) => removeArrayField("objections", idx)}
+            onUpdate={(idx, val) => updateArrayField("objections", idx, val)}
+            onMerge={(items) => mergeFieldIntoDraft("Top Objections", items.join("; "))}
+          />
 
-              {/* Q6: Winning Hooks & Headlines */}
-              <EditableListCard
-                label="Q6 · Winning Angles & Hooks"
-                description="High-converting marketing angles and slide headlines."
-                items={activeBlueprint.headlines}
-                placeholder="Add a headline / hook (e.g. 'The 3 Bottlenecks Capping Your Growth')..."
-                onAdd={(val) => addArrayField("headlines", val)}
-                onRemove={(idx) => removeArrayField("headlines", idx)}
-                onUpdate={(idx, val) => updateArrayField("headlines", idx, val)}
-                onMerge={(items) => mergeFieldIntoDraft("Winning Hooks", items.join("; "))}
-              />
+          {/* Q6: Winning Hooks & Headlines */}
+          <EditableListCard
+            label="Q6 · Winning Angles & Hooks"
+            description="High-converting marketing angles and slide headlines."
+            items={activeBlueprint.headlines}
+            placeholder="Add a headline / hook (e.g. 'The 3 Bottlenecks Capping Your Growth')..."
+            onAdd={(val) => addArrayField("headlines", val)}
+            onRemove={(idx) => removeArrayField("headlines", idx)}
+            onUpdate={(idx, val) => updateArrayField("headlines", idx, val)}
+            onMerge={(items) => mergeFieldIntoDraft("Winning Hooks", items.join("; "))}
+          />
 
-              {/* Q7: Slide Points & Content Flow */}
-              <EditableListCard
-                label="Q7 · Slide Points & Presentation Outline"
-                description="Core points and sections to include in the presentation."
-                items={activeBlueprint.content_ideas}
-                placeholder="Add slide point (e.g. 'Case study: Going from operator to owner')..."
-                onAdd={(val) => addArrayField("content_ideas", val)}
-                onRemove={(idx) => removeArrayField("content_ideas", idx)}
-                onUpdate={(idx, val) => updateArrayField("content_ideas", idx, val)}
-                onMerge={(items) => mergeFieldIntoDraft("Slide Outline", items.join(" -> "))}
-              />
+          {/* Q7: Slide Points & Content Flow */}
+          <EditableListCard
+            label="Q7 · Slide Points & Presentation Outline"
+            description="Core points and sections to include in the presentation."
+            items={activeBlueprint.content_ideas}
+            placeholder="Add slide point (e.g. 'Case study: Going from operator to owner')..."
+            onAdd={(val) => addArrayField("content_ideas", val)}
+            onRemove={(idx) => removeArrayField("content_ideas", idx)}
+            onUpdate={(idx, val) => updateArrayField("content_ideas", idx, val)}
+            onMerge={(items) => mergeFieldIntoDraft("Slide Outline", items.join(" -> "))}
+          />
 
-              {/* Elevator Pitch */}
-              <EditableCard
-                label="Elevator Pitch / Hook Summary"
-                description="Concise 1-sentence value pitch for this presentation and offer."
-                value={activeBlueprint.elevator_pitch ?? ""}
-                placeholder="e.g. We help agency founders build self-managing operations in 90 days."
-                onChange={(val) => updateBlueprintField("elevator_pitch", val)}
-                onMerge={(val) => mergeFieldIntoDraft("Elevator Pitch", val)}
-              />
-
-              {/* Bottom collapse button */}
-              <div className="flex justify-center pt-2 pb-1">
-                <button
-                  type="button"
-                  onClick={() => setBlueprintExpanded(false)}
-                  className="group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-secondary/80 px-3.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-all duration-200 hover:border-border hover:bg-secondary hover:text-foreground cursor-pointer active:scale-95"
-                >
-                  <ChevronUp className="size-3.5 transition-transform duration-200 group-hover:-translate-y-0.5" />
-                  <span>Collapse back to 3 questions</span>
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Elevator Pitch */}
+          <EditableCard
+            label="Elevator Pitch / Hook Summary"
+            description="Concise 1-sentence value pitch for this presentation and offer."
+            value={activeBlueprint.elevator_pitch ?? ""}
+            placeholder="e.g. We help agency founders build self-managing operations in 90 days."
+            onChange={(val) => updateBlueprintField("elevator_pitch", val)}
+            onMerge={(val) => mergeFieldIntoDraft("Elevator Pitch", val)}
+          />
         </div>
 
-        {/* Downward Arrow on Fog Effect & 3 Side-by-Side Options (when not expanded) */}
-        {!blueprintExpanded && (
-          <div className="relative z-10 flex flex-col items-center justify-center pt-2 pb-1 space-y-3">
-            {/* Downward Arrow only */}
-            <button
-              type="button"
-              onClick={() => setBlueprintExpanded(true)}
-              className="group flex size-8 items-center justify-center rounded-full border border-border/90 bg-card/95 text-foreground shadow-sm backdrop-blur-md transition-all duration-200 hover:border-primary/50 hover:bg-secondary hover:shadow-md hover:scale-110 active:scale-95 cursor-pointer"
-              title="Expand blueprint questions"
-              aria-label="Expand blueprint questions"
-            >
-              <ChevronDown className="size-4 text-primary transition-transform duration-300 group-hover:translate-y-0.5 animate-bounce" />
-            </button>
-
-            {/* 3 options side by side just below the arrow button */}
-            <div className="grid grid-cols-3 gap-2 w-full">
-              {/* Merge Blueprint into Box */}
-              <button
-                type="button"
-                onClick={() => mergeBlueprintIntoDraft()}
-                title="Merge Blueprint into Box"
-                className="group relative flex items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-ochre/40 bg-gradient-to-r from-ochre/15 via-primary/10 to-ochre/15 px-2 py-2 text-[11px] font-bold text-foreground shadow-2xs transition-all duration-200 hover:border-ochre hover:from-ochre/25 hover:via-primary/15 hover:to-ochre/25 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-              >
-                <Sparkles className="size-3 text-ochre shrink-0 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
-                <span className="truncate">Merge Box</span>
-              </button>
-
-              {/* Build PPT from this Idea */}
-              <button
-                type="button"
-                onClick={() => openHandoff("ppt")}
-                title="Build PPT from this Idea"
-                className="group flex items-center justify-center gap-1.5 rounded-xl bg-foreground px-2 py-2 text-[11px] font-semibold text-background shadow-2xs transition-all duration-200 hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-              >
-                <FilePlus2 className="size-3 shrink-0 transition-transform duration-200 group-hover:-translate-y-0.5" />
-                <span className="truncate">Build PPT</span>
-              </button>
-
-              {/* Continue to Webinar Offer */}
-              <button
-                type="button"
-                onClick={() => openHandoff("offer")}
-                title="Continue to Webinar Offer"
-                className="group flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 py-2 text-[11px] font-medium text-foreground shadow-2xs transition-all duration-200 hover:border-foreground/40 hover:bg-secondary/60 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-              >
-                <Layers3 className="size-3 shrink-0 transition-transform duration-200 group-hover:scale-110" />
-                <span className="truncate">Webinar Offer</span>
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Fog blur effect over 3rd question bottom */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card via-card/85 to-transparent backdrop-blur-[2px]" />
       </div>
 
-      {/* When expanded, keep the 3 options side by side docked cleanly at the bottom */}
-      {blueprintExpanded && (
-        <div className="shrink-0 border-t border-border bg-card/95 p-3 backdrop-blur-xs">
-          <div className="grid grid-cols-3 gap-2 w-full">
-            <button
-              type="button"
-              onClick={() => mergeBlueprintIntoDraft()}
-              title="Merge Blueprint into Box"
-              className="group relative flex items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-ochre/40 bg-gradient-to-r from-ochre/15 via-primary/10 to-ochre/15 px-2 py-2 text-[11px] font-bold text-foreground shadow-2xs transition-all duration-200 hover:border-ochre hover:from-ochre/25 hover:via-primary/15 hover:to-ochre/25 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-            >
-              <Sparkles className="size-3 text-ochre shrink-0 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
-              <span className="truncate">Merge Box</span>
-            </button>
+      {/* Downward Arrow on Fog Effect & 3 Side-by-Side Options below (NOT pushed to screen edge) */}
+      <div className="relative z-10 shrink-0 px-4 pt-1 pb-3 flex flex-col items-center justify-center">
+        {/* Downward Arrow only */}
+        <button
+          type="button"
+          onClick={() => {
+            if (blueprintScrollRef.current) {
+              const el = blueprintScrollRef.current;
+              const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+              if (atBottom) {
+                el.scrollTo({ top: 0, behavior: "smooth" });
+              } else {
+                el.scrollBy({ top: 180, behavior: "smooth" });
+              }
+            }
+          }}
+          className="group flex size-8 items-center justify-center rounded-full border border-border/90 bg-card/95 text-foreground shadow-sm backdrop-blur-md transition-all duration-200 hover:border-primary/50 hover:bg-secondary hover:shadow-md hover:scale-110 active:scale-95 cursor-pointer -mt-4 z-20"
+          title="Scroll down through questions"
+          aria-label="Scroll down through questions"
+        >
+          <ChevronDown className="size-4 text-primary transition-transform duration-300 group-hover:translate-y-0.5 animate-bounce" />
+        </button>
 
-            <button
-              type="button"
-              onClick={() => openHandoff("ppt")}
-              title="Build PPT from this Idea"
-              className="group flex items-center justify-center gap-1.5 rounded-xl bg-foreground px-2 py-2 text-[11px] font-semibold text-background shadow-2xs transition-all duration-200 hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-            >
-              <FilePlus2 className="size-3 shrink-0 transition-transform duration-200 group-hover:-translate-y-0.5" />
-              <span className="truncate">Build PPT</span>
-            </button>
+        {/* 3 options side by side brought down a bit from arrow */}
+        <div className="grid grid-cols-3 gap-2 w-full mt-3.5">
+          {/* Merge Blueprint into Box */}
+          <button
+            type="button"
+            onClick={() => mergeBlueprintIntoDraft()}
+            title="Merge Blueprint into Box"
+            className="group relative flex items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-ochre/40 bg-gradient-to-r from-ochre/15 via-primary/10 to-ochre/15 px-2 py-2 text-[11px] font-bold text-foreground shadow-2xs transition-all duration-200 hover:border-ochre hover:from-ochre/25 hover:via-primary/15 hover:to-ochre/25 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+          >
+            <Sparkles className="size-3 text-ochre shrink-0 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+            <span className="truncate">Merge Box</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => openHandoff("offer")}
-              title="Continue to Webinar Offer"
-              className="group flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 py-2 text-[11px] font-medium text-foreground shadow-2xs transition-all duration-200 hover:border-foreground/40 hover:bg-secondary/60 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-            >
-              <Layers3 className="size-3 shrink-0 transition-transform duration-200 group-hover:scale-110" />
-              <span className="truncate">Webinar Offer</span>
-            </button>
-          </div>
+          {/* Build PPT from this Idea */}
+          <button
+            type="button"
+            onClick={() => openHandoff("ppt")}
+            title="Build PPT from this Idea"
+            className="group flex items-center justify-center gap-1.5 rounded-xl bg-foreground px-2 py-2 text-[11px] font-semibold text-background shadow-2xs transition-all duration-200 hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+          >
+            <FilePlus2 className="size-3 shrink-0 transition-transform duration-200 group-hover:-translate-y-0.5" />
+            <span className="truncate">Build PPT</span>
+          </button>
+
+          {/* Continue to Webinar Offer */}
+          <button
+            type="button"
+            onClick={() => openHandoff("offer")}
+            title="Continue to Webinar Offer"
+            className="group flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 py-2 text-[11px] font-medium text-foreground shadow-2xs transition-all duration-200 hover:border-foreground/40 hover:bg-secondary/60 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+          >
+            <Layers3 className="size-3 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+            <span className="truncate">Webinar Offer</span>
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 
@@ -1665,20 +1597,23 @@ export default function PresentationChat() {
               <span>New Chat</span>
             </button>
 
-            {!blueprintDrawerOpen && !mobileBlueprintOpen && (
-              <button
-                type="button"
-                onClick={() => {
-                  setBlueprintDrawerOpen(true);
-                  setMobileBlueprintOpen(true);
-                }}
-                className="ml-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 sm:px-3 sm:py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-foreground transition hover:bg-secondary cursor-pointer"
-                title="Open Idea Blueprint"
-              >
-                <Target className="size-3.5 text-primary" />
-                <span className="inline">Blueprint</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                const nextState = !(blueprintDrawerOpen || mobileBlueprintOpen);
+                setBlueprintDrawerOpen(nextState);
+                setMobileBlueprintOpen(nextState);
+              }}
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground cursor-pointer"
+              title={blueprintDrawerOpen || mobileBlueprintOpen ? "Close sidebar" : "Open sidebar"}
+              aria-label={blueprintDrawerOpen || mobileBlueprintOpen ? "Close sidebar" : "Open sidebar"}
+            >
+              {blueprintDrawerOpen || mobileBlueprintOpen ? (
+                <PanelRightClose className="size-4" />
+              ) : (
+                <PanelRightOpen className="size-4" />
+              )}
+            </button>
           </div>
         </header>
 
@@ -1805,7 +1740,10 @@ export default function PresentationChat() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setBlueprintDrawerOpen(false)}
+                onClick={() => {
+                  setBlueprintDrawerOpen(false);
+                  setMobileBlueprintOpen(false);
+                }}
                 className="rounded-lg p-1 text-muted-foreground hover:text-foreground cursor-pointer"
                 title="Close sidebar"
               >
