@@ -1,0 +1,386 @@
+{
+  "name": "10 - Webinar Registration Confirmation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webinar-registered",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "registration-webhook",
+      "name": "Registration Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "webhookId": "webinar-registered"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Only ids are accepted. The address is read from Firestore below and never\n// taken from the request, so this webhook cannot mail arbitrary people.\nconst body = $json.body ?? {};\nconst ID = /^[A-Za-z0-9_-]{1,64}$/;\nconst webinarId = String(body.webinar_id ?? \"\");\nconst registrantId = String(body.registrant_id ?? \"\");\nif (!ID.test(webinarId) || !ID.test(registrantId)) return [];\nreturn [{\n  json: {\n    webinar_id: webinarId,\n    registrant_id: registrantId,\n    // Only used to format the session time in the visitor's own timezone.\n    timezone: String(body.timezone ?? \"\").slice(0, 64),\n    log_id: `confirm_${webinarId}_${registrantId}`,\n  },\n}];"
+      },
+      "id": "validate-request",
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "email_log",
+        "documentId": "={{ $json.log_id }}"
+      },
+      "id": "load-email-log",
+      "name": "Load Email Log",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "webinars",
+        "documentId": "={{ $('Validate Request').first().json.webinar_id }}"
+      },
+      "id": "load-webinar",
+      "name": "Load Webinar",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "={{ 'webinars/' + $('Validate Request').first().json.webinar_id + '/registrants' }}",
+        "documentId": "={{ $('Validate Request').first().json.registrant_id }}"
+      },
+      "id": "load-registrant",
+      "name": "Load Registrant",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "users",
+        "documentId": "={{ $('Load Webinar').first().json.owner_id || 'no-owner' }}"
+      },
+      "id": "load-owner",
+      "name": "Load Owner",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "workspace_memory",
+        "documentId": "={{ $('Load Webinar').first().json.owner_id || 'no-owner' }}"
+      },
+      "id": "load-owner-memory",
+      "name": "Load Owner Memory",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        1540,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Webinar email templates — single source of truth.\n *\n * n8n Code nodes cannot import files, so n8n/email/build-workflows.mjs inlines\n * this file into each workflow that sends email. Edit HERE, then rebuild; never\n * edit the copies inside the workflow JSON.\n *\n * Deliverability (this is a multi-user platform, and every user's email goes\n * out from the same domain, so one bad template hurts everyone):\n *   - multipart: every email has a plain-text part, not HTML only\n *   - no images, no tracking pixels, no link shorteners\n *   - every link points at webinarstackai.com, the sending domain\n *   - user-written text is HTML-escaped and length-capped; users cannot add\n *     links, so the platform cannot be used to send phishing links\n *   - a footer saying who sent it and why the recipient is getting it\n */\n\nconst BRAND = {\n  site: \"https://webinarstackai.com\",\n  fromAddress: \"hello@webinarstackai.com\",\n  product: \"Webinar Stack\",\n};\n\nconst COLORS = {\n  page: \"#f4f1e8\",\n  card: \"#ffffff\",\n  ink: \"#1d2a27\",\n  muted: \"#5f6b67\",\n  rule: \"#e4dfd3\",\n  button: \"#1f4d3d\",\n};\n\nfunction esc(value) {\n  return String(value ?? \"\")\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\")\n    .replace(/'/g, \"&#39;\");\n}\n\nfunction clip(value, max) {\n  const text = String(value ?? \"\").replace(/\\s+/g, \" \").trim();\n  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;\n}\n\nfunction firstName(name) {\n  const first = clip(name, 60).split(\" \")[0];\n  return first || \"there\";\n}\n\n/**\n * The display name in the From header. User-controlled, so stripped of\n * anything that could break out of the header: quotes, angle brackets, @,\n * control characters and newlines (header injection).\n */\nfunction senderName(presenter) {\n  const clean = String(presenter ?? \"\")\n    .replace(/[\\u0000-\\u001f\\u007f\"<>@\\\\]/g, \"\")\n    .replace(/\\s+/g, \" \")\n    .trim()\n    .slice(0, 40);\n  return clean ? `${clean} via ${BRAND.product}` : BRAND.product;\n}\n\nfunction fromHeader(presenter) {\n  return `\"${senderName(presenter)}\" <${BRAND.fromAddress}>`;\n}\n\n/** Falls back to UTC for anything that is not a real IANA zone. */\nfunction safeTimezone(tz) {\n  try {\n    if (!tz) return \"UTC\";\n    new Intl.DateTimeFormat(\"en-US\", { timeZone: tz }).format(new Date());\n    return tz;\n  } catch {\n    return \"UTC\";\n  }\n}\n\n/**\n * \" (Sydney time)\" from \"Australia/Sydney\". Offsets like GMT+11 are exact but\n * most people don't know their own; a city they recognise.\n */\nfunction zoneCity(zone) {\n  if (!zone || zone === \"UTC\" || !zone.includes(\"/\")) return \"\";\n  const city = zone.split(\"/\").pop().replace(/_/g, \" \");\n  return city ? ` (${city} time)` : \"\";\n}\n\nfunction sessionParts(iso, tz) {\n  const date = new Date(iso);\n  if (!iso || Number.isNaN(date.getTime())) return null;\n  const zone = safeTimezone(tz);\n  return {\n    date: new Intl.DateTimeFormat(\"en-GB\", {\n      weekday: \"long\", day: \"numeric\", month: \"long\", year: \"numeric\", timeZone: zone,\n    }).format(date),\n    time: `${new Intl.DateTimeFormat(\"en-US\", {\n      hour: \"numeric\", minute: \"2-digit\", timeZoneName: \"short\", timeZone: zone,\n    }).format(date)}${zoneCity(zone)}`,\n  };\n}\n\n/**\n * UTF-8 -> base64 without Buffer or btoa, neither of which is guaranteed in\n * the n8n Code sandbox (it already lacks `crypto`).\n */\nfunction toBase64(input) {\n  const bytes = [];\n  for (const ch of String(input)) {\n    const code = ch.codePointAt(0);\n    if (code < 0x80) bytes.push(code);\n    else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63));\n    else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));\n    else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));\n  }\n  const table = \"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/\";\n  let out = \"\";\n  for (let i = 0; i < bytes.length; i += 3) {\n    const a = bytes[i];\n    const b = bytes[i + 1] ?? 0;\n    const c = bytes[i + 2] ?? 0;\n    const n = (a << 16) | (b << 8) | c;\n    out += table[(n >> 18) & 63] + table[(n >> 12) & 63];\n    out += i + 1 < bytes.length ? table[(n >> 6) & 63] : \"=\";\n    out += i + 2 < bytes.length ? table[n & 63] : \"=\";\n  }\n  return out;\n}\n\nfunction utcStamp(date) {\n  return date.toISOString().replace(/[-:]/g, \"\").replace(/\\.\\d{3}/, \"\");\n}\n\nfunction pageUrl(webinarId) {\n  return `${BRAND.site}/w?id=${encodeURIComponent(webinarId)}`;\n}\n\nfunction googleCalendarUrl(webinar) {\n  const start = new Date(webinar.next_session_at);\n  const end = new Date(start.getTime() + 60 * 60 * 1000);\n  // Built by hand: URLSearchParams is not guaranteed in the n8n sandbox.\n  const params = {\n    action: \"TEMPLATE\",\n    text: clip(webinar.title, 120),\n    dates: `${utcStamp(start)}/${utcStamp(end)}`,\n    details: `${clip(webinar.subtitle, 240)}\\n\\n${pageUrl(webinar.id)}`,\n  };\n  const query = Object.entries(params)\n    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)\n    .join(\"&\");\n  return `https://calendar.google.com/calendar/render?${query}`;\n}\n\n/** A one-hour .ics invite, base64-encoded for an email attachment. */\nfunction icsAttachment(webinar) {\n  const start = new Date(webinar.next_session_at);\n  if (Number.isNaN(start.getTime())) return null;\n  const end = new Date(start.getTime() + 60 * 60 * 1000);\n  const text = (v) =>\n    String(v ?? \"\").replace(/\\\\/g, \"\\\\\\\\\").replace(/[,;]/g, (m) => `\\\\${m}`).replace(/\\r?\\n/g, \"\\\\n\");\n  const body = [\n    \"BEGIN:VCALENDAR\",\n    \"VERSION:2.0\",\n    \"PRODID:-//Webinar Stack//EN\",\n    \"METHOD:PUBLISH\",\n    \"BEGIN:VEVENT\",\n    `UID:${webinar.id}-${utcStamp(start)}@webinarstackai.com`,\n    `DTSTAMP:${utcStamp(new Date())}`,\n    `DTSTART:${utcStamp(start)}`,\n    `DTEND:${utcStamp(end)}`,\n    `SUMMARY:${text(clip(webinar.title, 120))}`,\n    `DESCRIPTION:${text(`${clip(webinar.subtitle, 240)}\\n\\n${pageUrl(webinar.id)}`)}`,\n    `URL:${pageUrl(webinar.id)}`,\n    \"END:VEVENT\",\n    \"END:VCALENDAR\",\n  ].join(\"\\r\\n\");\n  return { filename: \"webinar.ics\", content: toBase64(body) };\n}\n\n/** The shared shell: a single centred column, inline styles, no images. */\nfunction layout({ preheader, body, footer }) {\n  return `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<meta name=\"color-scheme\" content=\"light\">\n<title>${esc(BRAND.product)}</title>\n</head>\n<body style=\"margin:0;padding:0;background:${COLORS.page};\">\n<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;\">${esc(preheader)}</div>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:${COLORS.page};\">\n<tr><td align=\"center\" style=\"padding:32px 16px;\">\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:560px;\">\n<tr><td style=\"padding:0 4px 16px;font:600 13px/1.4 Arial,Helvetica,sans-serif;letter-spacing:0.08em;text-transform:uppercase;color:${COLORS.muted};\">${esc(BRAND.product)}</td></tr>\n<tr><td style=\"background:${COLORS.card};border:1px solid ${COLORS.rule};border-radius:12px;padding:32px 28px;font:15px/1.6 Arial,Helvetica,sans-serif;color:${COLORS.ink};\">\n${body}\n</td></tr>\n<tr><td style=\"padding:20px 4px 0;font:12px/1.6 Arial,Helvetica,sans-serif;color:${COLORS.muted};\">\n${footer}\n</td></tr>\n</table>\n</td></tr>\n</table>\n</body>\n</html>`;\n}\n\nfunction button(href, label) {\n  return `<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:8px 0 4px;\"><tr>\n<td style=\"background:${COLORS.button};border-radius:8px;\">\n<a href=\"${esc(href)}\" style=\"display:inline-block;padding:12px 22px;font:600 15px/1 Arial,Helvetica,sans-serif;color:#ffffff;text-decoration:none;\">${esc(label)}</a>\n</td></tr></table>`;\n}\n\n/**\n * Sent seconds after someone registers.\n * @param {{webinar: object, registrant: {name: string, email: string}, timezone: string}} input\n */\nfunction confirmationEmail({ webinar, registrant, timezone }) {\n  const title = clip(webinar.title, 120) || \"the webinar\";\n  const presenter = clip(webinar.presenter_name, 60);\n  const when = sessionParts(webinar.next_session_at, timezone);\n  const bullets = (Array.isArray(webinar.bullets) ? webinar.bullets : [])\n    .map((b) => clip(b, 140))\n    .filter(Boolean)\n    .slice(0, 4);\n  const link = pageUrl(webinar.id);\n  const hasDate = Boolean(when);\n\n  const subject = `You're registered: ${clip(title, 70)}`;\n  const preheader = hasDate\n    ? `${when.date} at ${when.time}. Add it to your calendar so you don't miss it.`\n    : \"Your place is saved. We'll share the date soon.\";\n\n  const sessionHtml = hasDate\n    ? `<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:20px 0;border:1px solid ${COLORS.rule};border-radius:10px;\">\n<tr><td style=\"padding:16px 18px;\">\n<div style=\"font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:${COLORS.muted};\">When</div>\n<div style=\"margin-top:4px;font-size:17px;font-weight:700;\">${esc(when.date)}</div>\n<div style=\"font-size:15px;\">${esc(when.time)}</div>\n${presenter ? `<div style=\"margin-top:8px;font-size:14px;color:${COLORS.muted};\">Hosted by ${esc(presenter)}</div>` : \"\"}\n</td></tr></table>\n${button(googleCalendarUrl(webinar), \"Add to Google Calendar\")}\n<p style=\"margin:8px 0 0;font-size:13px;color:${COLORS.muted};\">Using Apple Calendar or Outlook? Open the invite attached to this email.</p>`\n    : `<p style=\"margin:20px 0;\">The date hasn't been set yet. We'll email you when it is.</p>`;\n\n  const bulletsHtml = bullets.length\n    ? `<p style=\"margin:28px 0 8px;font-weight:700;\">What you'll learn</p>\n<ul style=\"margin:0;padding-left:20px;\">${bullets.map((b) => `<li style=\"margin:0 0 6px;\">${esc(b)}</li>`).join(\"\")}</ul>`\n    : \"\";\n\n  const body = `<p style=\"margin:0 0 12px;\">Hi ${esc(firstName(registrant.name))},</p>\n<p style=\"margin:0;\">You're registered for <strong>${esc(title)}</strong>.</p>\n${sessionHtml}\n${bulletsHtml}\n<p style=\"margin:28px 0 0;\">Keep this email so the details are easy to find. You can always see the session page here: <a href=\"${esc(link)}\" style=\"color:${COLORS.button};\">${esc(link.replace(\"https://\", \"\"))}</a></p>`;\n\n  const footer = `You're receiving this because ${esc(registrant.email)} was used to register for \"${esc(title)}\" on webinarstackai.com.${presenter ? ` Replying to this email reaches ${esc(presenter)}.` : \"\"}<br>If this wasn't you, you can ignore this email.<br>Sent by ${esc(BRAND.product)}.`;\n\n  const text = [\n    `Hi ${firstName(registrant.name)},`,\n    \"\",\n    `You're registered for \"${title}\".`,\n    \"\",\n    ...(hasDate\n      ? [`When: ${when.date}, ${when.time}`, ...(presenter ? [`Hosted by: ${presenter}`] : []), \"\", `Add to Google Calendar: ${googleCalendarUrl(webinar)}`, \"Apple Calendar or Outlook: open the attached invite.\"]\n      : [\"The date hasn't been set yet. We'll email you when it is.\"]),\n    ...(bullets.length ? [\"\", \"What you'll learn:\", ...bullets.map((b) => `- ${b}`)] : []),\n    \"\",\n    `Session page: ${link}`,\n    \"\",\n    \"--\",\n    `You're receiving this because ${registrant.email} was used to register for \"${title}\" on webinarstackai.com. If this wasn't you, you can ignore this email.`,\n    `Sent by ${BRAND.product}.`,\n  ].join(\"\\n\");\n\n  const attachment = hasDate ? icsAttachment(webinar) : null;\n\n  return {\n    from: fromHeader(webinar.presenter_name),\n    subject,\n    html: layout({ preheader, body, footer }),\n    text,\n    attachments: attachment ? [attachment] : [],\n  };\n}\n\n/**\n * The owner's morning summary of new registrations across their webinars.\n * `total` is optional: the summary is built from the email log, which knows\n * the day's registrations but not each webinar's all-time count.\n * @param {{ownerName: string, groups: Array<{webinar: object, fresh: Array<{name: string, email: string}>, total?: number}>}} input\n */\nfunction digestEmail({ ownerName, groups }) {\n  const MAX_LISTED = 25;\n  const newCount = groups.reduce((n, g) => n + g.fresh.length, 0);\n  const subject = `${newCount} new registration${newCount === 1 ? \"\" : \"s\"} since yesterday`;\n  const preheader = groups\n    .map((g) => `${clip(g.webinar.title, 40)}: ${g.fresh.length} new`)\n    .join(\" · \");\n\n  const sections = groups\n    .map((g) => {\n      const title = clip(g.webinar.title, 120) || \"Untitled webinar\";\n      const listUrl = `${BRAND.site}/provider/webinars/edit?id=${encodeURIComponent(g.webinar.id)}&tab=registrants`;\n      const listed = g.fresh.slice(0, MAX_LISTED);\n      const more = g.fresh.length - listed.length;\n      return `<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:0 0 20px;border:1px solid ${COLORS.rule};border-radius:10px;\">\n<tr><td style=\"padding:16px 18px;\">\n<div style=\"font-size:16px;font-weight:700;\">${esc(title)}</div>\n<div style=\"margin-top:2px;font-size:13px;color:${COLORS.muted};\">${g.fresh.length} new${typeof g.total === \"number\" ? ` · ${g.total} total` : \"\"}</div>\n<ul style=\"margin:12px 0 0;padding-left:18px;font-size:14px;\">${listed\n        .map((r) => `<li style=\"margin:0 0 4px;\">${esc(clip(r.name, 80))} <span style=\"color:${COLORS.muted};\">${esc(r.email)}</span></li>`)\n        .join(\"\")}${more > 0 ? `<li style=\"color:${COLORS.muted};\">and ${more} more</li>` : \"\"}</ul>\n<p style=\"margin:12px 0 0;font-size:14px;\"><a href=\"${esc(listUrl)}\" style=\"color:${COLORS.button};\">See everyone who registered</a></p>\n</td></tr></table>`;\n    })\n    .join(\"\");\n\n  const body = `<p style=\"margin:0 0 6px;\">Good morning ${esc(firstName(ownerName))},</p>\n<p style=\"margin:0 0 22px;\">${newCount === 1 ? \"One person\" : `${newCount} people`} registered for your webinars in the last 24 hours.</p>\n${sections}`;\n\n  const footer = `You're getting this daily summary because you run webinars on ${esc(BRAND.product)}. It's only sent on days when someone registers.`;\n\n  const text = [\n    `Good morning ${firstName(ownerName)},`,\n    \"\",\n    `${newCount} new registration${newCount === 1 ? \"\" : \"s\"} in the last 24 hours.`,\n    \"\",\n    ...groups.flatMap((g) => [\n      `${clip(g.webinar.title, 120)} (${g.fresh.length} new${typeof g.total === \"number\" ? `, ${g.total} total` : \"\"})`,\n      ...g.fresh.slice(0, MAX_LISTED).map((r) => `- ${clip(r.name, 80)} <${r.email}>`),\n      ...(g.fresh.length > MAX_LISTED ? [`- and ${g.fresh.length - MAX_LISTED} more`] : []),\n      `See everyone: ${BRAND.site}/provider/webinars/edit?id=${encodeURIComponent(g.webinar.id)}&tab=registrants`,\n      \"\",\n    ]),\n    \"--\",\n    `You're getting this daily summary because you run webinars on ${BRAND.product}. It's only sent on days when someone registers.`,\n  ].join(\"\\n\");\n\n  return {\n    from: `\"${BRAND.product}\" <${BRAND.fromAddress}>`,\n    subject,\n    html: layout({ preheader, body, footer }),\n    text,\n    attachments: [],\n  };\n}\n\n// Exported for the local preview/test script; n8n ignores this.\nif (typeof module !== \"undefined\") {\n  module.exports = { confirmationEmail, digestEmail, senderName, safeTimezone, sessionParts, esc, toBase64 };\n}\n\n// ── glue ──\n\nconst EMAIL = /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/;\nconst first = (name) => { try { return $(name).first()?.json ?? {}; } catch { return {}; } };\nconst req = first(\"Validate Request\");\nconst log = first(\"Load Email Log\");\nconst webinar = { ...first(\"Load Webinar\"), id: req.webinar_id };\nconst registrant = first(\"Load Registrant\");\nconst owner = first(\"Load Owner\");\nconst memory = first(\"Load Owner Memory\");\n\n// Already handled: a retry or a replayed request. Never email twice.\nif (log.log_id || log.status) return [];\nif (webinar.status !== \"published\") return [];\nconst to = String(registrant.email ?? \"\").trim().toLowerCase();\nif (!EMAIL.test(to)) return [];\n// Fresh registrations only, so nobody can replay an old id to resend.\nconst created = Date.parse(registrant._createTime ?? \"\");\nif (!Number.isFinite(created) || Date.now() - created > 2 * 60 * 60 * 1000) return [];\n\nconst ownerEmail = [owner.email, memory.email]\n  .map((e) => String(e ?? \"\").trim())\n  .find((e) => EMAIL.test(e)) || \"\";\n\nconst email = confirmationEmail({\n  webinar,\n  registrant: { name: registrant.name, email: to },\n  timezone: req.timezone,\n});\nconst payload = {\n  from: email.from,\n  to: [to],\n  subject: email.subject,\n  html: email.html,\n  text: email.text,\n  tags: [{ name: \"type\", value: \"registration_confirmation\" }],\n};\n// Replies reach the webinar's owner, not a shared inbox.\nif (ownerEmail) payload.reply_to = ownerEmail;\nif (email.attachments.length) payload.attachments = email.attachments;\n\nreturn [{\n  json: {\n    payload,\n    idempotency_key: req.log_id,\n    log: {\n      log_id: req.log_id,\n      type: \"confirmation\",\n      webinar_id: req.webinar_id,\n      webinar_title: String(webinar.title ?? \"\").slice(0, 200),\n      registrant_id: req.registrant_id,\n      registrant_name: String(registrant.name ?? \"\").slice(0, 120),\n      registrant_email: to,\n      owner_id: String(webinar.owner_id ?? \"\"),\n      owner_email: ownerEmail,\n      owner_name: String(owner.displayName ?? \"\").slice(0, 120),\n      owner_timezone: String(webinar.owner_timezone ?? \"UTC\").slice(0, 64),\n    },\n  },\n}];"
+      },
+      "id": "build-confirmation",
+      "name": "Build Confirmation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.idempotency_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "send-via-resend",
+      "name": "Send via Resend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL",
+          "name": "Resend API key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const built = $(\"Build Confirmation\").first().json;\nconst res = $input.first().json ?? {};\nconst sent = typeof res.id === \"string\" && res.id.length > 0;\nreturn [{\n  json: {\n    ...built.log,\n    status: sent ? \"sent\" : \"failed\",\n    resend_id: sent ? res.id : \"\",\n    error: sent ? \"\" : String(res.error?.message ?? res.message ?? res.error ?? \"unknown\").slice(0, 300),\n    // ISO UTC, so the morning summary can range-query it as a string.\n    created_at: new Date().toISOString(),\n  },\n}];"
+      },
+      "id": "build-log-entry",
+      "name": "Build Log Entry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "upsert",
+        "projectId": "nirey-f2faf",
+        "collection": "email_log",
+        "updateKey": "log_id",
+        "columns": "log_id,type,status,webinar_id,webinar_title,registrant_id,registrant_name,registrant_email,owner_id,owner_email,owner_name,owner_timezone,resend_id,error,created_at"
+      },
+      "id": "save-email-log",
+      "name": "Save Email Log",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        2420,
+        0
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// The log entry is saved first, so the registrant still appears in the morning\n// summary. Then a failed send is raised so Failure Alerts hears about it.\nconst entry = $(\"Build Log Entry\").first().json;\nif (entry.status !== \"sent\") {\n  throw new Error(`Confirmation email not sent for ${entry.log_id}: ${entry.error}`);\n}\nreturn $input.all();"
+      },
+      "id": "fail-if-not-sent",
+      "name": "Fail If Not Sent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Registration Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request": {
+      "main": [
+        [
+          {
+            "node": "Load Email Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Email Log": {
+      "main": [
+        [
+          {
+            "node": "Load Webinar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Webinar": {
+      "main": [
+        [
+          {
+            "node": "Load Registrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Registrant": {
+      "main": [
+        [
+          {
+            "node": "Load Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Owner": {
+      "main": [
+        [
+          {
+            "node": "Load Owner Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Owner Memory": {
+      "main": [
+        [
+          {
+            "node": "Build Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Send via Resend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send via Resend": {
+      "main": [
+        [
+          {
+            "node": "Build Log Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Log Entry": {
+      "main": [
+        [
+          {
+            "node": "Save Email Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Email Log": {
+      "main": [
+        [
+          {
+            "node": "Fail If Not Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "NF9VQqswnNCjyYGc"
+  },
+  "meta": {
+    "generatedBy": "n8n/email/build-workflows.mjs — do not edit by hand"
+  }
+}

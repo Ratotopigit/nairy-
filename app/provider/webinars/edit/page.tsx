@@ -52,11 +52,15 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 function Editor() {
-  const id = useSearchParams().get("id") ?? "";
+  const params = useSearchParams();
+  const id = params.get("id") ?? "";
   const [webinar, setWebinar] = useState<Webinar | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "missing" | "ready">("loading");
   const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [tab, setTab] = useState<"page" | "registrants">("page");
+  // ?tab=registrants lets the morning summary email link straight to the list.
+  const [tab, setTab] = useState<"page" | "registrants">(
+    params.get("tab") === "registrants" ? "registrants" : "page",
+  );
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [registrants, setRegistrants] = useState<Registrant[] | null>(null);
   const [uploading, setUploading] = useState(false);

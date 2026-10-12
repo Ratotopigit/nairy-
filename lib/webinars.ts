@@ -24,6 +24,7 @@ import {
   type Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
+import { n8nWebhookUrl } from "@/lib/n8n-url";
 
 export type WebinarStatus = "draft" | "published";
 
@@ -44,6 +45,11 @@ export type Webinar = {
   /** ISO 8601 instant, or "" when no session is scheduled yet. */
   next_session_at: string;
   thank_you_message: string;
+  /**
+   * The owner's IANA timezone, captured from their browser on save. Used to
+   * send each owner's morning registration summary at THEIR 7am.
+   */
+  owner_timezone: string;
   created_at: string;
   updated_at: string;
 };
@@ -64,6 +70,14 @@ export const WEBINAR_LIMITS = {
   email: 254,
 } as const;
 
+function browserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 export function emptyWebinar(ownerId: string): Omit<Webinar, "id"> {
   const now = new Date().toISOString();
   return {
@@ -83,6 +97,7 @@ export function emptyWebinar(ownerId: string): Omit<Webinar, "id"> {
     cta_label: "Register now",
     next_session_at: "",
     thank_you_message: "You're in. We'll see you at the session.",
+    owner_timezone: browserTimezone(),
     created_at: now,
     updated_at: now,
   };
@@ -110,6 +125,7 @@ function toWebinar(id: string, data: Record<string, unknown>): Webinar {
     cta_label: str("cta_label"),
     next_session_at: str("next_session_at"),
     thank_you_message: str("thank_you_message"),
+    owner_timezone: str("owner_timezone"),
     created_at: str("created_at"),
     updated_at: str("updated_at"),
   };
@@ -146,6 +162,7 @@ export async function saveWebinar(webinar: Webinar): Promise<void> {
     {
       ...rest,
       bullets: rest.bullets.map((b) => b.trim()).filter(Boolean).slice(0, WEBINAR_LIMITS.bullets),
+      owner_timezone: browserTimezone(),
       updated_at: new Date().toISOString(),
     },
     { merge: true },
@@ -170,13 +187,45 @@ export function isValidEmail(value: string): boolean {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value) && value.length <= WEBINAR_LIMITS.email;
 }
 
-/** Public: anyone may register for a published webinar. */
+/**
+ * Public: anyone may register for a published webinar. Once the registration
+ * is saved, n8n is asked to send the confirmation email.
+ */
 export async function registerForWebinar(webinarId: string, name: string, email: string): Promise<void> {
-  await addDoc(collection(db, "webinars", webinarId, "registrants"), {
+  const ref = await addDoc(collection(db, "webinars", webinarId, "registrants"), {
     name: name.trim().slice(0, WEBINAR_LIMITS.name),
     email: normalizeEmail(email),
     created_at: serverTimestamp(),
   });
+  requestConfirmationEmail(webinarId, ref.id);
+}
+
+/**
+ * Fire-and-forget: the registration is already saved, so a slow or failing
+ * email must never turn a successful sign-up into an error on screen.
+ *
+ * Only ids travel. n8n reads the address from Firestore itself and never
+ * mails an address supplied in the request, so this endpoint cannot be used
+ * to send email to arbitrary people. The visitor's timezone is passed purely
+ * so the email can show the session time in their local time.
+ */
+function requestConfirmationEmail(webinarId: string, registrantId: string): void {
+  try {
+    // Throws when the base URL is unset; the catch below absorbs that.
+    void fetch(n8nWebhookUrl("webinar-registered"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        webinar_id: webinarId,
+        registrant_id: registrantId,
+        timezone: browserTimezone(),
+      }),
+      // Lets the request finish even if the visitor closes the tab at once.
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Never let email plumbing break registration.
+  }
 }
 
 /**

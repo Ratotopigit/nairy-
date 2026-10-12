@@ -1,0 +1,263 @@
+{
+  "name": "11 - Webinar Morning Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1,
+              "triggerAtMinute": 5
+            }
+          ]
+        }
+      },
+      "id": "every-hour",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Runs hourly. Each owner is summarised at 7am in THEIR timezone, covering\n// the 24 hours before.\nconst since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();\nconst query = {\n  from: [{ collectionId: \"email_log\" }],\n  where: {\n    fieldFilter: {\n      field: { fieldPath: \"created_at\" },\n      op: \"GREATER_THAN_OR_EQUAL\",\n      value: { stringValue: since },\n    },\n  },\n};\nreturn [{ json: { since, query: JSON.stringify(query) } }];"
+      },
+      "id": "window",
+      "name": "Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "query",
+        "projectId": "nirey-f2faf",
+        "query": "={{ $json.query }}"
+      },
+      "id": "recent-registrations",
+      "name": "Recent Registrations",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "getAll",
+        "projectId": "nirey-f2faf",
+        "collection": "email_state",
+        "returnAll": true
+      },
+      "id": "summary-state",
+      "name": "Summary State",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Webinar email templates — single source of truth.\n *\n * n8n Code nodes cannot import files, so n8n/email/build-workflows.mjs inlines\n * this file into each workflow that sends email. Edit HERE, then rebuild; never\n * edit the copies inside the workflow JSON.\n *\n * Deliverability (this is a multi-user platform, and every user's email goes\n * out from the same domain, so one bad template hurts everyone):\n *   - multipart: every email has a plain-text part, not HTML only\n *   - no images, no tracking pixels, no link shorteners\n *   - every link points at webinarstackai.com, the sending domain\n *   - user-written text is HTML-escaped and length-capped; users cannot add\n *     links, so the platform cannot be used to send phishing links\n *   - a footer saying who sent it and why the recipient is getting it\n */\n\nconst BRAND = {\n  site: \"https://webinarstackai.com\",\n  fromAddress: \"hello@webinarstackai.com\",\n  product: \"Webinar Stack\",\n};\n\nconst COLORS = {\n  page: \"#f4f1e8\",\n  card: \"#ffffff\",\n  ink: \"#1d2a27\",\n  muted: \"#5f6b67\",\n  rule: \"#e4dfd3\",\n  button: \"#1f4d3d\",\n};\n\nfunction esc(value) {\n  return String(value ?? \"\")\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\")\n    .replace(/'/g, \"&#39;\");\n}\n\nfunction clip(value, max) {\n  const text = String(value ?? \"\").replace(/\\s+/g, \" \").trim();\n  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;\n}\n\nfunction firstName(name) {\n  const first = clip(name, 60).split(\" \")[0];\n  return first || \"there\";\n}\n\n/**\n * The display name in the From header. User-controlled, so stripped of\n * anything that could break out of the header: quotes, angle brackets, @,\n * control characters and newlines (header injection).\n */\nfunction senderName(presenter) {\n  const clean = String(presenter ?? \"\")\n    .replace(/[\\u0000-\\u001f\\u007f\"<>@\\\\]/g, \"\")\n    .replace(/\\s+/g, \" \")\n    .trim()\n    .slice(0, 40);\n  return clean ? `${clean} via ${BRAND.product}` : BRAND.product;\n}\n\nfunction fromHeader(presenter) {\n  return `\"${senderName(presenter)}\" <${BRAND.fromAddress}>`;\n}\n\n/** Falls back to UTC for anything that is not a real IANA zone. */\nfunction safeTimezone(tz) {\n  try {\n    if (!tz) return \"UTC\";\n    new Intl.DateTimeFormat(\"en-US\", { timeZone: tz }).format(new Date());\n    return tz;\n  } catch {\n    return \"UTC\";\n  }\n}\n\n/**\n * \" (Sydney time)\" from \"Australia/Sydney\". Offsets like GMT+11 are exact but\n * most people don't know their own; a city they recognise.\n */\nfunction zoneCity(zone) {\n  if (!zone || zone === \"UTC\" || !zone.includes(\"/\")) return \"\";\n  const city = zone.split(\"/\").pop().replace(/_/g, \" \");\n  return city ? ` (${city} time)` : \"\";\n}\n\nfunction sessionParts(iso, tz) {\n  const date = new Date(iso);\n  if (!iso || Number.isNaN(date.getTime())) return null;\n  const zone = safeTimezone(tz);\n  return {\n    date: new Intl.DateTimeFormat(\"en-GB\", {\n      weekday: \"long\", day: \"numeric\", month: \"long\", year: \"numeric\", timeZone: zone,\n    }).format(date),\n    time: `${new Intl.DateTimeFormat(\"en-US\", {\n      hour: \"numeric\", minute: \"2-digit\", timeZoneName: \"short\", timeZone: zone,\n    }).format(date)}${zoneCity(zone)}`,\n  };\n}\n\n/**\n * UTF-8 -> base64 without Buffer or btoa, neither of which is guaranteed in\n * the n8n Code sandbox (it already lacks `crypto`).\n */\nfunction toBase64(input) {\n  const bytes = [];\n  for (const ch of String(input)) {\n    const code = ch.codePointAt(0);\n    if (code < 0x80) bytes.push(code);\n    else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63));\n    else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));\n    else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));\n  }\n  const table = \"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/\";\n  let out = \"\";\n  for (let i = 0; i < bytes.length; i += 3) {\n    const a = bytes[i];\n    const b = bytes[i + 1] ?? 0;\n    const c = bytes[i + 2] ?? 0;\n    const n = (a << 16) | (b << 8) | c;\n    out += table[(n >> 18) & 63] + table[(n >> 12) & 63];\n    out += i + 1 < bytes.length ? table[(n >> 6) & 63] : \"=\";\n    out += i + 2 < bytes.length ? table[n & 63] : \"=\";\n  }\n  return out;\n}\n\nfunction utcStamp(date) {\n  return date.toISOString().replace(/[-:]/g, \"\").replace(/\\.\\d{3}/, \"\");\n}\n\nfunction pageUrl(webinarId) {\n  return `${BRAND.site}/w?id=${encodeURIComponent(webinarId)}`;\n}\n\nfunction googleCalendarUrl(webinar) {\n  const start = new Date(webinar.next_session_at);\n  const end = new Date(start.getTime() + 60 * 60 * 1000);\n  // Built by hand: URLSearchParams is not guaranteed in the n8n sandbox.\n  const params = {\n    action: \"TEMPLATE\",\n    text: clip(webinar.title, 120),\n    dates: `${utcStamp(start)}/${utcStamp(end)}`,\n    details: `${clip(webinar.subtitle, 240)}\\n\\n${pageUrl(webinar.id)}`,\n  };\n  const query = Object.entries(params)\n    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)\n    .join(\"&\");\n  return `https://calendar.google.com/calendar/render?${query}`;\n}\n\n/** A one-hour .ics invite, base64-encoded for an email attachment. */\nfunction icsAttachment(webinar) {\n  const start = new Date(webinar.next_session_at);\n  if (Number.isNaN(start.getTime())) return null;\n  const end = new Date(start.getTime() + 60 * 60 * 1000);\n  const text = (v) =>\n    String(v ?? \"\").replace(/\\\\/g, \"\\\\\\\\\").replace(/[,;]/g, (m) => `\\\\${m}`).replace(/\\r?\\n/g, \"\\\\n\");\n  const body = [\n    \"BEGIN:VCALENDAR\",\n    \"VERSION:2.0\",\n    \"PRODID:-//Webinar Stack//EN\",\n    \"METHOD:PUBLISH\",\n    \"BEGIN:VEVENT\",\n    `UID:${webinar.id}-${utcStamp(start)}@webinarstackai.com`,\n    `DTSTAMP:${utcStamp(new Date())}`,\n    `DTSTART:${utcStamp(start)}`,\n    `DTEND:${utcStamp(end)}`,\n    `SUMMARY:${text(clip(webinar.title, 120))}`,\n    `DESCRIPTION:${text(`${clip(webinar.subtitle, 240)}\\n\\n${pageUrl(webinar.id)}`)}`,\n    `URL:${pageUrl(webinar.id)}`,\n    \"END:VEVENT\",\n    \"END:VCALENDAR\",\n  ].join(\"\\r\\n\");\n  return { filename: \"webinar.ics\", content: toBase64(body) };\n}\n\n/** The shared shell: a single centred column, inline styles, no images. */\nfunction layout({ preheader, body, footer }) {\n  return `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<meta name=\"color-scheme\" content=\"light\">\n<title>${esc(BRAND.product)}</title>\n</head>\n<body style=\"margin:0;padding:0;background:${COLORS.page};\">\n<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;\">${esc(preheader)}</div>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:${COLORS.page};\">\n<tr><td align=\"center\" style=\"padding:32px 16px;\">\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:560px;\">\n<tr><td style=\"padding:0 4px 16px;font:600 13px/1.4 Arial,Helvetica,sans-serif;letter-spacing:0.08em;text-transform:uppercase;color:${COLORS.muted};\">${esc(BRAND.product)}</td></tr>\n<tr><td style=\"background:${COLORS.card};border:1px solid ${COLORS.rule};border-radius:12px;padding:32px 28px;font:15px/1.6 Arial,Helvetica,sans-serif;color:${COLORS.ink};\">\n${body}\n</td></tr>\n<tr><td style=\"padding:20px 4px 0;font:12px/1.6 Arial,Helvetica,sans-serif;color:${COLORS.muted};\">\n${footer}\n</td></tr>\n</table>\n</td></tr>\n</table>\n</body>\n</html>`;\n}\n\nfunction button(href, label) {\n  return `<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:8px 0 4px;\"><tr>\n<td style=\"background:${COLORS.button};border-radius:8px;\">\n<a href=\"${esc(href)}\" style=\"display:inline-block;padding:12px 22px;font:600 15px/1 Arial,Helvetica,sans-serif;color:#ffffff;text-decoration:none;\">${esc(label)}</a>\n</td></tr></table>`;\n}\n\n/**\n * Sent seconds after someone registers.\n * @param {{webinar: object, registrant: {name: string, email: string}, timezone: string}} input\n */\nfunction confirmationEmail({ webinar, registrant, timezone }) {\n  const title = clip(webinar.title, 120) || \"the webinar\";\n  const presenter = clip(webinar.presenter_name, 60);\n  const when = sessionParts(webinar.next_session_at, timezone);\n  const bullets = (Array.isArray(webinar.bullets) ? webinar.bullets : [])\n    .map((b) => clip(b, 140))\n    .filter(Boolean)\n    .slice(0, 4);\n  const link = pageUrl(webinar.id);\n  const hasDate = Boolean(when);\n\n  const subject = `You're registered: ${clip(title, 70)}`;\n  const preheader = hasDate\n    ? `${when.date} at ${when.time}. Add it to your calendar so you don't miss it.`\n    : \"Your place is saved. We'll share the date soon.\";\n\n  const sessionHtml = hasDate\n    ? `<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:20px 0;border:1px solid ${COLORS.rule};border-radius:10px;\">\n<tr><td style=\"padding:16px 18px;\">\n<div style=\"font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:${COLORS.muted};\">When</div>\n<div style=\"margin-top:4px;font-size:17px;font-weight:700;\">${esc(when.date)}</div>\n<div style=\"font-size:15px;\">${esc(when.time)}</div>\n${presenter ? `<div style=\"margin-top:8px;font-size:14px;color:${COLORS.muted};\">Hosted by ${esc(presenter)}</div>` : \"\"}\n</td></tr></table>\n${button(googleCalendarUrl(webinar), \"Add to Google Calendar\")}\n<p style=\"margin:8px 0 0;font-size:13px;color:${COLORS.muted};\">Using Apple Calendar or Outlook? Open the invite attached to this email.</p>`\n    : `<p style=\"margin:20px 0;\">The date hasn't been set yet. We'll email you when it is.</p>`;\n\n  const bulletsHtml = bullets.length\n    ? `<p style=\"margin:28px 0 8px;font-weight:700;\">What you'll learn</p>\n<ul style=\"margin:0;padding-left:20px;\">${bullets.map((b) => `<li style=\"margin:0 0 6px;\">${esc(b)}</li>`).join(\"\")}</ul>`\n    : \"\";\n\n  const body = `<p style=\"margin:0 0 12px;\">Hi ${esc(firstName(registrant.name))},</p>\n<p style=\"margin:0;\">You're registered for <strong>${esc(title)}</strong>.</p>\n${sessionHtml}\n${bulletsHtml}\n<p style=\"margin:28px 0 0;\">Keep this email so the details are easy to find. You can always see the session page here: <a href=\"${esc(link)}\" style=\"color:${COLORS.button};\">${esc(link.replace(\"https://\", \"\"))}</a></p>`;\n\n  const footer = `You're receiving this because ${esc(registrant.email)} was used to register for \"${esc(title)}\" on webinarstackai.com.${presenter ? ` Replying to this email reaches ${esc(presenter)}.` : \"\"}<br>If this wasn't you, you can ignore this email.<br>Sent by ${esc(BRAND.product)}.`;\n\n  const text = [\n    `Hi ${firstName(registrant.name)},`,\n    \"\",\n    `You're registered for \"${title}\".`,\n    \"\",\n    ...(hasDate\n      ? [`When: ${when.date}, ${when.time}`, ...(presenter ? [`Hosted by: ${presenter}`] : []), \"\", `Add to Google Calendar: ${googleCalendarUrl(webinar)}`, \"Apple Calendar or Outlook: open the attached invite.\"]\n      : [\"The date hasn't been set yet. We'll email you when it is.\"]),\n    ...(bullets.length ? [\"\", \"What you'll learn:\", ...bullets.map((b) => `- ${b}`)] : []),\n    \"\",\n    `Session page: ${link}`,\n    \"\",\n    \"--\",\n    `You're receiving this because ${registrant.email} was used to register for \"${title}\" on webinarstackai.com. If this wasn't you, you can ignore this email.`,\n    `Sent by ${BRAND.product}.`,\n  ].join(\"\\n\");\n\n  const attachment = hasDate ? icsAttachment(webinar) : null;\n\n  return {\n    from: fromHeader(webinar.presenter_name),\n    subject,\n    html: layout({ preheader, body, footer }),\n    text,\n    attachments: attachment ? [attachment] : [],\n  };\n}\n\n/**\n * The owner's morning summary of new registrations across their webinars.\n * `total` is optional: the summary is built from the email log, which knows\n * the day's registrations but not each webinar's all-time count.\n * @param {{ownerName: string, groups: Array<{webinar: object, fresh: Array<{name: string, email: string}>, total?: number}>}} input\n */\nfunction digestEmail({ ownerName, groups }) {\n  const MAX_LISTED = 25;\n  const newCount = groups.reduce((n, g) => n + g.fresh.length, 0);\n  const subject = `${newCount} new registration${newCount === 1 ? \"\" : \"s\"} since yesterday`;\n  const preheader = groups\n    .map((g) => `${clip(g.webinar.title, 40)}: ${g.fresh.length} new`)\n    .join(\" · \");\n\n  const sections = groups\n    .map((g) => {\n      const title = clip(g.webinar.title, 120) || \"Untitled webinar\";\n      const listUrl = `${BRAND.site}/provider/webinars/edit?id=${encodeURIComponent(g.webinar.id)}&tab=registrants`;\n      const listed = g.fresh.slice(0, MAX_LISTED);\n      const more = g.fresh.length - listed.length;\n      return `<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:0 0 20px;border:1px solid ${COLORS.rule};border-radius:10px;\">\n<tr><td style=\"padding:16px 18px;\">\n<div style=\"font-size:16px;font-weight:700;\">${esc(title)}</div>\n<div style=\"margin-top:2px;font-size:13px;color:${COLORS.muted};\">${g.fresh.length} new${typeof g.total === \"number\" ? ` · ${g.total} total` : \"\"}</div>\n<ul style=\"margin:12px 0 0;padding-left:18px;font-size:14px;\">${listed\n        .map((r) => `<li style=\"margin:0 0 4px;\">${esc(clip(r.name, 80))} <span style=\"color:${COLORS.muted};\">${esc(r.email)}</span></li>`)\n        .join(\"\")}${more > 0 ? `<li style=\"color:${COLORS.muted};\">and ${more} more</li>` : \"\"}</ul>\n<p style=\"margin:12px 0 0;font-size:14px;\"><a href=\"${esc(listUrl)}\" style=\"color:${COLORS.button};\">See everyone who registered</a></p>\n</td></tr></table>`;\n    })\n    .join(\"\");\n\n  const body = `<p style=\"margin:0 0 6px;\">Good morning ${esc(firstName(ownerName))},</p>\n<p style=\"margin:0 0 22px;\">${newCount === 1 ? \"One person\" : `${newCount} people`} registered for your webinars in the last 24 hours.</p>\n${sections}`;\n\n  const footer = `You're getting this daily summary because you run webinars on ${esc(BRAND.product)}. It's only sent on days when someone registers.`;\n\n  const text = [\n    `Good morning ${firstName(ownerName)},`,\n    \"\",\n    `${newCount} new registration${newCount === 1 ? \"\" : \"s\"} in the last 24 hours.`,\n    \"\",\n    ...groups.flatMap((g) => [\n      `${clip(g.webinar.title, 120)} (${g.fresh.length} new${typeof g.total === \"number\" ? `, ${g.total} total` : \"\"})`,\n      ...g.fresh.slice(0, MAX_LISTED).map((r) => `- ${clip(r.name, 80)} <${r.email}>`),\n      ...(g.fresh.length > MAX_LISTED ? [`- and ${g.fresh.length - MAX_LISTED} more`] : []),\n      `See everyone: ${BRAND.site}/provider/webinars/edit?id=${encodeURIComponent(g.webinar.id)}&tab=registrants`,\n      \"\",\n    ]),\n    \"--\",\n    `You're getting this daily summary because you run webinars on ${BRAND.product}. It's only sent on days when someone registers.`,\n  ].join(\"\\n\");\n\n  return {\n    from: `\"${BRAND.product}\" <${BRAND.fromAddress}>`,\n    subject,\n    html: layout({ preheader, body, footer }),\n    text,\n    attachments: [],\n  };\n}\n\n// Exported for the local preview/test script; n8n ignores this.\nif (typeof module !== \"undefined\") {\n  module.exports = { confirmationEmail, digestEmail, senderName, safeTimezone, sessionParts, esc, toBase64 };\n}\n\n// ── glue ──\n\nconst EMAIL = /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/;\nconst all = (name) => { try { return $(name).all().map((i) => i.json); } catch { return []; } };\nconst logs = all(\"Recent Registrations\")\n  .filter((l) => l && l.type === \"confirmation\" && l.owner_id && l.registrant_email);\nconst state = new Map(all(\"Summary State\").filter((s) => s && s.owner_id).map((s) => [s.owner_id, s]));\nconst now = Date.now();\n\nconst byOwner = new Map();\nfor (const l of logs) {\n  if (!byOwner.has(l.owner_id)) byOwner.set(l.owner_id, []);\n  byOwner.get(l.owner_id).push(l);\n}\n\nconst out = [];\nfor (const [ownerId, rows] of byOwner) {\n  rows.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));\n  const latest = rows[rows.length - 1];\n  const tz = safeTimezone(latest.owner_timezone);\n  const hour = Number(new Intl.DateTimeFormat(\"en-US\", { hour: \"numeric\", hourCycle: \"h23\", timeZone: tz }).format(new Date(now)));\n  if (hour !== 7) continue;\n\n  // Already sent today (a re-run, or the hourly trigger firing twice).\n  const last = Date.parse(state.get(ownerId)?.last_summary_at ?? \"\");\n  if (Number.isFinite(last) && now - last < 20 * 60 * 60 * 1000) continue;\n\n  const to = rows.map((r) => String(r.owner_email ?? \"\").trim()).reverse().find((e) => EMAIL.test(e));\n  if (!to) continue;\n\n  // One section per webinar; the same person registering twice counts once.\n  const groups = new Map();\n  for (const r of rows) {\n    if (!groups.has(r.webinar_id)) groups.set(r.webinar_id, { webinar: { id: r.webinar_id, title: r.webinar_title }, fresh: [], seen: new Set() });\n    const g = groups.get(r.webinar_id);\n    if (g.seen.has(r.registrant_email)) continue;\n    g.seen.add(r.registrant_email);\n    g.fresh.push({ name: r.registrant_name, email: r.registrant_email });\n  }\n\n  const email = digestEmail({\n    ownerName: latest.owner_name || \"\",\n    groups: [...groups.values()].map(({ webinar, fresh }) => ({ webinar, fresh })),\n  });\n  const localDate = new Intl.DateTimeFormat(\"en-CA\", { timeZone: tz }).format(new Date(now));\n  out.push({\n    json: {\n      owner_id: ownerId,\n      idempotency_key: `summary_${ownerId}_${localDate}`,\n      payload: {\n        from: email.from,\n        to: [to],\n        subject: email.subject,\n        html: email.html,\n        text: email.text,\n        tags: [{ name: \"type\", value: \"owner_daily_summary\" }],\n      },\n    },\n  });\n}\nreturn out;"
+      },
+      "id": "build-summaries",
+      "name": "Build Summaries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.idempotency_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "send-via-resend",
+      "name": "Send via Resend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL",
+          "name": "Resend API key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pairs each Resend response with the summary it sent (same order), and only\n// records owners whose email actually went out.\nconst built = $(\"Build Summaries\").all();\nreturn $input.all().flatMap((item, i) => {\n  const ok = typeof item.json?.id === \"string\" && item.json.id.length > 0;\n  if (!ok) return [];\n  return [{ json: { owner_id: built[i].json.owner_id, last_summary_at: new Date().toISOString() } }];\n});"
+      },
+      "id": "state-entries",
+      "name": "State Entries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "upsert",
+        "projectId": "nirey-f2faf",
+        "collection": "email_state",
+        "updateKey": "owner_id",
+        "columns": "owner_id,last_summary_at"
+      },
+      "id": "save-summary-state",
+      "name": "Save Summary State",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        0
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window": {
+      "main": [
+        [
+          {
+            "node": "Recent Registrations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recent Registrations": {
+      "main": [
+        [
+          {
+            "node": "Summary State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary State": {
+      "main": [
+        [
+          {
+            "node": "Build Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summaries": {
+      "main": [
+        [
+          {
+            "node": "Send via Resend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send via Resend": {
+      "main": [
+        [
+          {
+            "node": "State Entries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State Entries": {
+      "main": [
+        [
+          {
+            "node": "Save Summary State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "NF9VQqswnNCjyYGc"
+  },
+  "meta": {
+    "generatedBy": "n8n/email/build-workflows.mjs — do not edit by hand"
+  }
+}
