@@ -131,6 +131,16 @@ service cloud.firestore {
       }
     }
 
+    // Email bookkeeping, written only by n8n (service account, bypasses these
+    // rules). Admins may read it for the Email users page; nobody may write
+    // it from the browser, so an opt-out cannot be reversed by anyone but n8n.
+    match /email_prefs/{uid} {
+      allow read: if isAdmin();
+    }
+    match /broadcasts/{broadcastId} {
+      allow read: if isAdmin();
+    }
+
     // Default deny all other collections
     match /{document=**} {
       allow read, write: if false;

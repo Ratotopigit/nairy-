@@ -100,6 +100,12 @@ function AdminContentManager() {
             <span className="text-sm font-semibold tracking-tight text-[#1f4d3d]">
               Home Settings
             </span>
+            <Link
+              href="/admin/email"
+              className="rounded-lg border border-[#d6e8dc] bg-card px-2.5 py-1 text-xs font-medium text-[#1f4d3d] transition-colors hover:bg-[#e8f3ec]"
+            >
+              Email users
+            </Link>
           </div>
 
           {/* Save Status / Feedback */}
