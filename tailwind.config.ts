@@ -40,7 +40,12 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
+        // Was var(--font-inter), a leftover from the Next.js starter that was
+        // never defined. An undefined var() invalidates the WHOLE font-family
+        // declaration, fallbacks included, so every page rendered in the
+        // browser default serif (Times New Roman). This is the stack
+        // globals.css already declares as the house font.
+        sans: ['"Avenir Next"', '"Helvetica Neue"', "ui-sans-serif", "system-ui", "-apple-system", '"Segoe UI"', "sans-serif"],
       },
       animation: {
         "fade-in-up": "fade-in-up 0.6s ease-out both",
