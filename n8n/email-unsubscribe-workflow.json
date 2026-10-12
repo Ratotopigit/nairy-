@@ -1,0 +1,244 @@
+{
+  "name": "14 - Email Unsubscribe",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email-unsubscribe",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "unsubscribe-webhook",
+      "name": "Unsubscribe Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "webhookId": "email-unsubscribe"
+    },
+    {
+      "parameters": {
+        "jsCode": "// From the confirm page (JSON body) or Gmail/Yahoo one-click (query string,\n// form body \"List-Unsubscribe=One-Click\").\nconst q = $json.query ?? {};\nconst b = typeof $json.body === \"object\" && $json.body ? $json.body : {};\nconst uid = String(q.u ?? b.u ?? \"\");\nconst token = String(q.t ?? b.t ?? \"\");\nconst ok = /^[A-Za-z0-9_-]{1,128}$/.test(uid) && /^[a-f0-9]{16,64}$/.test(token);\nreturn [{ json: { ok, uid: ok ? uid : \"\", token: ok ? token : \"\" } }];"
+      },
+      "id": "validate",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "email_prefs",
+        "documentId": "={{ $json.uid || 'invalid' }}"
+      },
+      "id": "load-prefs",
+      "name": "Load Prefs",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = $(\"Validate\").first().json;\nconst pref = $input.first()?.json ?? {};\nconst valid = req.ok && typeof pref.unsubscribe_token === \"string\" && pref.unsubscribe_token === req.token;\nif (!valid) return [{ json: { valid: 0 } }];\nreturn [{\n  json: {\n    valid: 1,\n    uid: req.uid,\n    unsubscribe_token: req.token,\n    opted_out: true,\n    opted_out_at: new Date().toISOString(),\n  },\n}];"
+      },
+      "id": "check-token",
+      "name": "Check Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.valid }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "valid-link",
+      "name": "Valid Link",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "upsert",
+        "projectId": "nirey-f2faf",
+        "collection": "email_prefs",
+        "updateKey": "uid",
+        "columns": "uid,unsubscribe_token,opted_out,opted_out_at"
+      },
+      "id": "save-opt-out",
+      "name": "Save Opt-out",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-unsubscribed",
+      "name": "Respond Unsubscribed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'This unsubscribe link is not valid.' }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-invalid",
+      "name": "Respond Invalid",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Unsubscribe Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate": {
+      "main": [
+        [
+          {
+            "node": "Load Prefs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Prefs": {
+      "main": [
+        [
+          {
+            "node": "Check Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Token": {
+      "main": [
+        [
+          {
+            "node": "Valid Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Link": {
+      "main": [
+        [
+          {
+            "node": "Save Opt-out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Opt-out": {
+      "main": [
+        [
+          {
+            "node": "Respond Unsubscribed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "NF9VQqswnNCjyYGc"
+  },
+  "meta": {
+    "generatedBy": "n8n/email/build-workflows.mjs — do not edit by hand"
+  }
+}

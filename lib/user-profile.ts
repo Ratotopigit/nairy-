@@ -3,6 +3,27 @@
 import { type User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "./firebase/config";
+import { n8nWebhookUrl } from "./n8n-url";
+
+/**
+ * Fire-and-forget welcome email for a new account. Sends the user's own ID
+ * token, so n8n mails only that verified address; n8n also checks Firebase's
+ * account creation time, so long-standing users getting their first profile
+ * record are not "welcomed".
+ */
+function requestWelcomeEmail(user: User): void {
+  void user
+    .getIdToken()
+    .then((token) =>
+      fetch(n8nWebhookUrl("user-welcome"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: "{}",
+        keepalive: true,
+      }),
+    )
+    .catch(() => {});
+}
 
 export interface UserProfileRecord {
   uid: string;
@@ -36,6 +57,7 @@ export async function syncUserProfile(user: User | null): Promise<void> {
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
       });
+      requestWelcomeEmail(user);
     } else {
       // Update metadata while PRESERVING existing admin toggle
       const existing = snap.data();

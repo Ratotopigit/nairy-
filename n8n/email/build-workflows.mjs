@@ -1,10 +1,10 @@
 /**
- * Generates the email workflows with webinar-emails.js inlined into their
+ * Generates the email workflows with templates.js inlined into their
  * Code nodes (n8n Code nodes cannot import files).
  *
  *   node n8n/email/build-workflows.mjs
  *
- * Edit webinar-emails.js or the glue below, then re-run. Never hand-edit the
+ * Edit templates.js or the glue below, then re-run. Never hand-edit the
  * generated JSON — the next build overwrites it.
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const TEMPLATE = readFileSync(join(here, "webinar-emails.js"), "utf8");
+const TEMPLATE = readFileSync(join(here, "templates.js"), "utf8");
 
 const PROJECT_ID = "nirey-f2faf";
 const FIRESTORE = { googleApi: { id: "LeMY3R0pzOuv9c8N", name: "Firebase Service Account" } };
@@ -56,10 +56,10 @@ const firestoreUpsert = (name, collection, updateKey, columns) =>
     columns: columns.join(","),
   }, { credentials: FIRESTORE });
 
-const resendSend = (name) =>
+const resendSend = (name, { url = "https://api.resend.com/emails", body = "={{ JSON.stringify($json.payload) }}" } = {}) =>
   node(name, "n8n-nodes-base.httpRequest", 4.2, {
     method: "POST",
-    url: "https://api.resend.com/emails",
+    url,
     authentication: "genericCredentialType",
     genericAuthType: "httpHeaderAuth",
     sendHeaders: true,
@@ -70,8 +70,8 @@ const resendSend = (name) =>
     },
     sendBody: true,
     specifyBody: "json",
-    jsonBody: "={{ JSON.stringify($json.payload) }}",
-    options: { timeout: 20000 },
+    jsonBody: body,
+    options: { timeout: 30000 },
   }, {
     // Failures are recorded in the log and re-raised at the end, so they still
     // reach the Failure Alerts workflow.
@@ -90,13 +90,55 @@ const chain = (nodes) => {
   return connections;
 };
 
-const workflow = (name, nodes) => ({
+/** Linear by default; pass explicit connections for workflows that branch. */
+const workflow = (name, nodes, connections = chain(nodes)) => ({
   name,
   nodes,
-  connections: chain(nodes),
+  connections,
   settings: { executionOrder: "v1", errorWorkflow: FAILURE_ALERTS_WORKFLOW },
   meta: { generatedBy: "n8n/email/build-workflows.mjs — do not edit by hand" },
 });
+
+const link = (connections, from, to, output = 0) => {
+  connections[from] ??= { main: [] };
+  while (connections[from].main.length <= output) connections[from].main.push([]);
+  connections[from].main[output].push({ node: to, type: "main", index: 0 });
+};
+
+// Same Firebase ID-token check the chat, offer and deck workflows use.
+const FIREBASE_WEB_API_KEY = "AIzaSyDEc-zNxEGcYEpKFKuSgZUllsCTQ1xSCdg"; // public web key, already shipped in the app
+const verifyFirebaseToken = (name) =>
+  node(name, "n8n-nodes-base.httpRequest", 4.2, {
+    method: "POST",
+    url: `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_WEB_API_KEY}`,
+    sendBody: true,
+    specifyBody: "json",
+    jsonBody: "={{ JSON.stringify({ idToken: $json.id_token }) }}",
+    options: { timeout: 10000 },
+  }, { onError: "continueRegularOutput" });
+
+const EXTRACT_BEARER = `const headers = $json.headers ?? {};
+const raw = headers.authorization ?? headers.Authorization ?? "";
+const token = String(raw).replace(/^Bearer\\s+/i, "").trim();
+if (!token || token.length > 8192) return [];
+return [{ json: { id_token: token, body: $json.body ?? {} } }];`;
+
+const ifPositive = (name, expression) =>
+  node(name, "n8n-nodes-base.if", 2.2, {
+    conditions: {
+      options: { caseSensitive: true, leftValue: "", typeValidation: "loose", version: 1 },
+      conditions: [{ leftValue: expression, operator: { type: "number", operation: "gt" }, rightValue: 0 }],
+      combinator: "and",
+    },
+    options: {},
+  });
+
+const respond = (name, body, status) =>
+  node(name, "n8n-nodes-base.respondToWebhook", 1.4, {
+    respondWith: "json",
+    responseBody: `={{ JSON.stringify(${body}) }}`,
+    options: { responseCode: status },
+  });
 
 // ─────────────────────────────── Confirmation ───────────────────────────────
 
@@ -177,7 +219,7 @@ return [{
   },
 }];`;
 
-export const BUILD_LOG_ENTRY = `const built = $("Build Confirmation").first().json;
+export const logEntryCode = (buildNode) => `const built = $("${buildNode}").first().json;
 const res = $input.first().json ?? {};
 const sent = typeof res.id === "string" && res.id.length > 0;
 return [{
@@ -191,11 +233,12 @@ return [{
   },
 }];`;
 
-export const FAIL_IF_NOT_SENT = `// The log entry is saved first, so the registrant still appears in the morning
-// summary. Then a failed send is raised so Failure Alerts hears about it.
+export const FAIL_IF_NOT_SENT = `// The log entry is saved first (for a confirmation, that keeps the registrant
+// in the morning summary). Then a failed send is raised so Failure Alerts
+// hears about it.
 const entry = $("Build Log Entry").first().json;
 if (entry.status !== "sent") {
-  throw new Error(\`Confirmation email not sent for \${entry.log_id}: \${entry.error}\`);
+  throw new Error(\`Email not sent for \${entry.log_id}: \${entry.error}\`);
 }
 return $input.all();`;
 
@@ -226,7 +269,7 @@ const confirmation = workflow("10 - Webinar Registration Confirmation", [
   firestoreGet("Load Owner Memory", "workspace_memory", "={{ $('Load Webinar').first().json.owner_id || 'no-owner' }}"),
   code("Build Confirmation", `${TEMPLATE}\n// ── glue ──\n${BUILD_CONFIRMATION_GLUE}`),
   resendSend("Send via Resend"),
-  code("Build Log Entry", BUILD_LOG_ENTRY),
+  code("Build Log Entry", logEntryCode("Build Confirmation")),
   firestoreUpsert("Save Email Log", "email_log", "log_id", LOG_COLUMNS),
   code("Fail If Not Sent", FAIL_IF_NOT_SENT),
 ]);
@@ -349,11 +392,349 @@ const summary = workflow("11 - Webinar Morning Summary", [
   firestoreUpsert("Save Summary State", "email_state", "owner_id", ["owner_id", "last_summary_at"]),
 ]);
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const outDir = join(here, "..");
-  writeFileSync(join(outDir, "webinar-registration-confirmation-workflow.json"), `${JSON.stringify(confirmation, null, 2)}\n`);
-  writeFileSync(join(outDir, "webinar-morning-summary-workflow.json"), `${JSON.stringify(summary, null, 2)}\n`);
-  console.log("wrote webinar-registration-confirmation-workflow.json and webinar-morning-summary-workflow.json");
+// ──────────────────────────────── Welcome ────────────────────────────────
+
+export const NORMALIZE_NEW_USER = `const EMAIL = ${EMAIL_RE};
+const user = $json.users?.[0] ?? {};
+const uid = String(user.localId ?? "");
+const email = String(user.email ?? "").trim().toLowerCase();
+if (!uid || !EMAIL.test(email)) return [];
+// Only genuinely new accounts. The users collection is newer than many
+// accounts, so "no profile yet" alone would welcome long-standing users on
+// their next login. Firebase's own createdAt (ms) is the truth.
+const created = Number(user.createdAt);
+if (!Number.isFinite(created) || Date.now() - created > 24 * 60 * 60 * 1000) return [];
+return [{ json: { uid, email, name: String(user.displayName ?? ""), log_id: \`welcome_\${uid}\` } }];`;
+
+export const BUILD_WELCOME_GLUE = `
+const req = $("Normalize User").first().json;
+const log = (() => { try { return $("Load Email Log").first()?.json ?? {}; } catch { return {}; } })();
+if (log.log_id || log.status) return []; // welcomed already
+const email = welcomeEmail({ name: req.name, email: req.email });
+return [{
+  json: {
+    payload: {
+      from: email.from,
+      to: [req.email],
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      tags: [{ name: "type", value: "welcome" }],
+    },
+    idempotency_key: req.log_id,
+    log: { log_id: req.log_id, type: "welcome", uid: req.uid, to: req.email },
+  },
+}];`;
+
+x = 0;
+const welcome = workflow("12 - Welcome Email", [
+  node("Signup Webhook", "n8n-nodes-base.webhook", 2, {
+    httpMethod: "POST",
+    path: "user-welcome",
+    responseMode: "onReceived",
+    options: {},
+  }, { webhookId: "user-welcome" }),
+  code("Extract Bearer Token", EXTRACT_BEARER),
+  verifyFirebaseToken("Verify Firebase Token"),
+  code("Normalize User", NORMALIZE_NEW_USER),
+  firestoreGet("Load Email Log", "email_log", "={{ $json.log_id }}"),
+  code("Build Welcome", `${TEMPLATE}\n// ── glue ──\n${BUILD_WELCOME_GLUE}`),
+  resendSend("Send via Resend"),
+  code("Build Log Entry", logEntryCode("Build Welcome")),
+  firestoreUpsert("Save Email Log", "email_log", "log_id", ["log_id", "type", "status", "uid", "to", "resend_id", "error", "created_at"]),
+  code("Fail If Not Sent", FAIL_IF_NOT_SENT),
+]);
+
+// ───────────────────────────── Admin broadcast ─────────────────────────────
+
+export const CALLER = `const user = $json.users?.[0] ?? {};
+const uid = String(user.localId ?? "");
+if (!uid) return [];
+return [{
+  json: {
+    uid,
+    email: String(user.email ?? "").trim().toLowerCase(),
+    body: $("Extract Bearer Token").first().json.body ?? {},
+  },
+}];`;
+
+export const AUTHORIZE = `// Admin = the same three markers the rules' isAdmin() and the app's
+// checkIsAdmin() use. Anything else is dropped without a trace.
+const first = (name) => { try { return $(name).first()?.json ?? {}; } catch { return {}; } };
+const caller = first("Caller");
+const isAdmin = [first("Load Caller User"), first("Load Caller Admin"), first("Load Caller Memory")]
+  .some((doc) => doc && doc.admin === true);
+if (!isAdmin) return [];
+
+const body = caller.body ?? {};
+const ID = /^[A-Za-z0-9_-]{1,128}$/;
+const broadcastId = String(body.broadcast_id ?? "");
+const subject = String(body.subject ?? "").trim();
+const message = String(body.message ?? "").trim();
+const uids = Array.isArray(body.recipient_uids) ? body.recipient_uids.map(String) : [];
+if (!/^[A-Za-z0-9_-]{8,64}$/.test(broadcastId)) return [];
+if (!subject || subject.length > 150 || !message || message.length > 10000) return [];
+if (uids.length > 5000 || !uids.every((u) => ID.test(u))) return [];
+
+return [{
+  json: {
+    broadcast_id: broadcastId,
+    subject,
+    message,
+    test: body.test === true,
+    recipient_uids: uids,
+    caller_uid: caller.uid,
+    caller_email: caller.email,
+  },
+}];`;
+
+export const PREPARE_RECIPIENTS = `const EMAIL = ${EMAIL_RE};
+const req = $("Authorize").first().json;
+const all = (name) => { try { return $(name).all().map((i) => i.json); } catch { return []; } };
+const idOf = (doc) => String(doc.uid ?? doc._id ?? "");
+const users = new Map(all("All Users").filter((u) => u && idOf(u)).map((u) => [idOf(u), u]));
+const prefs = new Map(all("All Prefs").filter((p) => p && idOf(p)).map((p) => [idOf(p), p]));
+
+// Not cryptographic (crypto is unavailable in this sandbox). The worst a
+// guessed token allows is unsubscribing someone from announcements.
+const newToken = () => Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+
+// A test goes only to the admin who pressed the button, even if they have
+// unsubscribed themselves.
+const wanted = req.test ? [req.caller_uid] : [...new Set(req.recipient_uids)];
+const seenEmails = new Set();
+let skippedOptedOut = 0;
+let skippedNoEmail = 0;
+const recipients = [];
+for (const uid of wanted) {
+  const user = users.get(uid);
+  const email = String(user?.email ?? "").trim().toLowerCase();
+  if (!user || !EMAIL.test(email)) { skippedNoEmail += 1; continue; }
+  const pref = prefs.get(uid) ?? {};
+  if (pref.opted_out === true && !req.test) { skippedOptedOut += 1; continue; }
+  if (seenEmails.has(email)) continue;
+  seenEmails.add(email);
+  recipients.push({
+    uid,
+    email,
+    name: String(user.displayName ?? ""),
+    unsubscribe_token: String(pref.unsubscribe_token ?? "") || newToken(),
+    // Written back unchanged with the token, so saving a token can never
+    // clear someone's opt-out, whatever the upsert's merge behaviour.
+    opted_out: pref.opted_out === true,
+  });
 }
 
-export { confirmation, summary, TEMPLATE };
+const stats = { requested: wanted.length, skipped_opted_out: skippedOptedOut, skipped_no_email: skippedNoEmail };
+if (!recipients.length) return [{ json: { empty: true, ...stats } }];
+return recipients.map((r) => ({ json: { ...r, ...stats } }));`;
+
+export const BUILD_BATCHES_GLUE = `
+const req = $("Authorize").first().json;
+const recipients = $("Prepare Recipients").all().map((i) => i.json);
+const subject = req.test ? \`[Test] \${req.subject}\` : req.subject;
+const payloads = recipients.map((r) => {
+  const email = broadcastEmail({
+    subject,
+    message: req.message,
+    recipient: { uid: r.uid, name: r.name, email: r.email, token: r.unsubscribe_token },
+  });
+  return {
+    from: email.from,
+    to: [r.email],
+    subject: email.subject,
+    html: email.html,
+    text: email.text,
+    headers: email.headers,
+    tags: [{ name: "type", value: req.test ? "broadcast_test" : "broadcast" }],
+  };
+});
+// Resend's batch endpoint takes up to 100 emails per call.
+const batches = [];
+for (let i = 0; i < payloads.length; i += 100) {
+  batches.push({ json: { batch: payloads.slice(i, i + 100), idempotency_key: \`\${req.broadcast_id}-\${i / 100}\` } });
+}
+return batches;`;
+
+export const SUMMARIZE_BROADCAST = `const req = $("Authorize").first().json;
+const stats = $("Prepare Recipients").first().json;
+const batches = $("Build Batches").all().map((i) => i.json.batch.length);
+let sent = 0;
+let failed = 0;
+const errors = [];
+$input.all().forEach((item, i) => {
+  const res = item.json ?? {};
+  if (Array.isArray(res.data)) sent += res.data.length;
+  else {
+    failed += batches[i] ?? 0;
+    errors.push(String(res.error?.message ?? res.message ?? res.error ?? "unknown").slice(0, 200));
+  }
+});
+return [{
+  json: {
+    broadcast_id: req.broadcast_id,
+    status: failed === 0 ? "sent" : sent > 0 ? "partial" : "failed",
+    subject: req.subject,
+    test: req.test,
+    requested: stats.requested,
+    sent,
+    failed,
+    skipped_opted_out: stats.skipped_opted_out,
+    skipped_no_email: stats.skipped_no_email,
+    error: errors.join(" | ").slice(0, 500),
+    sent_by_uid: req.caller_uid,
+    sent_by_email: req.caller_email,
+    created_at: new Date().toISOString(),
+  },
+}];`;
+
+export const NOTHING_TO_SEND = `const req = $("Authorize").first().json;
+const stats = $input.first().json;
+return [{
+  json: {
+    broadcast_id: req.broadcast_id,
+    status: "empty",
+    subject: req.subject,
+    test: req.test,
+    requested: stats.requested ?? 0,
+    sent: 0,
+    failed: 0,
+    skipped_opted_out: stats.skipped_opted_out ?? 0,
+    skipped_no_email: stats.skipped_no_email ?? 0,
+    error: "",
+    sent_by_uid: req.caller_uid,
+    sent_by_email: req.caller_email,
+    created_at: new Date().toISOString(),
+  },
+}];`;
+
+export const FAIL_IF_BROADCAST_FAILED = `// The result is saved first so the admin page shows what happened; then a
+// failure is raised for Failure Alerts.
+// Read the result from whichever branch ran, not from the database write's
+// response, whose shape is not guaranteed.
+const pick = (name) => { try { return $(name).first()?.json; } catch { return undefined; } };
+const result = pick("Summarize") ?? pick("Nothing To Send") ?? $input.first().json;
+if (result.status === "failed" || result.status === "partial") {
+  throw new Error(\`Broadcast \${result.broadcast_id}: \${result.failed} failed — \${result.error}\`);
+}
+return $input.all();`;
+
+const BROADCAST_COLUMNS = [
+  "broadcast_id", "status", "subject", "test", "requested", "sent", "failed",
+  "skipped_opted_out", "skipped_no_email", "error", "sent_by_uid", "sent_by_email", "created_at",
+];
+
+x = 0;
+const broadcastNodes = [
+  node("Broadcast Webhook", "n8n-nodes-base.webhook", 2, {
+    httpMethod: "POST",
+    path: "admin-broadcast",
+    // The admin page follows progress through broadcasts/{id}, so answer now
+    // rather than holding the request open while batches send.
+    responseMode: "onReceived",
+    options: {},
+  }, { webhookId: "admin-broadcast" }),
+  code("Extract Bearer Token", EXTRACT_BEARER),
+  verifyFirebaseToken("Verify Firebase Token"),
+  code("Caller", CALLER),
+  firestoreGet("Load Caller User", "users", "={{ $json.uid }}"),
+  firestoreGet("Load Caller Admin", "admins", "={{ $('Caller').first().json.email || 'no-email' }}"),
+  firestoreGet("Load Caller Memory", "workspace_memory", "={{ $('Caller').first().json.uid }}"),
+  code("Authorize", AUTHORIZE),
+  node("All Users", "n8n-nodes-base.googleFirebaseCloudFirestore", 1.1, {
+    authentication: "serviceAccount", operation: "getAll", projectId: PROJECT_ID, collection: "users", returnAll: true,
+  }, { executeOnce: true, alwaysOutputData: true, onError: "continueRegularOutput", credentials: FIRESTORE }),
+  node("All Prefs", "n8n-nodes-base.googleFirebaseCloudFirestore", 1.1, {
+    authentication: "serviceAccount", operation: "getAll", projectId: PROJECT_ID, collection: "email_prefs", returnAll: true,
+  }, { executeOnce: true, alwaysOutputData: true, onError: "continueRegularOutput", credentials: FIRESTORE }),
+  code("Prepare Recipients", PREPARE_RECIPIENTS),
+  ifPositive("Has Recipients", "={{ $json.empty ? 0 : 1 }}"),
+  firestoreUpsert("Save Unsubscribe Tokens", "email_prefs", "uid", ["uid", "unsubscribe_token", "opted_out"]),
+  code("Build Batches", `${TEMPLATE}\n// ── glue ──\n${BUILD_BATCHES_GLUE}`, { executeOnce: true }),
+  resendSend("Send Batch", { url: "https://api.resend.com/emails/batch", body: "={{ JSON.stringify($json.batch) }}" }),
+  code("Summarize", SUMMARIZE_BROADCAST),
+  code("Nothing To Send", NOTHING_TO_SEND),
+  firestoreUpsert("Save Result", "broadcasts", "broadcast_id", BROADCAST_COLUMNS),
+  code("Fail If Broadcast Failed", FAIL_IF_BROADCAST_FAILED),
+];
+const broadcastConnections = {};
+[
+  "Broadcast Webhook", "Extract Bearer Token", "Verify Firebase Token", "Caller", "Load Caller User",
+  "Load Caller Admin", "Load Caller Memory", "Authorize", "All Users", "All Prefs", "Prepare Recipients", "Has Recipients",
+].reduce((prev, next) => (link(broadcastConnections, prev, next), next));
+link(broadcastConnections, "Has Recipients", "Save Unsubscribe Tokens", 0);
+link(broadcastConnections, "Save Unsubscribe Tokens", "Build Batches");
+link(broadcastConnections, "Build Batches", "Send Batch");
+link(broadcastConnections, "Send Batch", "Summarize");
+link(broadcastConnections, "Summarize", "Save Result");
+link(broadcastConnections, "Has Recipients", "Nothing To Send", 1);
+link(broadcastConnections, "Nothing To Send", "Save Result");
+link(broadcastConnections, "Save Result", "Fail If Broadcast Failed");
+const broadcast = workflow("13 - Admin Broadcast", broadcastNodes, broadcastConnections);
+
+// ─────────────────────────────── Unsubscribe ───────────────────────────────
+
+export const VALIDATE_UNSUBSCRIBE = `// From the confirm page (JSON body) or Gmail/Yahoo one-click (query string,
+// form body "List-Unsubscribe=One-Click").
+const q = $json.query ?? {};
+const b = typeof $json.body === "object" && $json.body ? $json.body : {};
+const uid = String(q.u ?? b.u ?? "");
+const token = String(q.t ?? b.t ?? "");
+const ok = /^[A-Za-z0-9_-]{1,128}$/.test(uid) && /^[a-f0-9]{16,64}$/.test(token);
+return [{ json: { ok, uid: ok ? uid : "", token: ok ? token : "" } }];`;
+
+export const CHECK_TOKEN = `const req = $("Validate").first().json;
+const pref = $input.first()?.json ?? {};
+const valid = req.ok && typeof pref.unsubscribe_token === "string" && pref.unsubscribe_token === req.token;
+if (!valid) return [{ json: { valid: 0 } }];
+return [{
+  json: {
+    valid: 1,
+    uid: req.uid,
+    unsubscribe_token: req.token,
+    opted_out: true,
+    opted_out_at: new Date().toISOString(),
+  },
+}];`;
+
+x = 0;
+const unsubscribeNodes = [
+  node("Unsubscribe Webhook", "n8n-nodes-base.webhook", 2, {
+    httpMethod: "POST",
+    path: "email-unsubscribe",
+    responseMode: "responseNode",
+    options: {},
+  }, { webhookId: "email-unsubscribe" }),
+  code("Validate", VALIDATE_UNSUBSCRIBE),
+  firestoreGet("Load Prefs", "email_prefs", "={{ $json.uid || 'invalid' }}"),
+  code("Check Token", CHECK_TOKEN),
+  ifPositive("Valid Link", "={{ $json.valid }}"),
+  firestoreUpsert("Save Opt-out", "email_prefs", "uid", ["uid", "unsubscribe_token", "opted_out", "opted_out_at"]),
+  respond("Respond Unsubscribed", "{ ok: true }", 200),
+  respond("Respond Invalid", "{ ok: false, error: 'This unsubscribe link is not valid.' }", 400),
+];
+const unsubscribeConnections = {};
+["Unsubscribe Webhook", "Validate", "Load Prefs", "Check Token", "Valid Link"]
+  .reduce((prev, next) => (link(unsubscribeConnections, prev, next), next));
+link(unsubscribeConnections, "Valid Link", "Save Opt-out", 0);
+link(unsubscribeConnections, "Save Opt-out", "Respond Unsubscribed");
+link(unsubscribeConnections, "Valid Link", "Respond Invalid", 1);
+const unsubscribe = workflow("14 - Email Unsubscribe", unsubscribeNodes, unsubscribeConnections);
+
+const OUTPUTS = {
+  "webinar-registration-confirmation-workflow.json": confirmation,
+  "webinar-morning-summary-workflow.json": summary,
+  "welcome-email-workflow.json": welcome,
+  "admin-broadcast-workflow.json": broadcast,
+  "email-unsubscribe-workflow.json": unsubscribe,
+};
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const outDir = join(here, "..");
+  for (const [file, wf] of Object.entries(OUTPUTS)) {
+    writeFileSync(join(outDir, file), `${JSON.stringify(wf, null, 2)}\n`);
+    console.log(`wrote n8n/${file}`);
+  }
+}
+
+export { confirmation, summary, welcome, broadcast, unsubscribe, TEMPLATE };

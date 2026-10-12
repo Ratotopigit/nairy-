@@ -19,7 +19,7 @@ Sent through Resend from `hello@webinarstackai.com`, display name `"<presenter> 
 
 ## Editing
 
-Edit `webinar-emails.js` (the templates) or `build-workflows.mjs` (the workflow logic), then:
+Edit `templates.js` (the templates) or `build-workflows.mjs` (the workflow logic), then:
 
 ```
 node n8n/email/build-workflows.mjs

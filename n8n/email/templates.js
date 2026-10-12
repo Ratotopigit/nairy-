@@ -19,6 +19,13 @@ const BRAND = {
   site: "https://webinarstackai.com",
   fromAddress: "hello@webinarstackai.com",
   product: "Webinar Stack",
+  // Sender identification in bulk-email footers (Australia's Spam Act). Add a
+  // postal address here before emailing US recipients (CAN-SPAM requires one).
+  company: "Explosion Marketing International",
+  postalAddress: "",
+  // One-click unsubscribe must accept a POST, which the static site cannot,
+  // so List-Unsubscribe points straight at the n8n webhook.
+  webhookBase: "https://explosionmarketing.app.n8n.cloud/webhook",
 };
 
 const COLORS = {
@@ -351,7 +358,134 @@ ${sections}`;
   };
 }
 
-// Exported for the local preview/test script; n8n ignores this.
+/**
+ * Sent once, the first time a genuinely new account signs in.
+ * @param {{name: string, email: string}} input
+ */
+function welcomeEmail({ name, email }) {
+  const steps = [
+    ["Find your ideal buyer", "Brainstorm with the AI in Webinar Chat and build a buyer blueprint.", "/provider/webinar-chat"],
+    ["Shape your offer", "Turn that blueprint into a clear, priced offer in Webinar Offer.", "/provider/webinar-offer"],
+    ["Create your presentation", "Generate a slide deck in Webinar Content, then download it as PowerPoint or PDF.", "/provider/webinar-content"],
+    ["Add your brand", "Upload your logo, colours and documents so everything looks like you.", "/provider/webinar-upload"],
+    ["Get registrations", "Publish a registration page with a live countdown and share the link.", "/provider/webinars"],
+  ];
+
+  const subject = `Welcome to ${BRAND.product}, ${firstName(name)}`;
+  const preheader = "Here's how to go from idea to a webinar people sign up for.";
+
+  const stepsHtml = steps
+    .map(([title, text, path], i) => `<tr>
+<td valign="top" style="padding:0 12px 16px 0;width:28px;">
+<div style="width:26px;height:26px;border-radius:13px;background:${COLORS.button};color:#ffffff;font:700 13px/26px Arial,Helvetica,sans-serif;text-align:center;">${i + 1}</div>
+</td>
+<td valign="top" style="padding:0 0 16px;">
+<a href="${esc(BRAND.site + path)}" style="font-weight:700;color:${COLORS.ink};text-decoration:none;">${esc(title)}</a>
+<div style="font-size:14px;color:${COLORS.muted};">${esc(text)}</div>
+</td></tr>`)
+    .join("");
+
+  const body = `<p style="margin:0 0 12px;">Hi ${esc(firstName(name))},</p>
+<p style="margin:0 0 22px;">Welcome to ${esc(BRAND.product)}. Everything you need to plan, build and fill a webinar is in one place. Here's what you can do:</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${stepsHtml}</table>
+${button(`${BRAND.site}/provider`, "Open your workspace")}
+<p style="margin:22px 0 0;font-size:14px;color:${COLORS.muted};">Tip: start with Webinar Chat. Everything you tell it carries through to your offer and your slides.</p>`;
+
+  const footer = `You're receiving this because ${esc(email)} was used to create an account at webinarstackai.com.<br>Sent by ${esc(BRAND.product)}, ${esc(BRAND.company)}.`;
+
+  const text = [
+    `Hi ${firstName(name)},`,
+    "",
+    `Welcome to ${BRAND.product}. Here's what you can do:`,
+    "",
+    ...steps.map(([title, line, path], i) => `${i + 1}. ${title}: ${line}\n   ${BRAND.site}${path}`),
+    "",
+    `Open your workspace: ${BRAND.site}/provider`,
+    "",
+    "Tip: start with Webinar Chat. Everything you tell it carries through to your offer and your slides.",
+    "",
+    "--",
+    `You're receiving this because ${email} was used to create an account at webinarstackai.com.`,
+    `Sent by ${BRAND.product}, ${BRAND.company}.`,
+  ].join("\n");
+
+  return {
+    from: `"${BRAND.product}" <${BRAND.fromAddress}>`,
+    subject,
+    html: layout({ preheader, body, footer }),
+    text,
+    attachments: [],
+  };
+}
+
+function unsubscribeLinks(uid, token) {
+  const q = `u=${encodeURIComponent(uid)}&t=${encodeURIComponent(token)}`;
+  return {
+    // What a person clicks: a page that asks them to confirm. Never
+    // unsubscribe on a plain GET — mail scanners pre-open links.
+    page: `${BRAND.site}/unsubscribe?${q}`,
+    // What Gmail/Yahoo call for one-click unsubscribe (RFC 8058): a POST.
+    oneClick: `${BRAND.webhookBase}/email-unsubscribe?${q}`,
+  };
+}
+
+/** Escapes, then links bare https URLs. Only for admin-written text. */
+function linkify(escapedText) {
+  return escapedText.replace(
+    /https:\/\/[^\s<>"']+[^\s<>"'.,;:!?)]/g,
+    (url) => `<a href="${url}" style="color:${COLORS.button};">${url}</a>`,
+  );
+}
+
+/**
+ * An admin's announcement to users. The message is plain text: blank lines
+ * become paragraphs, https links become clickable, and {first_name} is
+ * replaced per recipient.
+ * @param {{subject: string, message: string, recipient: {uid: string, name: string, email: string, token: string}}} input
+ */
+function broadcastEmail({ subject, message, recipient }) {
+  const personalise = (s) => String(s ?? "").replace(/\{first_name\}/g, firstName(recipient.name));
+  const cleanSubject = clip(personalise(subject), 150);
+  const paragraphs = personalise(message)
+    .replace(/\r\n/g, "\n")
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const links = unsubscribeLinks(recipient.uid, recipient.token);
+
+  const body = paragraphs
+    .map((p) => `<p style="margin:0 0 14px;">${linkify(esc(p)).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+
+  const identity = [BRAND.company, BRAND.postalAddress].filter(Boolean).map(esc).join(", ");
+  const footer = `You're receiving this because you have a ${esc(BRAND.product)} account.<br><a href="${esc(links.page)}" style="color:${COLORS.muted};">Unsubscribe from these emails</a> · ${identity}`;
+
+  const text = [
+    ...paragraphs,
+    "",
+    "--",
+    `You're receiving this because you have a ${BRAND.product} account.`,
+    `Unsubscribe: ${links.page}`,
+    [BRAND.company, BRAND.postalAddress].filter(Boolean).join(", "),
+  ].join("\n\n").replace(/\n{3,}/g, "\n\n");
+
+  return {
+    from: `"${BRAND.product}" <${BRAND.fromAddress}>`,
+    subject: cleanSubject,
+    html: layout({ preheader: paragraphs[0] ? clip(paragraphs[0], 110) : cleanSubject, body, footer }),
+    text,
+    attachments: [],
+    headers: {
+      "List-Unsubscribe": `<${links.oneClick}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
+  };
+}
+
+// Exported for the local preview/test script and the admin preview; n8n ignores this.
 if (typeof module !== "undefined") {
-  module.exports = { confirmationEmail, digestEmail, senderName, safeTimezone, sessionParts, esc, toBase64 };
+  module.exports = {
+    confirmationEmail, digestEmail, welcomeEmail, broadcastEmail, unsubscribeLinks,
+    senderName, safeTimezone, sessionParts, esc, toBase64,
+  };
 }
