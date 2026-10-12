@@ -33,15 +33,22 @@ import {
 } from "@/lib/deck";
 import { askAssistant, type AssistantActions } from "@/lib/assistant";
 import { HANDOFF } from "@/lib/creation-handoff";
-import { buildSlideArt, mergeSlideArt } from "@/lib/slide-art-store";
 import { downloadDeckPdf } from "@/lib/deck-pdf";
 import { StatusLine, type StatusState } from "@/components/deck/StatusLine";
+import {
+  linkBlueprintToContent,
+  listBlueprintSessions,
+  loadContentSession,
+  loadLatestContentSession,
+  saveContentSession,
+  slidesFromSession,
+  type ContentSessionDoc,
+} from "@/lib/content-session";
 import { extractPalette, removeBackground } from "@/lib/image";
 import { exportPptx } from "@/lib/pptx";
 import { isSessionUuid } from "@/lib/chat-history";
 import { resolveArtForExport } from "@/lib/deck-art";
-import { auth, db } from "@/lib/firebase/config";
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { auth } from "@/lib/firebase/config";
 import { loadStudioContext } from "@/lib/workspace-context";
 import { saveWorkspaceMemory } from "@/lib/workspace-memory";
 
@@ -240,25 +247,7 @@ export default function Builder() {
           if (!selectedAsset && latestVisual?.signedUrl) setImage(latestVisual.signedUrl);
           if (latestLogo?.signedUrl) setLogo(latestLogo.signedUrl);
 
-          let buyerSessions: Array<{ session_id?: string; blueprint?: Record<string, unknown>; updated_at?: string }> = [];
-          try {
-            const q = query(
-              collection(db, "blueprint_sessions"),
-              where("owner_id", "==", user.uid)
-            );
-            const snap = await getDocs(q);
-            buyerSessions = snap.docs.map((d) => d.data() as any);
-            buyerSessions.sort((a, b) => {
-              const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-              const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-              return tB - tA;
-            });
-            if (handedSession) {
-              buyerSessions = buyerSessions.filter((s) => s.session_id === handedSession);
-            }
-          } catch (e) {
-            console.warn("Blueprint query failed:", e);
-          }
+          const buyerSessions = await listBlueprintSessions(user.uid, handedSession);
 
           const buyerSession = buyerSessions[0];
           blueprint ??= (buyerSession?.blueprint as Record<string, unknown> | undefined)
@@ -271,57 +260,19 @@ export default function Builder() {
         }
       }
 
-      let savedContent: {
-        project_id?: string;
-        slides?: unknown;
-        messages?: unknown;
-        theme?: unknown;
-        brief?: unknown;
-        slide_art?: unknown;
-      } | null = (localSessionData as unknown as {
-        project_id?: string;
-        slides?: unknown;
-        messages?: unknown;
-        theme?: unknown;
-        brief?: unknown;
-        slide_art?: unknown;
-      }) ?? null;
+      // One shape for a deck record, defined in lib/content-session.ts.
+      let savedContent: ContentSessionDoc | null =
+        (localSessionData as ContentSessionDoc | null) ?? null;
 
       if (user) {
         if (requestedProjectId) {
-          // Decks are keyed by the bare project UUID, which is what the n8n
-          // workflow upserts. The prefixed id is the pre-Firebase layout.
-          for (const docId of [requestedProjectId, `${user.uid}_${requestedProjectId}`]) {
-            try {
-              const docSnap = await getDoc(doc(db, "content_sessions", docId));
-              if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (Array.isArray(data?.slides) && data.slides.length > 0) {
-                  savedContent = data as any;
-                  break;
-                }
-              }
-            } catch {}
-          }
+          savedContent = (await loadContentSession(user.uid, requestedProjectId)) ?? savedContent;
         }
-        if (requestedProjectId && (!savedContent?.slides || !Array.isArray(savedContent.slides) || savedContent.slides.length === 0)) {
-          try {
-            const q = query(
-              collection(db, "content_sessions"),
-              where("owner_id", "==", user.uid)
-            );
-            const snap = await getDocs(q);
-            const allSessions = snap.docs.map((d) => d.data() as any);
-            allSessions.sort((a, b) => {
-              const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-              const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-              return tB - tA;
-            });
-            const fallbackContent = allSessions[0];
-            if (fallbackContent?.slides && Array.isArray(fallbackContent.slides) && fallbackContent.slides.length > 0) {
-              savedContent = fallbackContent;
-            }
-          } catch {}
+        if (requestedProjectId && !(Array.isArray(savedContent?.slides) && savedContent.slides.length > 0)) {
+          // Behaviour preserved from before the extraction: a requested deck
+          // with no slides falls back to the newest deck that has some. Note
+          // this can hand back a DIFFERENT project than the one asked for.
+          savedContent = (await loadLatestContentSession(user.uid)) ?? savedContent;
         }
       }
 
@@ -406,9 +357,8 @@ export default function Builder() {
         if (typeof rememberedTheme?.palette === "string") setPaletteId(rememberedTheme.palette);
         if (Array.isArray(savedContent?.messages)) setMessages(savedContent.messages as ChatMessage[]);
         setSlideCount(String(rememberedSlides.length));
-        // n8n may have saved these slides with their images nulled out, so
-        // restore the art it could not overwrite. See lib/slide-art-store.ts.
-        setSlides(mergeSlideArt(rememberedSlides, savedContent?.slide_art));
+        // Never read `.slides` raw: n8n saves them with images nulled out.
+        setSlides(slidesFromSession(savedContent));
         setSelectedId(rememberedSlides[0]?.id ?? null);
       } else if (slides.length === 0 && sessionStorage.getItem(HANDOFF.intent) === "ideas") {
         setPurpose("Sales");
@@ -433,15 +383,12 @@ export default function Builder() {
     const sessionPayload = {
       project_id: projectId,
       blueprint_session_id: blueprintSessionId,
-      status: slides.length ? "completed" : "draft",
+      status: slides.length ? ("completed" as const) : ("draft" as const),
       title: slides[0]?.title || "Untitled presentation",
       brief: { description, purpose, slide_count: slideCount },
       slides,
       messages,
       theme: { style: styleId, font_set: fontSetId, palette: paletteId, ratio, motion },
-      // Outside `slides` on purpose — n8n overwrites slides without images.
-      // See lib/slide-art-store.ts.
-      slide_art: buildSlideArt(slides),
       last_error: null,
       updated_at: new Date().toISOString(),
     };
@@ -450,14 +397,7 @@ export default function Builder() {
     const timeout = window.setTimeout(() => {
       const user = auth.currentUser;
       if (!user) return;
-      void setDoc(
-        doc(db, "content_sessions", projectId),
-        {
-          ...sessionPayload,
-          owner_id: user.uid,
-        },
-        { merge: true }
-      )
+      void saveContentSession(user.uid, { ...sessionPayload, project_id: projectId, slides })
         .then(() => {
           // Clear only our own warning, never an unrelated export error.
           setStatus((current) =>
@@ -625,7 +565,7 @@ export default function Builder() {
       const sessionPayload = {
         project_id: activeProjectId,
         blueprint_session_id: blueprintSessionId,
-        status: "completed",
+        status: "completed" as const,
         title: generatedSlides[0]?.title || "Untitled presentation",
         brief: { description: activeDescription, purpose: remote.purpose ?? purpose, slide_count: generatedSlides.length },
         slides: generatedSlides,
@@ -637,8 +577,6 @@ export default function Builder() {
           ratio: remote.ratio ?? ratio,
           motion,
         },
-        // See lib/slide-art-store.ts — survives n8n's write of `slides`.
-        slide_art: buildSlideArt(generatedSlides),
         last_error: null,
         updated_at: new Date().toISOString(),
       };
@@ -659,31 +597,18 @@ export default function Builder() {
               motion,
             },
           }),
-          setDoc(
-            doc(db, "content_sessions", activeProjectId),
-            {
-              ...sessionPayload,
-              owner_id: user.uid,
-            },
-            { merge: true }
-          ),
+          saveContentSession(user.uid, {
+            ...sessionPayload,
+            project_id: activeProjectId,
+            slides: generatedSlides,
+          }),
           // Reverse pointer, so a conversation can find the deck it produced.
           // The deck already stores blueprint_session_id; without this the link
           // only existed as a one-shot sessionStorage hop and was lost on
           // reload. `content_project_id` is not in the n8n Save Buyer Project
           // column list, so the workflow cannot overwrite it.
           ...(blueprintSessionId
-            ? [
-                setDoc(
-                  doc(db, "blueprint_sessions", blueprintSessionId),
-                  {
-                    owner_id: user.uid,
-                    content_project_id: activeProjectId,
-                    updated_at: new Date().toISOString(),
-                  },
-                  { merge: true },
-                ),
-              ]
+            ? [linkBlueprintToContent(user.uid, blueprintSessionId, activeProjectId)]
             : []),
         ]).catch(() => {});
         sessionStorage.setItem(contentProjectKey(user.uid), activeProjectId);
