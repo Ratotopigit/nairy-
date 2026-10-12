@@ -33,6 +33,8 @@ import {
 } from "@/lib/deck";
 import { askAssistant, type AssistantActions } from "@/lib/assistant";
 import { HANDOFF } from "@/lib/creation-handoff";
+import { buildSlideArt, mergeSlideArt } from "@/lib/slide-art-store";
+import { downloadDeckPdf } from "@/lib/deck-pdf";
 import { extractPalette, removeBackground } from "@/lib/image";
 import { exportPptx } from "@/lib/pptx";
 import { isSessionUuid } from "@/lib/chat-history";
@@ -274,12 +276,14 @@ export default function Builder() {
         messages?: unknown;
         theme?: unknown;
         brief?: unknown;
+        slide_art?: unknown;
       } | null = (localSessionData as unknown as {
         project_id?: string;
         slides?: unknown;
         messages?: unknown;
         theme?: unknown;
         brief?: unknown;
+        slide_art?: unknown;
       }) ?? null;
 
       if (user) {
@@ -401,7 +405,9 @@ export default function Builder() {
         if (typeof rememberedTheme?.palette === "string") setPaletteId(rememberedTheme.palette);
         if (Array.isArray(savedContent?.messages)) setMessages(savedContent.messages as ChatMessage[]);
         setSlideCount(String(rememberedSlides.length));
-        setSlides(rememberedSlides);
+        // n8n may have saved these slides with their images nulled out, so
+        // restore the art it could not overwrite. See lib/slide-art-store.ts.
+        setSlides(mergeSlideArt(rememberedSlides, savedContent?.slide_art));
         setSelectedId(rememberedSlides[0]?.id ?? null);
       } else if (slides.length === 0 && sessionStorage.getItem(HANDOFF.intent) === "ideas") {
         setPurpose("Sales");
@@ -432,6 +438,9 @@ export default function Builder() {
       slides,
       messages,
       theme: { style: styleId, font_set: fontSetId, palette: paletteId, ratio, motion },
+      // Outside `slides` on purpose — n8n overwrites slides without images.
+      // See lib/slide-art-store.ts.
+      slide_art: buildSlideArt(slides),
       last_error: null,
       updated_at: new Date().toISOString(),
     };
@@ -608,6 +617,8 @@ export default function Builder() {
           ratio: remote.ratio ?? ratio,
           motion,
         },
+        // See lib/slide-art-store.ts — survives n8n's write of `slides`.
+        slide_art: buildSlideArt(generatedSlides),
         last_error: null,
         updated_at: new Date().toISOString(),
       };
@@ -636,6 +647,24 @@ export default function Builder() {
             },
             { merge: true }
           ),
+          // Reverse pointer, so a conversation can find the deck it produced.
+          // The deck already stores blueprint_session_id; without this the link
+          // only existed as a one-shot sessionStorage hop and was lost on
+          // reload. `content_project_id` is not in the n8n Save Buyer Project
+          // column list, so the workflow cannot overwrite it.
+          ...(blueprintSessionId
+            ? [
+                setDoc(
+                  doc(db, "blueprint_sessions", blueprintSessionId),
+                  {
+                    owner_id: user.uid,
+                    content_project_id: activeProjectId,
+                    updated_at: new Date().toISOString(),
+                  },
+                  { merge: true },
+                ),
+              ]
+            : []),
         ]).catch(() => {});
         sessionStorage.setItem(contentProjectKey(user.uid), activeProjectId);
       }
@@ -775,6 +804,43 @@ export default function Builder() {
     }
   };
 
+  const handleExportPdf = async () => {
+    setStatus("Building PDF…");
+    try {
+      await downloadDeckPdf(
+        slides,
+        palette,
+        `${(slides[0]?.title || description.split(/[.\n]/)[0] || "presentation").slice(0, 40).trim()}.pdf`,
+      );
+      setStatus(`Downloaded PDF — ${slides.length} slides`);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "";
+      console.error("pdf export failed:", error);
+      setStatus(detail ? `Could not build the PDF — ${detail}` : "Could not build the PDF");
+    }
+  };
+
+  /**
+   * Starts an empty deck. The current one is already saved under its own
+   * project id, so it stays reachable from History rather than being lost.
+   */
+  const handleNewDeck = () => {
+    if (slides.length && !window.confirm("Start a new presentation? Your current deck stays saved in History.")) {
+      return;
+    }
+    try {
+      sessionStorage.removeItem(HANDOFF.autoBuild);
+      sessionStorage.removeItem(HANDOFF.prompt);
+      sessionStorage.removeItem(HANDOFF.idea);
+      localStorage.removeItem("astrocraft:last-content-project");
+      const user = auth.currentUser;
+      if (user) sessionStorage.removeItem(contentProjectKey(user.uid));
+    } catch {}
+    // A full navigation rather than local state resets: the loader reads
+    // storage on mount, so clearing state in place would be undone by it.
+    window.location.href = "/provider/webinar-content";
+  };
+
   const addSlide = () => {
     const base = generateDeck({ purpose, count: 10, company: description, hasImage: Boolean(image) });
     const pick = { ...base[slides.length % base.length]!, id: `s${Date.now().toString(36)}` };
@@ -826,7 +892,9 @@ export default function Builder() {
         hasContent={hasContent}
         onGenerate={handleGenerate}
         onExport={() => void handleExport()}
+        onExportPdf={() => void handleExportPdf()}
         onHistory={() => setHistoryOpen(true)}
+        onNew={handleNewDeck}
       />
 
       <DeckHistory
