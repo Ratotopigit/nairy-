@@ -16,9 +16,11 @@ const TEMPLATE = readFileSync(join(here, "templates.js"), "utf8");
 
 const PROJECT_ID = "nirey-f2faf";
 const FIRESTORE = { googleApi: { id: "LeMY3R0pzOuv9c8N", name: "Firebase Service Account" } };
-// Created by the user in n8n (Header Auth: Authorization = "Bearer re_…").
-// On import n8n asks which credential to use if this id does not exist.
-const RESEND = { httpHeaderAuth: { id: "REPLACE_WITH_RESEND_CREDENTIAL", name: "Resend API key" } };
+// Emails go out through the Explosion Marketing Google Workspace account,
+// connected in n8n with "Sign in with Google" (Gmail OAuth2). The From address
+// is whichever account is connected. On import n8n asks which credential to
+// use if this id does not exist.
+const GMAIL = { gmailOAuth2: { id: "REPLACE_WITH_GMAIL_CREDENTIAL", name: "Explosion Marketing Gmail" } };
 const FAILURE_ALERTS_WORKFLOW = "NF9VQqswnNCjyYGc"; // "08 - Failure Alerts", as on the other workflows
 const EMAIL_RE = "/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/";
 
@@ -56,31 +58,46 @@ const firestoreUpsert = (name, collection, updateKey, columns) =>
     columns: columns.join(","),
   }, { credentials: FIRESTORE });
 
-const resendSend = (name, { url = "https://api.resend.com/emails", body = "={{ JSON.stringify($json.payload) }}" } = {}) =>
-  node(name, "n8n-nodes-base.httpRequest", 4.2, {
-    method: "POST",
-    url,
-    authentication: "genericCredentialType",
-    genericAuthType: "httpHeaderAuth",
-    sendHeaders: true,
-    headerParameters: {
-      // Resend drops a repeat send with the same key, closing the race where
-      // two triggers arrive before either has written its log entry.
-      parameters: [{ name: "Idempotency-Key", value: "={{ $json.idempotency_key }}" }],
+/**
+ * One email per input item, through Gmail. `replyTo` routes replies to the
+ * webinar owner; `invite` attaches the binary property "invite" (.ics).
+ */
+const emailSend = (name, { replyTo = false, invite = false } = {}) =>
+  node(name, "n8n-nodes-base.gmail", 2.1, {
+    resource: "message",
+    operation: "send",
+    sendTo: "={{ $json.payload.to }}",
+    subject: "={{ $json.payload.subject }}",
+    emailType: "html",
+    message: "={{ $json.payload.html }}",
+    options: {
+      appendAttribution: false,
+      senderName: "={{ $json.payload.senderName }}",
+      ...(replyTo ? { replyTo: "={{ $json.payload.replyTo }}" } : {}),
+      ...(invite ? { attachmentsUi: { attachmentsBinary: [{ property: "invite" }] } } : {}),
     },
-    sendBody: true,
-    specifyBody: "json",
-    jsonBody: body,
-    options: { timeout: 30000 },
   }, {
-    // Failures are recorded in the log and re-raised at the end, so they still
-    // reach the Failure Alerts workflow.
+    // Failures are recorded and re-raised at the end, so they still reach the
+    // Failure Alerts workflow.
     onError: "continueRegularOutput",
-    credentials: RESEND,
+    credentials: GMAIL,
   });
 
 const code = (name, jsCode, extra = {}) =>
   node(name, "n8n-nodes-base.code", 2, { jsCode }, extra);
+
+/**
+ * Prepended to every node that reads a send result. A successful Gmail send
+ * returns the message { id, threadId, labelIds }; a failure (with "continue on
+ * error") returns { error }.
+ */
+const OUTCOME = `function sendOutcome(res) {
+  if (res && typeof res.id === "string" && res.id.length > 0) return { ok: true, detail: res.id };
+  const err = res && res.error;
+  const message = String((err && (err.message ?? err.description)) ?? err ?? (res && res.message) ?? "unknown");
+  return { ok: false, detail: message.slice(0, 300) };
+}
+`;
 
 const chain = (nodes) => {
   const connections = {};
@@ -187,21 +204,21 @@ const email = confirmationEmail({
   registrant: { name: registrant.name, email: to },
   timezone: req.timezone,
 });
-const payload = {
-  from: email.from,
-  to: [to],
-  subject: email.subject,
-  html: email.html,
-  text: email.text,
-  tags: [{ name: "type", value: "registration_confirmation" }],
-};
-// Replies reach the webinar's owner, not a shared inbox.
-if (ownerEmail) payload.reply_to = ownerEmail;
-if (email.attachments.length) payload.attachments = email.attachments;
+// Replies reach the webinar's owner, not a shared inbox. With no owner email
+// they fall back to the sending account itself.
+const payload = gmailPayload(email, { to, replyTo: ownerEmail || undefined });
+
+// The .ics invite travels as n8n binary data for the Gmail node to attach.
+const invite = email.attachments[0];
+const binary = invite
+  ? { invite: { data: invite.content, mimeType: invite.type, fileName: invite.filename } }
+  : undefined;
 
 return [{
+  ...(binary ? { binary } : {}),
   json: {
     payload,
+    has_invite: binary ? 1 : 0,
     idempotency_key: req.log_id,
     log: {
       log_id: req.log_id,
@@ -219,15 +236,15 @@ return [{
   },
 }];`;
 
-export const logEntryCode = (buildNode) => `const built = $("${buildNode}").first().json;
-const res = $input.first().json ?? {};
-const sent = typeof res.id === "string" && res.id.length > 0;
+export const logEntryCode = (buildNode) => `${OUTCOME}
+const built = $("${buildNode}").first().json;
+const outcome = sendOutcome($input.first().json ?? {});
 return [{
   json: {
     ...built.log,
-    status: sent ? "sent" : "failed",
-    resend_id: sent ? res.id : "",
-    error: sent ? "" : String(res.error?.message ?? res.message ?? res.error ?? "unknown").slice(0, 300),
+    status: outcome.ok ? "sent" : "failed",
+    delivery: outcome.ok ? outcome.detail : "",
+    error: outcome.ok ? "" : outcome.detail,
     // ISO UTC, so the morning summary can range-query it as a string.
     created_at: new Date().toISOString(),
   },
@@ -245,11 +262,11 @@ return $input.all();`;
 const LOG_COLUMNS = [
   "log_id", "type", "status", "webinar_id", "webinar_title", "registrant_id",
   "registrant_name", "registrant_email", "owner_id", "owner_email", "owner_name",
-  "owner_timezone", "resend_id", "error", "created_at",
+  "owner_timezone", "delivery", "error", "created_at",
 ];
 
 x = 0;
-const confirmation = workflow("10 - Webinar Registration Confirmation", [
+const confirmationNodes = [
   node("Registration Webhook", "n8n-nodes-base.webhook", 2, {
     httpMethod: "POST",
     path: "webinar-registered",
@@ -268,11 +285,26 @@ const confirmation = workflow("10 - Webinar Registration Confirmation", [
   firestoreGet("Load Owner", "users", "={{ $('Load Webinar').first().json.owner_id || 'no-owner' }}"),
   firestoreGet("Load Owner Memory", "workspace_memory", "={{ $('Load Webinar').first().json.owner_id || 'no-owner' }}"),
   code("Build Confirmation", `${TEMPLATE}\n// ── glue ──\n${BUILD_CONFIRMATION_GLUE}`),
-  resendSend("Send via Resend"),
+  // A webinar without a date has no invite; attaching a missing file fails.
+  ifPositive("Has Invite", "={{ $json.has_invite }}"),
+  emailSend("Send With Invite", { replyTo: true, invite: true }),
+  emailSend("Send Email", { replyTo: true }),
   code("Build Log Entry", logEntryCode("Build Confirmation")),
   firestoreUpsert("Save Email Log", "email_log", "log_id", LOG_COLUMNS),
   code("Fail If Not Sent", FAIL_IF_NOT_SENT),
-]);
+];
+const confirmationConnections = {};
+[
+  "Registration Webhook", "Validate Request", "Load Email Log", "Load Webinar", "Load Registrant",
+  "Load Owner", "Load Owner Memory", "Build Confirmation", "Has Invite",
+].reduce((prev, next) => (link(confirmationConnections, prev, next), next));
+link(confirmationConnections, "Has Invite", "Send With Invite", 0);
+link(confirmationConnections, "Has Invite", "Send Email", 1);
+link(confirmationConnections, "Send With Invite", "Build Log Entry");
+link(confirmationConnections, "Send Email", "Build Log Entry");
+link(confirmationConnections, "Build Log Entry", "Save Email Log");
+link(confirmationConnections, "Save Email Log", "Fail If Not Sent");
+const confirmation = workflow("10 - Webinar Registration Confirmation", confirmationNodes, confirmationConnections);
 
 // ───────────────────────────── Morning summary ─────────────────────────────
 
@@ -339,25 +371,18 @@ for (const [ownerId, rows] of byOwner) {
     json: {
       owner_id: ownerId,
       idempotency_key: \`summary_\${ownerId}_\${localDate}\`,
-      payload: {
-        from: email.from,
-        to: [to],
-        subject: email.subject,
-        html: email.html,
-        text: email.text,
-        tags: [{ name: "type", value: "owner_daily_summary" }],
-      },
+      payload: gmailPayload(email, { to }),
     },
   });
 }
 return out;`;
 
-export const STATE_ENTRIES = `// Pairs each Resend response with the summary it sent (same order), and only
+export const STATE_ENTRIES = `${OUTCOME}
+// Pairs each send result with the summary it sent (same order), and only
 // records owners whose email actually went out.
 const built = $("Build Summaries").all();
 return $input.all().flatMap((item, i) => {
-  const ok = typeof item.json?.id === "string" && item.json.id.length > 0;
-  if (!ok) return [];
+  if (!sendOutcome(item.json ?? {}).ok) return [];
   return [{ json: { owner_id: built[i].json.owner_id, last_summary_at: new Date().toISOString() } }];
 });`;
 
@@ -387,7 +412,7 @@ const summary = workflow("11 - Webinar Morning Summary", [
     credentials: FIRESTORE,
   }),
   code("Build Summaries", `${TEMPLATE}\n// ── glue ──\n${BUILD_SUMMARIES_GLUE}`),
-  resendSend("Send via Resend"),
+  emailSend("Send Email"),
   code("State Entries", STATE_ENTRIES),
   firestoreUpsert("Save Summary State", "email_state", "owner_id", ["owner_id", "last_summary_at"]),
 ]);
@@ -413,14 +438,7 @@ if (log.log_id || log.status) return []; // welcomed already
 const email = welcomeEmail({ name: req.name, email: req.email });
 return [{
   json: {
-    payload: {
-      from: email.from,
-      to: [req.email],
-      subject: email.subject,
-      html: email.html,
-      text: email.text,
-      tags: [{ name: "type", value: "welcome" }],
-    },
+    payload: gmailPayload(email, { to: req.email }),
     idempotency_key: req.log_id,
     log: { log_id: req.log_id, type: "welcome", uid: req.uid, to: req.email },
   },
@@ -439,9 +457,9 @@ const welcome = workflow("12 - Welcome Email", [
   code("Normalize User", NORMALIZE_NEW_USER),
   firestoreGet("Load Email Log", "email_log", "={{ $json.log_id }}"),
   code("Build Welcome", `${TEMPLATE}\n// ── glue ──\n${BUILD_WELCOME_GLUE}`),
-  resendSend("Send via Resend"),
+  emailSend("Send Email"),
   code("Build Log Entry", logEntryCode("Build Welcome")),
-  firestoreUpsert("Save Email Log", "email_log", "log_id", ["log_id", "type", "status", "uid", "to", "resend_id", "error", "created_at"]),
+  firestoreUpsert("Save Email Log", "email_log", "log_id", ["log_id", "type", "status", "uid", "to", "delivery", "error", "created_at"]),
   code("Fail If Not Sent", FAIL_IF_NOT_SENT),
 ]);
 
@@ -529,47 +547,34 @@ const stats = { requested: wanted.length, skipped_opted_out: skippedOptedOut, sk
 if (!recipients.length) return [{ json: { empty: true, ...stats } }];
 return recipients.map((r) => ({ json: { ...r, ...stats } }));`;
 
-export const BUILD_BATCHES_GLUE = `
+export const BUILD_EMAILS_GLUE = `
 const req = $("Authorize").first().json;
 const recipients = $("Prepare Recipients").all().map((i) => i.json);
 const subject = req.test ? \`[Test] \${req.subject}\` : req.subject;
-const payloads = recipients.map((r) => {
+// One email per person: keeps addresses private and unsubscribe links personal.
+return recipients.map((r) => {
   const email = broadcastEmail({
     subject,
     message: req.message,
     recipient: { uid: r.uid, name: r.name, email: r.email, token: r.unsubscribe_token },
   });
-  return {
-    from: email.from,
-    to: [r.email],
-    subject: email.subject,
-    html: email.html,
-    text: email.text,
-    headers: email.headers,
-    tags: [{ name: "type", value: req.test ? "broadcast_test" : "broadcast" }],
-  };
-});
-// Resend's batch endpoint takes up to 100 emails per call.
-const batches = [];
-for (let i = 0; i < payloads.length; i += 100) {
-  batches.push({ json: { batch: payloads.slice(i, i + 100), idempotency_key: \`\${req.broadcast_id}-\${i / 100}\` } });
-}
-return batches;`;
+  return { json: { payload: gmailPayload(email, { to: r.email }) } };
+});`;
 
-export const SUMMARIZE_BROADCAST = `const req = $("Authorize").first().json;
+export const SUMMARIZE_BROADCAST = `${OUTCOME}
+const req = $("Authorize").first().json;
 const stats = $("Prepare Recipients").first().json;
-const batches = $("Build Batches").all().map((i) => i.json.batch.length);
 let sent = 0;
 let failed = 0;
-const errors = [];
-$input.all().forEach((item, i) => {
-  const res = item.json ?? {};
-  if (Array.isArray(res.data)) sent += res.data.length;
+const errors = new Set();
+for (const item of $input.all()) {
+  const outcome = sendOutcome(item.json ?? {});
+  if (outcome.ok) sent += 1;
   else {
-    failed += batches[i] ?? 0;
-    errors.push(String(res.error?.message ?? res.message ?? res.error ?? "unknown").slice(0, 200));
+    failed += 1;
+    errors.add(outcome.detail);
   }
-});
+}
 return [{
   json: {
     broadcast_id: req.broadcast_id,
@@ -581,7 +586,7 @@ return [{
     failed,
     skipped_opted_out: stats.skipped_opted_out,
     skipped_no_email: stats.skipped_no_email,
-    error: errors.join(" | ").slice(0, 500),
+    error: [...errors].join(" | ").slice(0, 500),
     sent_by_uid: req.caller_uid,
     sent_by_email: req.caller_email,
     created_at: new Date().toISOString(),
@@ -650,8 +655,8 @@ const broadcastNodes = [
   code("Prepare Recipients", PREPARE_RECIPIENTS),
   ifPositive("Has Recipients", "={{ $json.empty ? 0 : 1 }}"),
   firestoreUpsert("Save Unsubscribe Tokens", "email_prefs", "uid", ["uid", "unsubscribe_token", "opted_out"]),
-  code("Build Batches", `${TEMPLATE}\n// ── glue ──\n${BUILD_BATCHES_GLUE}`, { executeOnce: true }),
-  resendSend("Send Batch", { url: "https://api.resend.com/emails/batch", body: "={{ JSON.stringify($json.batch) }}" }),
+  code("Build Emails", `${TEMPLATE}\n// ── glue ──\n${BUILD_EMAILS_GLUE}`, { executeOnce: true }),
+  emailSend("Send Email"),
   code("Summarize", SUMMARIZE_BROADCAST),
   code("Nothing To Send", NOTHING_TO_SEND),
   firestoreUpsert("Save Result", "broadcasts", "broadcast_id", BROADCAST_COLUMNS),
@@ -663,9 +668,9 @@ const broadcastConnections = {};
   "Load Caller Admin", "Load Caller Memory", "Authorize", "All Users", "All Prefs", "Prepare Recipients", "Has Recipients",
 ].reduce((prev, next) => (link(broadcastConnections, prev, next), next));
 link(broadcastConnections, "Has Recipients", "Save Unsubscribe Tokens", 0);
-link(broadcastConnections, "Save Unsubscribe Tokens", "Build Batches");
-link(broadcastConnections, "Build Batches", "Send Batch");
-link(broadcastConnections, "Send Batch", "Summarize");
+link(broadcastConnections, "Save Unsubscribe Tokens", "Build Emails");
+link(broadcastConnections, "Build Emails", "Send Email");
+link(broadcastConnections, "Send Email", "Summarize");
 link(broadcastConnections, "Summarize", "Save Result");
 link(broadcastConnections, "Has Recipients", "Nothing To Send", 1);
 link(broadcastConnections, "Nothing To Send", "Save Result");

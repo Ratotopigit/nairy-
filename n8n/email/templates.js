@@ -15,17 +15,16 @@
  *   - a footer saying who sent it and why the recipient is getting it
  */
 
+// Emails are sent by n8n's Gmail node from the connected Google Workspace
+// account, so the From ADDRESS is that account; templates only set the
+// display name.
 const BRAND = {
   site: "https://webinarstackai.com",
-  fromAddress: "hello@webinarstackai.com",
   product: "Webinar Stack",
   // Sender identification in bulk-email footers (Australia's Spam Act). Add a
   // postal address here before emailing US recipients (CAN-SPAM requires one).
   company: "Explosion Marketing International",
   postalAddress: "",
-  // One-click unsubscribe must accept a POST, which the static site cannot,
-  // so List-Unsubscribe points straight at the n8n webhook.
-  webhookBase: "https://explosionmarketing.app.n8n.cloud/webhook",
 };
 
 const COLORS = {
@@ -70,9 +69,21 @@ function senderName(presenter) {
   return clean ? `${clean} via ${BRAND.product}` : BRAND.product;
 }
 
-function fromHeader(presenter) {
-  return `"${senderName(presenter)}" <${BRAND.fromAddress}>`;
+/**
+ * The ONLY place that knows the sending step's input format (n8n's Gmail
+ * node). Templates return a neutral email; this maps it. Attachments travel
+ * as n8n binary data, built separately by the workflow.
+ */
+function gmailPayload(email, { to, replyTo } = {}) {
+  return {
+    to,
+    subject: email.subject,
+    html: email.html,
+    senderName: email.fromName,
+    replyTo: replyTo || "",
+  };
 }
+
 
 /** Falls back to UTC for anything that is not a real IANA zone. */
 function safeTimezone(tz) {
@@ -183,7 +194,7 @@ function icsAttachment(webinar) {
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
-  return { filename: "webinar.ics", content: toBase64(body) };
+  return { filename: "webinar.ics", content: toBase64(body), type: "text/calendar", disposition: "attachment" };
 }
 
 /** The shared shell: a single centred column, inline styles, no images. */
@@ -287,7 +298,7 @@ ${bulletsHtml}
   const attachment = hasDate ? icsAttachment(webinar) : null;
 
   return {
-    from: fromHeader(webinar.presenter_name),
+    fromName: senderName(webinar.presenter_name),
     subject,
     html: layout({ preheader, body, footer }),
     text,
@@ -350,7 +361,7 @@ ${sections}`;
   ].join("\n");
 
   return {
-    from: `"${BRAND.product}" <${BRAND.fromAddress}>`,
+    fromName: BRAND.product,
     subject,
     html: layout({ preheader, body, footer }),
     text,
@@ -410,7 +421,7 @@ ${button(`${BRAND.site}/provider`, "Open your workspace")}
   ].join("\n");
 
   return {
-    from: `"${BRAND.product}" <${BRAND.fromAddress}>`,
+    fromName: BRAND.product,
     subject,
     html: layout({ preheader, body, footer }),
     text,
@@ -421,11 +432,10 @@ ${button(`${BRAND.site}/provider`, "Open your workspace")}
 function unsubscribeLinks(uid, token) {
   const q = `u=${encodeURIComponent(uid)}&t=${encodeURIComponent(token)}`;
   return {
-    // What a person clicks: a page that asks them to confirm. Never
-    // unsubscribe on a plain GET — mail scanners pre-open links.
+    // A page that asks the person to confirm. Never unsubscribe on a plain
+    // GET: mail scanners pre-open links. (The one-click List-Unsubscribe
+    // header is not used: n8n's Gmail node cannot set custom headers.)
     page: `${BRAND.site}/unsubscribe?${q}`,
-    // What Gmail/Yahoo call for one-click unsubscribe (RFC 8058): a POST.
-    oneClick: `${BRAND.webhookBase}/email-unsubscribe?${q}`,
   };
 }
 
@@ -470,15 +480,11 @@ function broadcastEmail({ subject, message, recipient }) {
   ].join("\n\n").replace(/\n{3,}/g, "\n\n");
 
   return {
-    from: `"${BRAND.product}" <${BRAND.fromAddress}>`,
+    fromName: BRAND.product,
     subject: cleanSubject,
     html: layout({ preheader: paragraphs[0] ? clip(paragraphs[0], 110) : cleanSubject, body, footer }),
     text,
     attachments: [],
-    headers: {
-      "List-Unsubscribe": `<${links.oneClick}>`,
-      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-    },
   };
 }
 
@@ -486,6 +492,7 @@ function broadcastEmail({ subject, message, recipient }) {
 if (typeof module !== "undefined") {
   module.exports = {
     confirmationEmail, digestEmail, welcomeEmail, broadcastEmail, unsubscribeLinks,
+    gmailPayload,
     senderName, safeTimezone, sessionParts, esc, toBase64,
   };
 }
