@@ -147,7 +147,7 @@ function AdminContentManager() {
               <p className="font-bold text-amber-950">Cloud Firestore Sync Notice</p>
               <p className="text-amber-800 leading-relaxed">{warningMessage}</p>
               <p className="text-[11px] text-amber-700 font-mono mt-1">
-                Tip: In Firebase Console &gt; Firestore Database &gt; Rules, ensure &quot;match /system_settings/&#123;settingId&#125;&quot; allows read and write.
+                Tip: In Firebase Console &gt; Firestore Database &gt; Rules, ensure your account is marked admin (admin: true in users, admins or workspace_memory) — only admins may write &quot;system_settings&quot;.
               </p>
             </div>
           </div>

@@ -28,10 +28,13 @@ service cloud.firestore {
 
     // System Settings (home_content):
     // Public read: ANY user, guest, or member can read home page settings.
-    // Authenticated write: Admins can update system settings.
+    // Admin-only write. This previously allowed ANY signed-in user, despite
+    // the comment saying admins, so anyone who signed up could change the
+    // home page for everyone. isAdmin() checks the same three sources as
+    // checkIsAdmin() in lib/user-profile.ts, which gates the admin page.
     match /system_settings/{settingId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     // Dedicated users collection:
