@@ -282,3 +282,16 @@
 
 
 
+
+/* Registration page entrance. Opacity + a few pixels of travel only: cheap to
+   composite, and it never shifts layout. */
+@keyframes reg-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.reg-rise {
+  animation: reg-rise 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reg-rise { animation: none; }
+}

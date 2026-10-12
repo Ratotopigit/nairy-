@@ -93,6 +93,41 @@ service cloud.firestore {
       allow update: if isAuthenticated() && resource.data.owner_id == request.auth.uid && request.resource.data.owner_id == request.auth.uid;
     }
 
+    // Webinars: registration pages.
+    // A webinar is readable by anyone once published (it is a public page),
+    // and by its owner always. Only the owner may write it.
+    match /webinars/{webinarId} {
+      allow read: if resource.data.status == "published"
+        || (isAuthenticated() && resource.data.owner_id == request.auth.uid);
+      allow create: if isAuthenticated()
+        && request.resource.data.owner_id == request.auth.uid;
+      allow update: if isAuthenticated()
+        && resource.data.owner_id == request.auth.uid
+        && request.resource.data.owner_id == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.owner_id == request.auth.uid;
+
+      // Registrants: the one place anonymous visitors can write, so it is
+      // locked down tightly. A registration may only be CREATED, only for a
+      // published webinar, with exactly name + email + a server timestamp
+      // (so nobody can smuggle extra fields or backdate an entry). Nobody but
+      // the webinar's owner can read the list, and nobody can edit an entry.
+      match /registrants/{registrantId} {
+        allow create: if get(/databases/$(database)/documents/webinars/$(webinarId)).data.status == "published"
+          && request.resource.data.keys().hasOnly(['name', 'email', 'created_at'])
+          && request.resource.data.keys().hasAll(['name', 'email', 'created_at'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 120
+          && request.resource.data.email is string
+          && request.resource.data.email.size() <= 254
+          && request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+          && request.resource.data.created_at == request.time;
+        allow read, delete: if isAuthenticated()
+          && get(/databases/$(database)/documents/webinars/$(webinarId)).data.owner_id == request.auth.uid;
+        allow update: if false;
+      }
+    }
+
     // Default deny all other collections
     match /{document=**} {
       allow read, write: if false;

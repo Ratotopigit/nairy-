@@ -14,6 +14,7 @@ const navItems = [
   { href: "/provider/webinar-offer", label: "Webinar Offer" },
   { href: "/provider/webinar-content", label: "Webinar Content" },
   { href: "/provider/webinar-upload", label: "Webinar Upload" },
+  { href: "/provider/webinars", label: "Webinars" },
 ];
 
 export default function ProviderNavbar() {
