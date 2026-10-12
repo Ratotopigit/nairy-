@@ -457,7 +457,26 @@ export default function Builder() {
           owner_id: user.uid,
         },
         { merge: true }
-      ).catch((e) => console.warn("Autosave content_sessions failed:", e));
+      )
+        .then(() => {
+          // Clear only our own warning, never an unrelated export error.
+          setStatus((current) =>
+            current?.tone === "error" && current.text.startsWith("Changes are not saving")
+              ? null
+              : current,
+          );
+        })
+        .catch((e) => {
+          // This used to be a console warning only, so a failing write looked
+          // exactly like a working one and edits were lost without a word.
+          // The local copy still holds the work, which is what the message
+          // promises.
+          console.warn("Autosave content_sessions failed:", e);
+          setStatus({
+            text: "Changes are not saving to your account — this device still has them. Check your connection.",
+            tone: "error",
+          });
+        });
     }, 500);
     return () => window.clearTimeout(timeout);
   }, [blueprintSessionId, description, fontSetId, messages, motion, paletteId, projectId, purpose, ratio, slideCount, slides, styleId]);
