@@ -35,6 +35,7 @@ import { askAssistant, type AssistantActions } from "@/lib/assistant";
 import { HANDOFF } from "@/lib/creation-handoff";
 import { buildSlideArt, mergeSlideArt } from "@/lib/slide-art-store";
 import { downloadDeckPdf } from "@/lib/deck-pdf";
+import { StatusLine, type StatusState } from "@/components/deck/StatusLine";
 import { extractPalette, removeBackground } from "@/lib/image";
 import { exportPptx } from "@/lib/pptx";
 import { isSessionUuid } from "@/lib/chat-history";
@@ -149,7 +150,7 @@ export default function Builder() {
   const [slides, setSlides] = useState<Slide[]>(initialSlides);
   const [selectedId, setSelectedId] = useState<string | null>(initialSlides[0]?.id ?? null);
   const [step, setStep] = useState(-1);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<StatusState>(null);
   // The optional note stays collapsed unless a brief was actually carried in.
   const [noteOpen, setNoteOpen] = useState<boolean>(
     typeof initialBrief?.description === "string" && initialBrief.description.trim().length > 0
@@ -675,9 +676,9 @@ export default function Builder() {
       setSelectedId(generatedSlides[0]?.id ?? null);
       if (remote.reply) setMessages(nextMessages);
 
-      setStatus(`${generatedSlides.length} slides ready.`);
+      setStatus({ text: `${generatedSlides.length} slides ready.`, tone: "success" });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Webinar Content could not generate the deck");
+      setStatus({ text: error instanceof Error ? error.message : "Webinar Content could not generate the deck", tone: "error" });
     } finally {
       window.clearInterval(progress);
       setStep(-1);
@@ -779,12 +780,12 @@ export default function Builder() {
   };
 
   const handleExport = async () => {
-    setStatus("Building .pptx…");
+    setStatus({ text: "Building .pptx…", tone: "working" });
     try {
       // Inline any remote art first — a .pptx must carry the bytes, not a link.
-      setStatus("Fetching images…");
+      setStatus({ text: "Fetching images…", tone: "working" });
       const exportSlides = await resolveArtForExport(slides).catch(() => slides);
-      setStatus("Building .pptx…");
+      setStatus({ text: "Building .pptx…", tone: "working" });
       await exportPptx({
         slides: exportSlides,
         palette,
@@ -794,29 +795,29 @@ export default function Builder() {
         logo,
         fileName: `${(slides[0]?.title || description.split(/[.\n]/)[0] || "presentation").slice(0, 40).trim()}.pptx`,
       });
-      setStatus(`Downloaded .pptx — ${slides.length} slides`);
+      setStatus({ text: `Downloaded .pptx — ${slides.length} slides`, tone: "success" });
     } catch (error) {
       // The blanket message hid the actual cause for a long time; say what
       // broke so the next report is diagnosable.
       const detail = error instanceof Error ? error.message : "";
       console.error("pptx export failed:", error);
-      setStatus(detail ? `Could not build the .pptx file — ${detail}` : "Could not build the .pptx file");
+      setStatus({ text: detail ? `Could not build the .pptx file — ${detail}` : "Could not build the .pptx file", tone: "error" });
     }
   };
 
   const handleExportPdf = async () => {
-    setStatus("Building PDF…");
+    setStatus({ text: "Building PDF…", tone: "working" });
     try {
       await downloadDeckPdf(
         slides,
         palette,
         `${(slides[0]?.title || description.split(/[.\n]/)[0] || "presentation").slice(0, 40).trim()}.pdf`,
       );
-      setStatus(`Downloaded PDF — ${slides.length} slides`);
+      setStatus({ text: `Downloaded PDF — ${slides.length} slides`, tone: "success" });
     } catch (error) {
       const detail = error instanceof Error ? error.message : "";
       console.error("pdf export failed:", error);
-      setStatus(detail ? `Could not build the PDF — ${detail}` : "Could not build the PDF");
+      setStatus({ text: detail ? `Could not build the PDF — ${detail}` : "Could not build the PDF", tone: "error" });
     }
   };
 
@@ -985,7 +986,7 @@ export default function Builder() {
                 >
                   {generating ? "Building your presentation..." : `Generate ${Math.min(90, Math.max(1, Number.parseInt(slideCount, 10) || 8))} pages`}
                 </button>
-                {status ? <p className="mt-3 text-xs leading-5 text-muted-foreground">{status}</p> : null}
+                <StatusLine status={status} className="mt-3" onRetry={() => void handleGenerate()} />
 
                 <div className="mt-6 border-t border-border pt-4">
                   <button
@@ -1020,7 +1021,11 @@ export default function Builder() {
             {generating ? (
               <span className="generation-working text-foreground">{GENERATION_STEPS[step]}</span>
             ) : (
-              <span>{status ?? (hasContent ? `${slides.length} slides · ${ratio} · ${styleId} theme · click text to edit` : "")}</span>
+              status ? (
+                <StatusLine status={status} />
+              ) : (
+                <span>{hasContent ? `${slides.length} slides · ${ratio} · ${styleId} theme · click text to edit` : ""}</span>
+              )
             )}
           </div>
 
