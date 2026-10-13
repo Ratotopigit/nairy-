@@ -16,11 +16,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import "@/components/webinar/registration.css";
 import {
+  AgendaLayout,
   AsymmetricLayout,
+  BentoLayout,
+  CardLayout,
   EditorialLayout,
   HostLayout,
+  LetterLayout,
   MinimalLayout,
   PhotoLayout,
+  PosterLayout,
+  SplitLayout,
 } from "@/components/webinar/page-layouts";
 import { BrandMark, Headline, PageProvider, type FormState, type PageState } from "@/components/webinar/page-parts";
 import { FONT_PAIRS } from "@/lib/webinar-fonts";
@@ -91,6 +97,12 @@ const LAYOUTS = {
   minimal: MinimalLayout,
   host: HostLayout,
   asymmetric: AsymmetricLayout,
+  split: SplitLayout,
+  poster: PosterLayout,
+  letter: LetterLayout,
+  bento: BentoLayout,
+  agenda: AgendaLayout,
+  card: CardLayout,
 } as const;
 
 export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false }: Props) {
@@ -264,6 +276,7 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false 
     "--head-w": font.headingWeight,
     "--head-track": font.tracking,
     "--radius": `${t.look.radius}px`,
+    "--btn-radius": t.look.pill ? "999px" : `${t.look.radius}px`,
     minHeight: mode === "live" ? "100vh" : undefined,
     background: palette.bg,
   } as CSSProperties;

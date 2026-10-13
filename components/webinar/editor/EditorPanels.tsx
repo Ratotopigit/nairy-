@@ -373,6 +373,12 @@ const HERO_USE: Record<LayoutId, string> = {
   minimal: "A wide strip under the form. Optional; the page looks complete without it.",
   host: "A soft photo behind the banner, under your brand colour.",
   asymmetric: "The large offset image next to your headline.",
+  split: "Fills the coloured half behind your headline, under your brand colour.",
+  poster: "A wide band between the headline and the details. Optional.",
+  letter: "A photograph set into the letter, under the opening lines. Optional.",
+  bento: "The image tile beside the outcomes. Without it the tile shows your initials.",
+  agenda: "A wide image under your headline. Optional.",
+  card: "The full-page backdrop behind the card, under your brand colour.",
 };
 
 const PORTRAIT_USE: Record<LayoutId, string> = {
@@ -381,6 +387,12 @@ const PORTRAIT_USE: Record<LayoutId, string> = {
   minimal: "A small photo beside your name.",
   host: "The large portrait this template is built around.",
   asymmetric: "A small photo beside your name. Also used as the main image if you have no other photo.",
+  split: "A small photo beside your name. Also used as the main image if you have no other photo.",
+  poster: "A small photo beside your name.",
+  letter: "A small photo beside your name. Also used as the main image if you have no other photo.",
+  bento: "A small photo beside your name. Also used as the main image if you have no other photo.",
+  agenda: "A small photo beside your name. Also used as the main image if you have no other photo.",
+  card: "A small photo beside your name. Also used as the main image if you have no other photo.",
 };
 
 type ImagesProps = PanelProps & {

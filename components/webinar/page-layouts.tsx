@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The five compositions. Each is a different arrangement of the same parts,
+ * The eleven compositions. Each is a different arrangement of the same parts,
  * not a recolour: they differ in hero structure, image placement, text
  * alignment, where the form sits and how they recompose on a phone.
  * Spacing, sizing and breakpoints live in registration.css.
@@ -238,6 +238,221 @@ export function AsymmetricLayout() {
         </div>
       </main>
       <Footer />
+    </div>
+  );
+}
+
+// ── 6. Split screen ───────────────────────────────────────────────────────
+
+export function SplitLayout() {
+  const hero = useHeroSource();
+  return (
+    <div className="wp-s">
+      <section className="wp-s-art">
+        {hero.src ? <Media className="wp-s-bg" src={hero.src} focusX={hero.fx} focusY={hero.fy} priority /> : null}
+        <div className="wp-s-scrim" />
+        <div className="wp-s-in">
+          <BrandMark />
+          <div className="wp-s-copy">
+            <Kicker />
+            <Headline />
+            <Subtitle />
+            <p className="wp-s-when">
+              <WhenLine />
+            </p>
+          </div>
+          <HostCredit />
+        </div>
+      </section>
+      <main className="wp-s-main">
+        <div className="wp-s-form">
+          <RegisterPanel bare />
+          <Outcomes />
+        </div>
+        <Footer />
+      </main>
+    </div>
+  );
+}
+
+// ── 7. Poster ─────────────────────────────────────────────────────────────
+
+export function PosterLayout() {
+  const { w } = usePage();
+  return (
+    <div className="wp-x wp-wrap">
+      <header className="wp-x-head">
+        <BrandMark />
+        <p className="wp-e-meta">
+          <WhenLine short />
+        </p>
+      </header>
+      <div className="wp-x-title">
+        <Kicker />
+        <Headline />
+      </div>
+      {w.image_url ? <Media className="wp-x-image" src={w.image_url} focusX={w.image_focus_x} focusY={w.image_focus_y} priority /> : null}
+      <div className="wp-x-strip">
+        <div className="wp-x-col wp-x-about">
+          <Subtitle />
+          <HostBlock />
+        </div>
+        <div className="wp-x-col wp-x-learn">
+          <Outcomes title="Inside" />
+        </div>
+        <div className="wp-x-col wp-x-form">
+          <RegisterPanel bare />
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
+}
+
+// ── 8. Letter ─────────────────────────────────────────────────────────────
+
+export function LetterLayout() {
+  const hero = useHeroSource();
+  return (
+    <div className="wp-l wp-wrap">
+      <header className="wp-l-head">
+        <BrandMark />
+      </header>
+      <div className="wp-l-grid">
+        <aside className="wp-l-rail">
+          <p className="wp-label">When</p>
+          <SessionBlock />
+          <HostBlock />
+        </aside>
+        <main className="wp-l-main">
+          <Kicker />
+          <Headline />
+          <div className="wp-l-lead">
+            <Subtitle />
+          </div>
+          {hero.src ? <Media className="wp-l-image" src={hero.src} focusX={hero.fx} focusY={hero.fy} priority /> : null}
+          <Outcomes title="What you'll take away" />
+          <RegisterPanel title="Save your seat" compact />
+        </main>
+      </div>
+      <Footer />
+    </div>
+  );
+}
+
+// ── 9. Bento ──────────────────────────────────────────────────────────────
+
+export function BentoLayout() {
+  const hero = useHeroSource();
+  const { w, hostName } = usePage();
+  const hasHost = Boolean(hostName || w.host_bio.trim() || w.social_proof.trim());
+  return (
+    <div className="wp-b wp-wrap">
+      <header className="wp-b-top">
+        <BrandMark />
+        <p className="wp-e-meta">
+          <WhenLine short />
+        </p>
+      </header>
+      <div className="wp-b-grid" data-host={hasHost ? "" : undefined}>
+        <section className="wp-b-tile wp-b-head">
+          <Kicker />
+          <Headline />
+          <Subtitle />
+        </section>
+        <section className="wp-b-tile wp-b-date">
+          <SessionBlock />
+        </section>
+        <div className="wp-b-tile wp-b-img">
+          <Media src={hero.src} focusX={hero.fx} focusY={hero.fy} mark={hostName ? initials(hostName) : undefined} priority />
+        </div>
+        <section className="wp-b-tile wp-b-out">
+          <Outcomes title="What you'll learn" />
+        </section>
+        <section className="wp-b-tile wp-b-form">
+          <RegisterPanel bare title="Reserve your seat" compact />
+        </section>
+        {hasHost ? (
+          <section className="wp-b-tile wp-b-host">
+            <HostBlock />
+          </section>
+        ) : null}
+      </div>
+      <Footer />
+    </div>
+  );
+}
+
+// ── 10. Programme ─────────────────────────────────────────────────────────
+
+export function AgendaLayout() {
+  const hero = useHeroSource();
+  const { w, hostName } = usePage();
+  const hasHost = Boolean(hostName || w.host_bio.trim() || w.social_proof.trim());
+  return (
+    <div className="wp-g">
+      <div className="wp-g-brand">
+        <BrandMark />
+      </div>
+      <div className="wp-g-copy">
+        <Kicker />
+        <Headline />
+        <Subtitle />
+        <p className="wp-g-when">
+          <WhenLine />
+        </p>
+        {hero.src ? <Media className="wp-g-image" src={hero.src} focusX={hero.fx} focusY={hero.fy} priority /> : null}
+      </div>
+      <div className="wp-g-form">
+        <RegisterPanel bare />
+      </div>
+      <div className="wp-g-list">
+        <Outcomes title="The programme" />
+        {w.host_bio.trim() || w.social_proof.trim() ? (
+          <div className="wp-g-about">
+            <Bio />
+            <Proof />
+          </div>
+        ) : null}
+      </div>
+      {hasHost ? (
+        <div className="wp-g-host">
+          <HostCredit />
+        </div>
+      ) : null}
+      <div className="wp-g-foot">
+        <Footer />
+      </div>
+    </div>
+  );
+}
+
+// ── 11. Focus card ────────────────────────────────────────────────────────
+
+export function CardLayout() {
+  const hero = useHeroSource();
+  return (
+    <div className="wp-c">
+      <Media className="wp-c-bg" src={hero.src} focusX={hero.fx} focusY={hero.fy} priority />
+      <div className="wp-c-scrim" />
+      <div className="wp-c-wrap">
+        <div className="wp-c-card">
+          <div className="wp-c-copy">
+            <BrandMark />
+            <Kicker />
+            <Headline />
+            <Subtitle />
+            <div className="wp-c-out">
+              <Outcomes title={null} />
+            </div>
+            <HostCredit />
+          </div>
+          <div className="wp-c-form">
+            <RegisterPanel bare />
+          </div>
+        </div>
+        <Footer />
+      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * Registration page templates.
  *
- * A template is a COMPOSITION (one of five layouts) in a category's own
+ * A template is a COMPOSITION (one of eleven layouts) in a category's own
  * colours and type. Every template shows the same content; the host fills it
  * in once and can switch templates without losing anything.
  *
@@ -12,7 +12,7 @@
  *
  * Plain data and pure functions, no React, so lib/webinars.ts can import it.
  */
-import { contrast, darkenForWhite, ensureContrast, isDark, isHex, mix, readableInk, rgba } from "@/lib/color";
+import { contrast, darkenForWhite, ensureContrast, isDark, isHex, luminance, mix, parseHex, readableInk, rgba } from "@/lib/color";
 
 /**
  * Curated heading + body pairings. The actual font files are loaded in
@@ -39,14 +39,31 @@ export function isFontPairId(value: string): value is FontPairId {
   return value in FONT_PAIR_CATALOG;
 }
 
-export type LayoutId = "editorial" | "photo" | "minimal" | "host" | "asymmetric";
+export type LayoutId =
+  | "editorial"
+  | "photo"
+  | "minimal"
+  | "host"
+  | "asymmetric"
+  | "split"
+  | "poster"
+  | "letter"
+  | "bento"
+  | "agenda"
+  | "card";
 
-export const LAYOUT_LABELS: Record<LayoutId, { name: string; blurb: string }> = {
-  editorial: { name: "Editorial", blurb: "Big typography, magazine rhythm" },
-  photo: { name: "Photography-led", blurb: "A full-width photo with the form on top" },
-  minimal: { name: "Minimal", blurb: "One calm column, strong headline" },
-  host: { name: "Host spotlight", blurb: "Your portrait leads" },
-  asymmetric: { name: "Asymmetric", blurb: "Offset image, overlapping form" },
+export const LAYOUT_LABELS: Record<LayoutId, { name: string; short: string; blurb: string }> = {
+  editorial: { name: "Editorial", short: "Editorial", blurb: "Magazine masthead, big type and a side form" },
+  photo: { name: "Photography-led", short: "Photo", blurb: "A full-width photo with the form resting on it" },
+  minimal: { name: "Minimal", short: "Minimal", blurb: "One calm centred column and a single-row form" },
+  host: { name: "Host spotlight", short: "Host", blurb: "Your portrait leads a colour banner" },
+  asymmetric: { name: "Asymmetric", short: "Offset", blurb: "An offset image with an overlapping form card" },
+  split: { name: "Split screen", short: "Split", blurb: "Half colour or photo, half form, side by side" },
+  poster: { name: "Poster", short: "Poster", blurb: "A huge headline over a three-part strip" },
+  letter: { name: "Letter", short: "Letter", blurb: "A personal letter with a date rail and inline form" },
+  bento: { name: "Bento grid", short: "Bento", blurb: "Rounded tiles for headline, date, outcomes and form" },
+  agenda: { name: "Programme", short: "Programme", blurb: "A form column beside a big numbered programme" },
+  card: { name: "Focus card", short: "Focus", blurb: "One floating card on a colour or photo backdrop" },
 };
 
 export type TemplateCategory =
@@ -91,6 +108,8 @@ export type TemplateLook = {
   caps?: boolean;
   /** Mirror the composition. */
   flip?: boolean;
+  /** Fully rounded buttons. */
+  pill?: boolean;
 };
 
 export type WebinarTemplate = {
@@ -363,7 +382,12 @@ export const CATEGORY_PHOTO_TERMS: Record<TemplateCategory, string> = {
 
 // ── The templates ─────────────────────────────────────────────────────────
 
-const LAYOUT_ORDER: LayoutId[] = ["editorial", "photo", "minimal", "host", "asymmetric"];
+/** The eleven compositions, in the order templates are dealt out to categories. */
+const LAYOUT_ORDER: LayoutId[] = ["editorial", "photo", "minimal", "host", "asymmetric", "split", "poster", "letter", "bento", "agenda", "card"];
+
+/** Each category keeps five slots (ids stay stable for saved webinars). */
+type Slot = "editorial" | "photo" | "minimal" | "host" | "asymmetric";
+const SLOT_ORDER: Slot[] = ["editorial", "photo", "minimal", "host", "asymmetric"];
 
 const BASE_LOOK: Record<LayoutId, TemplateLook> = {
   editorial: { radius: 2, field: "line", outcomes: "numbered", backdrop: "paper" },
@@ -371,7 +395,58 @@ const BASE_LOOK: Record<LayoutId, TemplateLook> = {
   minimal: { radius: 2, field: "line", outcomes: "dash", backdrop: "paper" },
   host: { radius: 6, field: "box", outcomes: "numbered", backdrop: "studio" },
   asymmetric: { radius: 2, field: "box", outcomes: "numbered", backdrop: "dusk" },
+  split: { radius: 4, field: "line", outcomes: "tick", backdrop: "studio" },
+  poster: { radius: 0, field: "line", outcomes: "numbered", backdrop: "paper" },
+  letter: { radius: 6, field: "line", outcomes: "dash", backdrop: "paper" },
+  bento: { radius: 20, field: "box", outcomes: "tick", backdrop: "dusk" },
+  agenda: { radius: 8, field: "line", outcomes: "numbered", backdrop: "paper" },
+  card: { radius: 18, field: "box", outcomes: "tick", backdrop: "studio" },
 };
+
+/**
+ * Corner shapes each composition suits: a template takes the first or the
+ * second by position, so neighbours differ. Sharp for editorial and poster,
+ * soft for bento and card, and everything between.
+ */
+const RADIUS_CHOICES: Record<LayoutId, [number, number]> = {
+  editorial: [0, 4],
+  photo: [10, 16],
+  minimal: [0, 12],
+  host: [14, 22],
+  asymmetric: [0, 10],
+  split: [0, 8],
+  poster: [0, 0],
+  letter: [4, 12],
+  bento: [18, 26],
+  agenda: [6, 14],
+  card: [16, 28],
+};
+
+/** A plain colour word for a template's brand colour, used in its name. */
+function colourWord(hex: string): string {
+  const rgb = parseHex(hex);
+  if (!rgb) return "Classic";
+  const [r, g, b] = rgb.map((v) => v / 255);
+  const mx = Math.max(r, g, b);
+  const mn = Math.min(r, g, b);
+  const d = mx - mn;
+  const light = luminance(hex);
+  const sat = mx === 0 ? 0 : d / mx;
+  if (sat < 0.14) return light < 0.06 ? "Ink" : light < 0.2 ? "Graphite" : light < 0.5 ? "Slate" : "Stone";
+  let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = (Math.round(h * 60) + 360) % 360;
+  if (h < 12 || h >= 345) return light > 0.3 ? "Rose" : "Brick";
+  if (h < 36) return light > 0.3 ? "Clay" : "Terracotta";
+  if (h < 56) return "Ochre";
+  if (h < 95) return "Olive";
+  if (h < 150) return light > 0.2 ? "Sage" : "Forest";
+  if (h < 190) return light > 0.2 ? "Seafoam" : "Teal";
+  if (h < 208) return "Sky";
+  if (h < 232) return light < 0.1 ? "Navy" : "Blue";
+  if (h < 262) return "Indigo";
+  if (h < 300) return light > 0.3 ? "Lilac" : "Plum";
+  return "Raspberry";
+}
 
 type Spec = {
   name: string;
@@ -386,7 +461,7 @@ type CategoryDef = {
   slug: string;
   kicker: string;
   tags: string[];
-  templates: Record<LayoutId, Spec>;
+  templates: Record<Slot, Spec>;
 };
 
 const CATEGORY_DEFS: CategoryDef[] = [
@@ -538,25 +613,38 @@ const CATEGORY_DEFS: CategoryDef[] = [
 function buildTemplates(): WebinarTemplate[] {
   const out: WebinarTemplate[] = [];
   CATEGORY_DEFS.forEach((def, categoryIndex) => {
-    LAYOUT_ORDER.forEach((layout) => {
-      const spec = def.templates[layout];
+    SLOT_ORDER.forEach((slot, slotIndex) => {
+      const spec = def.templates[slot];
+      // Dealt so that no category repeats a composition and each composition
+      // appears in five different categories.
+      const layout = LAYOUT_ORDER[(categoryIndex + 2 * slotIndex) % LAYOUT_ORDER.length];
       const [bg, ink, brand, accent] = spec.seed;
-      const tags = [...def.tags, layout, LAYOUT_LABELS[layout].name.toLowerCase(), isDark(bg) ? "dark" : "light"];
-      if (layout === "photo") tags.push("photography", "photo");
+      const colour = colourWord(brand);
+      const label = LAYOUT_LABELS[layout];
+      const tags = [...def.tags, layout, label.name.toLowerCase(), colour.toLowerCase(), isDark(bg) ? "dark" : "light"];
+      if (layout === "photo" || layout === "split" || layout === "card") tags.push("photography", "photo");
       if (layout === "host") tags.push("portrait", "personal brand");
-      if (layout === "minimal") tags.push("simple", "clean");
+      if (layout === "minimal" || layout === "letter") tags.push("simple", "clean");
+      const radius = RADIUS_CHOICES[layout][(categoryIndex + slotIndex) % 2];
+      const { radius: _ignored, ...specLook } = spec.look ?? {};
+      void _ignored;
       out.push({
-        id: `${def.slug}-${layout}`,
-        name: spec.name,
-        description: spec.description,
+        id: `${def.slug}-${slot}`,
+        name: `${colour} ${label.short}`,
+        description: `${label.blurb}. ${colour} on ${isDark(bg) ? "dark" : "light"} paper.`,
         category: def.category,
         tags,
         layout,
         seed: { bg, ink, brand, accent },
         fonts: spec.fonts,
-        // Alternate which side the asymmetric image sits on, so two
-        // neighbouring categories never share a mirror image.
-        look: { ...BASE_LOOK[layout], ...spec.look, flip: spec.look?.flip ?? (layout === "asymmetric" && categoryIndex % 2 === 1) },
+        look: {
+          ...BASE_LOOK[layout],
+          ...specLook,
+          radius,
+          pill: radius >= 16 && (categoryIndex + slotIndex) % 3 !== 0,
+          // Alternate which side asymmetric and programme layouts sit on.
+          flip: specLook.flip ?? ((layout === "asymmetric" || layout === "agenda") && categoryIndex % 2 === 1),
+        },
         kicker: def.kicker,
       });
     });
