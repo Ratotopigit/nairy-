@@ -311,13 +311,17 @@ const confirmation = workflow("10 - Webinar Registration Confirmation", confirma
 export const WINDOW = `// Runs hourly. Each owner is summarised at 7am in THEIR timezone, covering
 // the 24 hours before.
 const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+// The Firestore node posts this body to :runQuery as-is, so it must be
+// wrapped in structuredQuery.
 const query = {
-  from: [{ collectionId: "email_log" }],
-  where: {
-    fieldFilter: {
-      field: { fieldPath: "created_at" },
-      op: "GREATER_THAN_OR_EQUAL",
-      value: { stringValue: since },
+  structuredQuery: {
+    from: [{ collectionId: "email_log" }],
+    where: {
+      fieldFilter: {
+        field: { fieldPath: "created_at" },
+        op: "GREATER_THAN_OR_EQUAL",
+        value: { stringValue: since },
+      },
     },
   },
 };
@@ -397,7 +401,13 @@ const summary = workflow("11 - Webinar Morning Summary", [
     operation: "query",
     projectId: PROJECT_ID,
     query: "={{ $json.query }}",
-  }, { alwaysOutputData: true, onError: "continueRegularOutput", credentials: FIRESTORE }),
+  }, {
+    // A failed query must stop the run (and reach Failure Alerts). Continuing
+    // past it made the summary silently never send.
+    alwaysOutputData: true,
+    onError: "stopWorkflow",
+    credentials: FIRESTORE,
+  }),
   node("Summary State", "n8n-nodes-base.googleFirebaseCloudFirestore", 1.1, {
     authentication: "serviceAccount",
     operation: "getAll",

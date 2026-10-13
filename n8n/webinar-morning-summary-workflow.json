@@ -24,7 +24,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Runs hourly. Each owner is summarised at 7am in THEIR timezone, covering\n// the 24 hours before.\nconst since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();\nconst query = {\n  from: [{ collectionId: \"email_log\" }],\n  where: {\n    fieldFilter: {\n      field: { fieldPath: \"created_at\" },\n      op: \"GREATER_THAN_OR_EQUAL\",\n      value: { stringValue: since },\n    },\n  },\n};\nreturn [{ json: { since, query: JSON.stringify(query) } }];"
+        "jsCode": "// Runs hourly. Each owner is summarised at 7am in THEIR timezone, covering\n// the 24 hours before.\nconst since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();\n// The Firestore node posts this body to :runQuery as-is, so it must be\n// wrapped in structuredQuery.\nconst query = {\n  structuredQuery: {\n    from: [{ collectionId: \"email_log\" }],\n    where: {\n      fieldFilter: {\n        field: { fieldPath: \"created_at\" },\n        op: \"GREATER_THAN_OR_EQUAL\",\n        value: { stringValue: since },\n      },\n    },\n  },\n};\nreturn [{ json: { since, query: JSON.stringify(query) } }];"
       },
       "id": "window",
       "name": "Window",
@@ -51,7 +51,7 @@
         0
       ],
       "alwaysOutputData": true,
-      "onError": "continueRegularOutput",
+      "onError": "stopWorkflow",
       "credentials": {
         "googleApi": {
           "id": "LeMY3R0pzOuv9c8N",
