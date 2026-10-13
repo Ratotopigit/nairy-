@@ -33,3 +33,6 @@ dev_server.log
 
 # Firebase CLI debug output
 firebase-debug.log
+
+# Cloudflare Pages Functions local secrets (wrangler pages dev)
+.dev.vars

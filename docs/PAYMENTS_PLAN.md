@@ -1,7 +1,31 @@
 # Payments plan (Stripe)
 
-Plans on the Billing page: **Monthly $22/mo**, **Annually $99/yr**, **Lifetime $222 once**.
-Nothing here is built yet. The Billing buttons are disabled until Phase 2 is done.
+Plans: **Monthly $22/mo**, **Annually $99/yr**, **Lifetime $222 once** (confirmed). The amounts shown in the app
+live in one place, `lib/plans.ts`, which both the Billing page and the first-login plan step read. If a price
+changes, change the Stripe Price and that file together.
+
+## Status
+
+- **Phase 1 + 2: built** (test mode). `billing/{uid}` rules + emulator tests, `useEntitlement()` in `lib/billing.ts`,
+  `POST /api/billing/checkout` in `functions/api/billing/checkout.js`, Billing page and onboarding wired to checkout.
+  The buttons only switch on in a build that has `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`; without it they stay
+  "Coming soon".
+- **Phase 3 (webhook): not built.** Until it is, a test payment succeeds in Stripe but `billing/{uid}` is never
+  written, so the Billing page says "still being confirmed".
+- Phases 4-6: not built.
+
+### Environment variables for Phases 1-2
+
+| Variable | Where | Secret |
+|---|---|---|
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Cloudflare Pages build variable (and `.env.local` for dev) | no |
+| `STRIPE_SECRET_KEY` | Cloudflare Pages, **encrypted** | yes |
+| `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_ANNUAL`, `STRIPE_PRICE_LIFETIME` | Cloudflare Pages, encrypted (`price_...` ids) | no |
+| `APP_URL` | Cloudflare Pages, encrypted: `https://webinarstackai.com` | no |
+
+The Firebase API key and project id the function also needs already come from `wrangler.toml`. New variables
+apply on the **next deploy**. For local testing of the function, copy `.dev.vars.example` to `.dev.vars`
+(git-ignored), `npm run build`, then `npx wrangler pages dev out`.
 
 ## 0. Ground rules (read first)
 

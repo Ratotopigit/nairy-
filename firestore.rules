@@ -162,6 +162,15 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
+    // Billing: what a user has paid for. Written ONLY by the server (n8n, with
+    // the service account, which bypasses these rules) after Stripe confirms a
+    // payment. The owner can read their own record; nobody can write it from
+    // the browser, so nobody can grant themselves a plan.
+    match /billing/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
     // Default deny all other collections
     match /{document=**} {
       allow read, write: if false;
