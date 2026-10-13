@@ -209,7 +209,9 @@ export function AsymmetricLayout() {
       </header>
       <main className="wp-wrap wp-a-grid">
         <div className="wp-a-visual">
-          <Media src={hero.src} focusX={hero.fx} focusY={hero.fy} fallback={<DateMark />} priority />
+          <div className="wp-a-frame">
+            <Media src={hero.src} focusX={hero.fx} focusY={hero.fy} fallback={<DateMark />} priority />
+          </div>
           {hostName ? (
             <p className="wp-a-tag">
               <strong>{hostName}</strong>

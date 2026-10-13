@@ -1310,7 +1310,11 @@
   justify-self: end;
 }
 
-.wp-a-visual::before {
+.wp-a-frame {
+  position: relative;
+}
+
+.wp-a-frame::before {
   content: "";
   position: absolute;
   inset: 7% 7% -7% -7%;
@@ -1322,24 +1326,30 @@
   aspect-ratio: 4 / 4.6;
 }
 
+/* The host's name sits under the photo as a plain credit line, clear of the
+   offset colour block and the form card, so it never wraps over the image. */
 .wp-a-tag {
-  position: absolute;
-  right: -0.5rem;
-  top: 1.25rem;
+  position: relative;
   z-index: 3;
-  max-width: 78%;
-  padding: 0.55rem 0.8rem;
-  background: var(--surface);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  font-size: 0.8125rem;
-  line-height: 1.35;
+  /* The colour block sits 7% of the photo's height below it; clear it. */
+  margin-top: calc(9.5% + 1rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.1rem 0.7rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--lineStrong);
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.4;
 }
 
 .wp-a-tag strong {
-  display: block;
-  font-weight: 600;
+  font-family: var(--font-head), serif;
+  font-weight: var(--head-w);
+  letter-spacing: var(--head-track);
+  font-size: 1.1875rem;
+  color: var(--ink);
 }
 
 .wp-a-copy {
@@ -1442,17 +1452,13 @@
   .wp[data-flip] .wp-a-visual {
     grid-column: 1 / span 5;
   }
-  .wp[data-flip] .wp-a-visual::before {
+  .wp[data-flip] .wp-a-frame::before {
     inset: 7% -7% -7% 7%;
   }
   .wp[data-flip] .wp-a-panel {
     grid-column: 7 / span 6;
     margin-right: 0;
     margin-left: clamp(-96px, -6cqi, -40px);
-  }
-  .wp[data-flip] .wp-a-tag {
-    left: -0.5rem;
-    right: auto;
   }
   .wp-a-copy .wp-h1 {
     font-size: clamp(3rem, 5.2cqi, 5rem);
@@ -1571,7 +1577,7 @@
 }
 
 .wp-a .wp-dm-time {
-  margin-top: auto;
+  margin-top: 1rem;
 }
 
 @container wp (min-width: 1000px) {
@@ -1582,9 +1588,9 @@
     font-size: clamp(6rem, 11cqi, 9.5rem);
   }
   .wp-a-panel {
-    margin-right: clamp(-170px, -12cqi, -80px);
+    margin-right: clamp(-80px, -5cqi, -40px);
   }
   .wp[data-flip] .wp-a-panel {
-    margin-left: clamp(-170px, -12cqi, -80px);
+    margin-left: clamp(-80px, -5cqi, -40px);
   }
 }
