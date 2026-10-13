@@ -39,7 +39,6 @@ import {
   linkBlueprintToContent,
   listBlueprintSessions,
   loadContentSession,
-  loadLatestContentSession,
   saveContentSession,
   slidesFromSession,
   type ContentSessionDoc,
@@ -268,12 +267,11 @@ export default function Builder() {
         if (requestedProjectId) {
           savedContent = (await loadContentSession(user.uid, requestedProjectId)) ?? savedContent;
         }
-        if (requestedProjectId && !(Array.isArray(savedContent?.slides) && savedContent.slides.length > 0)) {
-          // Behaviour preserved from before the extraction: a requested deck
-          // with no slides falls back to the newest deck that has some. Note
-          // this can hand back a DIFFERENT project than the one asked for.
-          savedContent = (await loadLatestContentSession(user.uid)) ?? savedContent;
-        }
+        // A requested project with no saved slides is simply an empty deck.
+        // It used to fall back to the newest deck that had slides and then
+        // redirect to that deck's URL, so pressing New and generating (the
+        // new project has no slides until generation succeeds) dropped you
+        // back into your previous deck.
       }
 
       // An explicit "build the presentation" handoff from Webinar Chat starts a
