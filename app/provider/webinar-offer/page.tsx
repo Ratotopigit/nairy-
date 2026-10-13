@@ -53,7 +53,13 @@ export type OfferBlueprint = {
   scope: string[];
   success_metrics: string[];
   risk_reversal: string;
+  /** The selling and growth plan. Absent on offers made before it existed. */
+  how_to_sell?: string[];
+  how_to_grow?: string[];
+  first_week_actions?: string[];
 };
+
+type PlanListField = "how_to_sell" | "how_to_grow" | "first_week_actions";
 
 export type BuyerBlueprint = Record<string, unknown> & {
   persona_name?: string;
@@ -344,6 +350,23 @@ export default function OfferWorkspacePage() {
     setHasUnsavedChanges(true);
   }
 
+  function updatePlanItem(field: PlanListField, index: number, text: string) {
+    if (!result) return;
+    const list = [...(result[field] ?? [])];
+    list[index] = text;
+    updateResultField(field, list);
+  }
+
+  function addPlanItem(field: PlanListField) {
+    if (!result) return;
+    updateResultField(field, [...(result[field] ?? []), ""]);
+  }
+
+  function removePlanItem(field: PlanListField, index: number) {
+    if (!result) return;
+    updateResultField(field, (result[field] ?? []).filter((_, i) => i !== index));
+  }
+
   function updateKeyMessage(index: number, text: string) {
     if (!result) return;
     const updated = [...result.success_metrics];
@@ -421,7 +444,19 @@ Total investment: ${cleanP}
 ${anchorText}
 
 WHY IT WORKS:
-${result.risk_reversal}`;
+${result.risk_reversal}${
+      result.how_to_sell?.length
+        ? `\n\nHOW TO SELL IT:\n${result.how_to_sell.map((x, i) => `${i + 1}. ${x}`).join("\n")}`
+        : ""
+    }${
+      result.how_to_grow?.length
+        ? `\n\nHOW TO GROW IT:\n${result.how_to_grow.map((x, i) => `${i + 1}. ${x}`).join("\n")}`
+        : ""
+    }${
+      result.first_week_actions?.length
+        ? `\n\nTHIS WEEK:\n${result.first_week_actions.map((x) => `\u2022 ${x}`).join("\n")}`
+        : ""
+    }`;
 
     if (navigator.clipboard) {
       navigator.clipboard.writeText(summaryText);
@@ -682,14 +717,17 @@ ${result.risk_reversal}`;
           }
           offer = remoteOffer;
         } catch (webhookError) {
-          console.warn("Remote offer-iq webhook unavailable, falling back to local synthesis:", webhookError);
-          offer = buildOfferFromChatData(
-            buyer || { elevator_pitch: focus, persona_name: focus.split(" ").slice(0, 3).join(" ") },
-            focus,
-            delivery,
-            effectiveTimeline,
-            effectivePricing
-          );
+          // Never swap in canned text: it looked like a real strategy and hid
+          // that the service had failed. Say what happened instead.
+          console.error("offer-iq webhook failed:", webhookError);
+          const message = webhookError instanceof Error ? webhookError.message : "";
+          if (/returned 401/.test(message)) {
+            throw new Error("The strategy service didn't accept your sign-in. Refresh the page, sign in again and retry. Nothing was changed.");
+          }
+          if (webhookError instanceof DOMException && webhookError.name === "AbortError") {
+            throw new Error("The strategy took too long to build. Nothing was changed, so please try again.");
+          }
+          throw new Error("The strategy service couldn't build your strategy just now. Nothing was changed. Please try again in a moment.");
         } finally {
           window.clearTimeout(timeoutId);
         }
@@ -1621,6 +1659,78 @@ ${result.risk_reversal}`;
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* HOW TO SELL AND GROW IT (editable) */}
+              <div id="section-sell-grow" className="pt-8">
+                <div className="flex items-center gap-2">
+                  <Send className="size-4 text-[#1f4d3d]" />
+                  <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1d2a27]">
+                    HOW TO SELL IT AND GROW IT
+                  </h3>
+                </div>
+                {result.how_to_sell?.length || result.how_to_grow?.length || result.first_week_actions?.length ? (
+                  <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    {(
+                      [
+                        ["how_to_sell", "How to sell it", "Winning your first customers, in order.", true],
+                        ["how_to_grow", "How to grow it", "Scaling once you have early wins.", true],
+                        ["first_week_actions", "Do this week", "Specific tasks for the next 7 days.", false],
+                      ] as const
+                    ).map(([field, title, hint, numbered]) => (
+                      <div key={field} className="flex flex-col rounded-xl border border-[#e8dfcf] bg-[#faf8f4] p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-[#1d2a27]">{title}</p>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => addPlanItem(field)}
+                            className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-[#1f4d3d] hover:underline"
+                          >
+                            <Plus className="size-3" /> Add
+                          </button>
+                        </div>
+                        <ol className="mt-3 space-y-2">
+                          {(result[field] ?? []).map((item, i) => {
+                            const colon = item.indexOf(":");
+                            const label = numbered && colon > 0 && colon < 48 ? item.slice(0, colon) : "";
+                            return (
+                              <li key={i} className="group flex items-start gap-2 rounded-lg border border-[#e8dfcf]/60 bg-white/60 p-2.5">
+                                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-[#1f4d3d] text-[10px] font-bold text-white">
+                                  {numbered ? i + 1 : <Check className="size-3 stroke-[3]" />}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  {label ? <p className="text-[11px] font-semibold uppercase tracking-wide text-[#1f4d3d]">{label}</p> : null}
+                                  <textarea
+                                    value={label ? item.slice(colon + 1).trimStart() : item}
+                                    onChange={(e) => updatePlanItem(field, i, label ? `${label}: ${e.target.value}` : e.target.value)}
+                                    rows={3}
+                                    spellCheck={false}
+                                    className="w-full resize-none bg-transparent text-xs leading-relaxed text-[#263b34] outline-none"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removePlanItem(field, i)}
+                                  className="p-1 text-muted-foreground opacity-0 transition hover:text-[#b95f35] group-hover:opacity-100"
+                                  title="Remove"
+                                >
+                                  <Trash2 className="size-3" />
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-dashed border-[#ddd7ca] bg-[#faf8f4] p-5 text-xs text-muted-foreground">
+                    This offer was made before the selling and growth plan existed. Build the offer again to add how to sell it, how to grow it and what to do this week.
+                  </div>
+                )}
               </div>
 
               {/* Bottom Next Step Action Bar */}
