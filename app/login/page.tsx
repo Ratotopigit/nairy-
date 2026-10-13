@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useRedirectIfSignedIn } from "@/lib/auth-redirect";
+import { authErrorMessage } from "@/lib/auth-errors";
+import { SigningInScreen } from "@/components/auth/SigningInScreen";
 
 // ── Lazy framer-motion — page renders instantly; animations hydrate ~100ms later
 const MotionDiv = dynamic(
@@ -44,17 +47,49 @@ const planImg = "/assets/login-img/plan.png";
 
 export default function LoginPage() {
   const router = useRouter();
+  const checkingSession = useRedirectIfSignedIn();
 
   // Form States
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  // On by default: people expect to stay signed in on their own computer.
+  const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
+
+  // Firebase's own password-reset email; its link ends back on this page.
+  const handleForgotPassword = async () => {
+    setAuthError(null);
+    setAuthNotice(null);
+    const address = email.trim();
+    if (!address) {
+      setAuthError("Enter your email address above, then click “Forgot password?” again.");
+      return;
+    }
+    setResetting(true);
+    try {
+      const { sendPasswordResetEmail } = await import("firebase/auth");
+      const { auth } = await import("@/lib/firebase/config");
+      await sendPasswordResetEmail(auth, address, { url: `${window.location.origin}/login` });
+      setAuthNotice(`If ${address} has an account, a password reset link is on its way. Check your inbox and spam folder.`);
+    } catch (err) {
+      const code = String((err as { code?: unknown } | null)?.code ?? "");
+      // Same answer either way, so the form can't be used to test which
+      // addresses have accounts.
+      if (code === "auth/user-not-found") setAuthNotice(`If ${address} has an account, a password reset link is on its way. Check your inbox and spam folder.`);
+      else setAuthError(authErrorMessage(err, "reset"));
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError(null);
+    setAuthNotice(null);
     setIsLoading(true);
     setAuthError(null);
 
@@ -67,35 +102,24 @@ export default function LoginPage() {
     }
 
     try {
-      const { signInWithEmailAndPassword } = await import("firebase/auth");
+      const { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } =
+        await import("firebase/auth");
       const { auth } = await import("@/lib/firebase/config");
-      const { checkUserOnboardingStatus } = await import("@/lib/onboarding");
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // "Remember me" off = signed out when the browser closes.
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const { claimLocalData } = await import("@/lib/local-account");
       claimLocalData(userCredential.user.uid);
-      const isCompleted = await checkUserOnboardingStatus(userCredential.user.uid);
-      setIsLoading(false);
-      router.replace(isCompleted ? "/provider" : "/onboarding");
-    } catch (err: any) {
+      const { destinationFor } = await import("@/lib/auth-redirect");
+      router.replace(await destinationFor(userCredential.user.uid));
+    } catch (err) {
       setIsLoading(false);
       console.error("Sign-in error:", err);
-      let msg = err?.message || "An unexpected error occurred during sign in.";
-      if (
-        err?.code === "auth/invalid-credential" ||
-        err?.code === "auth/user-not-found" ||
-        err?.code === "auth/wrong-password"
-      ) {
-        msg = "Invalid email or password.";
-      } else if (err?.code === "auth/too-many-requests") {
-        msg = "Too many failed login attempts. Please try again later.";
-      } else if (err?.code === "auth/network-request-failed") {
-        msg = "Unable to connect to Firebase authentication server. Please check your network connection.";
-      } else if (err?.code === "auth/unauthorized-domain") {
-        msg = "This domain is not authorized in Firebase. Add your Cloudflare domain in Firebase Console > Authentication > Settings > Authorized domains.";
-      }
-      setAuthError(msg);
+      setAuthError(authErrorMessage(err, "sign in"));
     }
   };
+
+  if (checkingSession) return <SigningInScreen />;
 
   return (
     <main className="min-h-screen w-full relative overflow-y-auto flex items-center justify-center p-3 sm:p-6 py-8 font-sans">
@@ -302,16 +326,26 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Remember Me */}
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="size-4 rounded border-input accent-[color:var(--primary)]"
-                />
-                <span>Remember me</span>
-              </label>
+              {/* Remember Me + Forgot password */}
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="size-4 rounded border-input accent-[color:var(--primary)]"
+                  />
+                  <span>Remember me</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleForgotPassword()}
+                  disabled={resetting}
+                  className="text-sm font-medium text-foreground underline-offset-4 hover:underline disabled:opacity-60"
+                >
+                  {resetting ? "Sending..." : "Forgot password?"}
+                </button>
+              </div>
 
               {/* Submit Button */}
               <MotionButton
@@ -335,6 +369,11 @@ export default function LoginPage() {
                   className="rounded-xl border border-accent/40 bg-accent-soft px-3 py-2.5 text-xs leading-5 text-accent"
                 >
                   {authError}
+                </p>
+              )}
+              {authNotice && (
+                <p role="status" className="rounded-xl border border-border bg-muted px-3 py-2.5 text-xs leading-5 text-foreground">
+                  {authNotice}
                 </p>
               )}
             </form>

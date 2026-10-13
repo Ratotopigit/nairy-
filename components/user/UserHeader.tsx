@@ -19,7 +19,7 @@ export default function UserHeader() {
         className="flex items-center gap-3"
       >
         <Link
-          href="/dashboard"
+          href="/provider"
           className="grid size-10 place-items-center rounded-xl border border-border bg-card text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           aria-label="Back to Dashboard"
         >

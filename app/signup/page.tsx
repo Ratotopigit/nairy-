@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Eye, EyeOff, User, ArrowRight } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useRedirectIfSignedIn } from "@/lib/auth-redirect";
+import { authErrorMessage } from "@/lib/auth-errors";
+import { SigningInScreen } from "@/components/auth/SigningInScreen";
 
 // ── Lazy framer-motion
 const MotionDiv = dynamic(
@@ -43,6 +46,7 @@ const planImg = "/assets/login-img/plan.png";
 
 export default function SignupPage() {
   const router = useRouter();
+  const checkingSession = useRedirectIfSignedIn();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -73,7 +77,7 @@ export default function SignupPage() {
     try {
       const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
       const { auth } = await import("@/lib/firebase/config");
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const { claimLocalData } = await import("@/lib/local-account");
       claimLocalData(userCredential.user.uid);
       if (fullName.trim()) {
@@ -81,24 +85,14 @@ export default function SignupPage() {
       }
       setIsLoading(false);
       router.replace("/onboarding");
-    } catch (err: any) {
+    } catch (err) {
       setIsLoading(false);
       console.error("Sign-up error:", err);
-      let msg = err?.message || "An unexpected error occurred during sign up.";
-      if (err?.code === "auth/email-already-in-use") {
-        msg = "An account with this email address already exists.";
-      } else if (err?.code === "auth/weak-password") {
-        msg = "Password should be at least 6 characters.";
-      } else if (err?.code === "auth/invalid-email") {
-        msg = "The email address is not valid.";
-      } else if (err?.code === "auth/network-request-failed") {
-        msg = "Unable to connect to Firebase authentication server. Please check your network connection.";
-      } else if (err?.code === "auth/unauthorized-domain") {
-        msg = "This domain is not authorized in Firebase. Add your Cloudflare domain in Firebase Console > Authentication > Settings > Authorized domains.";
-      }
-      setAuthError(msg);
+      setAuthError(authErrorMessage(err, "sign up"));
     }
   };
+
+  if (checkingSession) return <SigningInScreen />;
 
   return (
     <main className="min-h-screen w-full relative overflow-y-auto flex items-center justify-center p-3.5 sm:p-6 py-8 font-sans">

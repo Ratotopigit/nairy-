@@ -5,6 +5,8 @@ import { claimLocalData } from "@/lib/local-account";
 import { useState } from "react";
 import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
 import { checkUserOnboardingStatus } from "@/lib/onboarding";
+import { destinationFor } from "@/lib/auth-redirect";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 type Props = {
   onError: (message: string | null) => void;
@@ -55,24 +57,11 @@ export function OAuthButtons({ onError }: Props) {
         }
       }
 
-      const isCompleted = await checkUserOnboardingStatus(userCredential.user.uid);
-      setLoading(false);
-      window.location.assign(isCompleted ? "/provider" : "/onboarding");
-    } catch (err: any) {
+      window.location.assign(await destinationFor(userCredential.user.uid));
+    } catch (err) {
       setLoading(false);
       console.error("OAuth sign-in error:", err);
-      if (err?.code === "auth/unauthorized-domain") {
-        onError("This domain is not authorized in Firebase. Add your Cloudflare domain (e.g. *.pages.dev) in Firebase Console > Authentication > Settings > Authorized domains.");
-        return;
-      }
-      if (err?.code === "auth/popup-closed-by-user") {
-        return;
-      }
-      const msg =
-        err?.code === "auth/network-request-failed"
-          ? "Unable to connect to Firebase authentication server. Please check your network connection."
-          : (err?.message || "OAuth sign in failed.");
-      onError(msg);
+      onError(authErrorMessage(err, "sign in"));
     }
   }
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
 import { claimLocalData } from "@/lib/local-account";
+import { loginUrlFor } from "@/lib/auth-redirect";
 import { checkUserOnboardingStatus } from "@/lib/onboarding";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -52,7 +53,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (user === null) {
-      router.replace("/login");
+      // Remember the page, so signing in lands there instead of the home screen.
+      router.replace(loginUrlFor(window.location.pathname + window.location.search));
       return;
     }
 

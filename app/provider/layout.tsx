@@ -14,7 +14,7 @@ export default function ProviderLayout({
 }) {
   const pathname = usePathname();
   const isBuilder =
-    pathname.startsWith("/provider/webinar-chat") || pathname === "/provider/webinar-content";
+    pathname.startsWith("/provider/webinar-chat") || pathname.startsWith("/provider/webinar-content");
 
   return (
     <AuthGuard>

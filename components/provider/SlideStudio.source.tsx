@@ -289,7 +289,9 @@ export default function Builder() {
           sessionStorage.setItem(contentProjectKey(user.uid), savedProjectId);
         }
         if (requestedProjectId && savedProjectId !== routeProjectId && Array.isArray(savedContent?.slides) && savedContent.slides.length > 0) {
-          router.replace(`/provider/webinar-content/${savedProjectId}`);
+          // Query form: the site is a static export, so /webinar-content/<id>
+          // paths other than the pre-built one 404 on reload.
+          router.replace(`/provider/webinar-content?projectId=${savedProjectId}`);
         }
       } else if (requestedProjectId) {
         setProjectId(requestedProjectId);

@@ -105,8 +105,7 @@ export async function checkUserOnboardingStatus(uid: string): Promise<boolean> {
 }
 
 /**
- * Persists the final onboarding payload to Firestore workspace_memory
- * and dispatches to POST /api/onboarding.
+ * Persists the final onboarding payload to Firestore workspace_memory.
  */
 export async function saveOnboardingCompletion(
   uid: string,
@@ -123,20 +122,8 @@ export async function saveOnboardingCompletion(
       clearStoredOnboardingDraft(uid);
     }
 
-    // 2. Call the onboarding API endpoint
-    try {
-      await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: uid,
-          answers: data,
-          plan: data.selectedPlan,
-        }),
-      });
-    } catch (apiErr) {
-      console.warn("API route /api/onboarding call finished with warning:", apiErr);
-    }
+    // (No server call here: the site is a static export, so there is no
+    // /api/onboarding in production. Firestore below is the record.)
 
     // 3. Update Firebase Auth displayName if available
     if (auth.currentUser && data.firstName?.trim()) {
