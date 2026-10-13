@@ -13,14 +13,12 @@ import type { ComponentType } from "react";
 const GREEN = "#1a4a3a";
 
 const FEATURES = [
-  "Unlimited webinars and registration pages",
-  "55 designer page templates in your brand colours",
-  "Confirmation and reminder emails with calendar invites",
+  "Unlimited webinars and pages",
+  "55 designer templates",
+  "Confirmation and reminder emails",
   "Registrant list with CSV export",
-  "AI Webinar Chat to define your ideal buyer",
-  "AI Webinar Offer: a strategy for how to sell and grow",
-  "AI Webinar Content: slide decks with .pptx and PDF export",
-  "Brand assets library for logos and files",
+  "AI Chat, Offer and Content tools",
+  "Slide decks to .pptx and PDF",
 ];
 
 type Plan = {
@@ -76,7 +74,7 @@ const PLANS: Plan[] = [
 
 export default function BillingPage() {
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="mx-auto w-full max-w-5xl">
       <div className="flex items-center gap-3">
         <Link
           href="/provider/webinars"
@@ -91,13 +89,13 @@ export default function BillingPage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-[28px] bg-[#dff0df] p-4 sm:p-8">
-        <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-3 lg:gap-6">
+      <div className="mt-6 rounded-[28px] bg-[#dff0df] p-4 sm:p-6">
+        <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-3 lg:gap-5">
           {PLANS.map((plan) => (
             <div
               key={plan.id}
-              className={`relative flex flex-col rounded-[28px] bg-white p-6 sm:p-8 ${
-                plan.popular ? "border-2 shadow-[0_24px_50px_-28px_rgba(26,74,58,0.55)] lg:-my-3" : "border border-white shadow-[0_18px_40px_-34px_rgba(26,74,58,0.5)]"
+              className={`relative flex flex-col rounded-3xl bg-white p-5 transition-transform duration-200 hover:-translate-y-0.5 ${
+                plan.popular ? "border-2 shadow-[0_24px_50px_-28px_rgba(26,74,58,0.55)] lg:-my-2" : "border border-white shadow-[0_18px_40px_-34px_rgba(26,74,58,0.5)]"
               }`}
               style={plan.popular ? { borderColor: GREEN } : undefined}
             >
@@ -110,34 +108,34 @@ export default function BillingPage() {
                 </span>
               ) : null}
 
-              <div className="flex items-center gap-3.5">
-                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e3f1e3]" style={{ color: GREEN }}>
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#e3f1e3]" style={{ color: GREEN }}>
                   <plan.Icon className="size-5" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="font-serif text-2xl font-bold leading-tight tracking-[-0.02em]" style={{ color: GREEN }}>
+                  <h2 className="font-serif text-xl font-bold leading-tight tracking-[-0.02em]" style={{ color: GREEN }}>
                     {plan.name}
                   </h2>
                   <p className="text-xs text-muted-foreground">{plan.tagline}</p>
                 </div>
               </div>
 
-              <div className="mt-6 flex flex-wrap items-baseline gap-x-2 gap-y-1" style={{ color: GREEN }}>
+              <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1" style={{ color: GREEN }}>
                 {plan.was ? <span className="text-base font-medium text-muted-foreground line-through">{plan.was}</span> : null}
-                <span className="font-serif text-5xl font-bold tracking-[-0.03em]">{plan.price}</span>
-                {plan.unit ? <span className="font-serif text-2xl font-bold">{plan.unit}</span> : null}
+                <span className="font-serif text-4xl font-bold tracking-[-0.03em]">{plan.price}</span>
+                {plan.unit ? <span className="font-serif text-lg font-bold">{plan.unit}</span> : null}
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">{plan.note}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{plan.note}</p>
               {plan.badge ? (
-                <span className="mt-3 inline-flex w-fit rounded-full bg-[#dff0df] px-3 py-1 text-xs font-semibold" style={{ color: GREEN }}>
+                <span className="mt-2 inline-flex w-fit rounded-full bg-[#dff0df] px-2.5 py-0.5 text-[11px] font-semibold" style={{ color: GREEN }}>
                   {plan.badge}
                 </span>
               ) : null}
 
-              <ul className="mt-6 flex-1 space-y-3 border-t border-[#e6ece6] pt-6">
+              <ul className="mt-4 flex-1 space-y-2 border-t border-[#e6ece6] pt-4">
                 {FEATURES.map((feature) => (
-                  <li key={feature} className="flex items-start gap-3 text-[15px] leading-snug text-[#1d2a27]">
-                    <Check className="mt-0.5 size-4 shrink-0" style={{ color: GREEN }} strokeWidth={2.5} />
+                  <li key={feature} className="flex items-center gap-2.5 text-[13px] leading-snug text-[#1d2a27]">
+                    <Check className="size-3.5 shrink-0" style={{ color: GREEN }} strokeWidth={2.5} />
                     <span>{feature}</span>
                   </li>
                 ))}
@@ -146,7 +144,7 @@ export default function BillingPage() {
               <button
                 type="button"
                 disabled
-                className={`mt-8 inline-flex h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-full text-sm font-semibold ${
+                className={`mt-5 inline-flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-full text-sm font-semibold ${
                   plan.popular ? "text-white opacity-90" : "border border-[#cfdccf] bg-white opacity-90"
                 }`}
                 style={plan.popular ? { background: GREEN } : { color: GREEN }}
@@ -155,7 +153,7 @@ export default function BillingPage() {
                 {plan.cta}
                 <ArrowRight className="size-4" />
               </button>
-              <p className="mt-2 text-center text-[11px] text-muted-foreground">Coming soon. Nothing is charged yet.</p>
+              <p className="mt-1.5 text-center text-[11px] text-muted-foreground">Coming soon</p>
             </div>
           ))}
         </div>
