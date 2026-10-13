@@ -375,6 +375,80 @@ ${bulletsHtml}
 }
 
 /**
+ * Reminder before a session: "day" (sent 2-24 hours before) or "hour" (in
+ * the hour before). The time is shown in the host's timezone, labelled: we
+ * don't store each registrant's zone, and "in about N hours" is exact anyway.
+ * @param {{webinar: object, registrant: {name: string, email: string}, kind: "day" | "hour", joinUrl?: string, now?: number}} input
+ */
+function reminderEmail({ webinar, registrant, kind, joinUrl: rawJoinUrl, now = Date.now() }) {
+  const joinUrl = safeJoinUrl(rawJoinUrl);
+  const title = clip(webinar.title, 120) || "the webinar";
+  const presenter = clip(webinar.presenter_name, 60);
+  const when = sessionParts(webinar.next_session_at, webinar.owner_timezone);
+  const link = pageUrl(webinar);
+  const soon = kind === "hour";
+  const hours = Math.max(1, Math.round((Date.parse(webinar.next_session_at) - now) / 3600000));
+  const inWords = soon ? "in about an hour" : `in about ${hours} hour${hours === 1 ? "" : "s"}`;
+
+  const subject = soon ? `Starting soon: ${clip(title, 70)}` : `Coming up: ${clip(title, 70)}`;
+  const preheader = joinUrl
+    ? `Starts ${inWords}. Your join link is inside.`
+    : `Starts ${inWords}${when ? `: ${when.date} at ${when.time}` : ""}.`;
+
+  const whenHtml = when
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid ${COLORS.rule};border-radius:10px;">
+<tr><td style="padding:16px 18px;">
+<div style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:${COLORS.muted};">Starts ${esc(inWords)}</div>
+<div style="margin-top:4px;font-size:17px;font-weight:700;">${esc(when.date)}</div>
+<div style="font-size:15px;">${esc(when.time)}</div>
+${presenter ? `<div style="margin-top:8px;font-size:14px;color:${COLORS.muted};">Hosted by ${esc(presenter)}</div>` : ""}
+</td></tr></table>`
+    : "";
+
+  const joinHtml = joinUrl
+    ? `<p style="margin:0 0 6px;font-size:14px;">${soon ? "When it's time, join here" : "Here's your link to join"}${linkHost(joinUrl) ? ` (${esc(linkHost(joinUrl))})` : ""}:</p>
+${button(joinUrl, "Join the session")}
+<p style="margin:10px 0 0;font-size:12px;color:${COLORS.muted};word-break:break-all;">${esc(joinUrl)}</p>`
+    : `<p style="margin:0;font-size:14px;color:${COLORS.muted};">The host will share the link to join. Keep an eye on your inbox.</p>`;
+
+  const tip = soon
+    ? `<p style="margin:20px 0 0;font-size:14px;color:${COLORS.muted};">Tip: join a couple of minutes early so you can check your sound before it starts.</p>`
+    : `<p style="margin:20px 0 0;font-size:14px;color:${COLORS.muted};">Put it in your calendar now if you haven't. The invite is attached to your confirmation email.</p>`;
+
+  const body = `<p style="margin:0 0 12px;">Hi ${esc(firstName(registrant.name))},</p>
+<p style="margin:0;">${soon ? "" : "A quick reminder: "}<strong>${esc(title)}</strong> starts ${esc(inWords)}.</p>
+${whenHtml}
+${joinHtml}
+${tip}
+<p style="margin:28px 0 0;font-size:14px;">Session page: <a href="${esc(link)}" style="color:${COLORS.button};">${esc(link.replace("https://", ""))}</a></p>`;
+
+  const footer = `You're receiving this because ${esc(registrant.email)} was registered for "${esc(title)}" on webinarstackai.com.${presenter ? ` Replying to this email reaches ${esc(presenter)}.` : ""}<br>Sent by ${esc(BRAND.product)}.`;
+
+  const text = [
+    `Hi ${firstName(registrant.name)},`,
+    "",
+    `${soon ? "" : "A quick reminder: "}"${title}" starts ${inWords}.`,
+    ...(when ? ["", `When: ${when.date}, ${when.time}`, ...(presenter ? [`Hosted by: ${presenter}`] : [])] : []),
+    "",
+    joinUrl ? `Join the session: ${joinUrl}` : "The host will share the link to join. Keep an eye on your inbox.",
+    "",
+    `Session page: ${link}`,
+    "",
+    "--",
+    `You're receiving this because ${registrant.email} was registered for "${title}" on webinarstackai.com.`,
+    `Sent by ${BRAND.product}.`,
+  ].join("\n");
+
+  return {
+    fromName: senderName(webinar.presenter_name),
+    subject,
+    html: layout({ preheader, body, footer }),
+    text,
+    attachments: [],
+  };
+}
+
+/**
  * The owner's morning summary of new registrations across their webinars.
  * `total` is optional: the summary is built from the email log, which knows
  * the day's registrations but not each webinar's all-time count.
@@ -559,7 +633,7 @@ function broadcastEmail({ subject, message, recipient }) {
 // Exported for the local preview/test script and the admin preview; n8n ignores this.
 if (typeof module !== "undefined") {
   module.exports = {
-    confirmationEmail, digestEmail, welcomeEmail, broadcastEmail, unsubscribeLinks,
+    confirmationEmail, reminderEmail, digestEmail, welcomeEmail, broadcastEmail, unsubscribeLinks,
     gmailPayload,
     senderName, safeTimezone, sessionParts, esc, toBase64,
   };

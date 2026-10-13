@@ -1,6 +1,6 @@
 # Platform emails
 
-Five n8n workflows, all generated from this folder:
+Six n8n workflows, all generated from this folder:
 
 | Workflow | Trigger | Sends |
 |---|---|---|
@@ -9,6 +9,7 @@ Five n8n workflows, all generated from this folder:
 | `12 - Welcome Email` | webhook `user-welcome`, called the first time a new account's profile is created | a welcome listing what they can do |
 | `13 - Admin Broadcast` | webhook `admin-broadcast`, called from `/admin/email` | an admin's announcement, one email per user, with an unsubscribe link |
 | `14 - Email Unsubscribe` | webhook `email-unsubscribe`, called from `/unsubscribe` | nothing; records the opt-out |
+| `15 - Webinar Reminders` | every 15 minutes | each registrant, 2-24 hours before the session and again in the hour before, with the host's join link (once per session date; `reminder_state` tracks it) |
 
 Everything is sent by n8n's **Gmail** node from the connected Explosion Marketing Google Workspace account. Display names: `"<presenter> via Webinar Stack"` for registration confirmations, `"Webinar Stack"` for everything else. Confirmation replies go to the webinar's owner.
 
@@ -34,7 +35,7 @@ Never hand-edit the generated `n8n/*-workflow.json`; the next build overwrites t
 ## One-time setup
 
 1. In n8n: **Credentials → Add credential → Gmail OAuth2 API → Sign in with Google**, using the account the emails should come from. The live instance uses the credential `bibeks gmail` (id in `GMAIL` in `build-workflows.mjs`); on another instance, change that id and rebuild.
-2. Import the five JSON files. Check each **Send…** node shows that credential.
+2. Import the six JSON files. Check each **Send…** node shows that credential.
 3. **Publish** each workflow. Drafts do nothing until published.
 
 ## Limits to know

@@ -1,0 +1,592 @@
+{
+  "name": "15 - Webinar Reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "every-15-minutes",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Runs every 15 minutes. Finds sessions starting within the next day; the\n// next node decides which reminder (if any) each one is due.\nconst now = Date.now();\nconst from = new Date(now).toISOString();\nconst to = new Date(now + 25 * 60 * 60 * 1000).toISOString();\n// next_session_at is an ISO string, so a string range is a time range. A\n// single-field range needs no composite index; \"published\" is checked after.\nconst query = {\n  structuredQuery: {\n    from: [{ collectionId: \"webinars\" }],\n    where: {\n      compositeFilter: {\n        op: \"AND\",\n        filters: [\n          { fieldFilter: { field: { fieldPath: \"next_session_at\" }, op: \"GREATER_THAN\", value: { stringValue: from } } },\n          { fieldFilter: { field: { fieldPath: \"next_session_at\" }, op: \"LESS_THAN_OR_EQUAL\", value: { stringValue: to } } },\n        ],\n      },\n    },\n  },\n};\nreturn [{ json: { query: JSON.stringify(query) } }];"
+      },
+      "id": "reminder-window",
+      "name": "Reminder Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "query",
+        "projectId": "nirey-f2faf",
+        "query": "={{ $json.query }}"
+      },
+      "id": "upcoming-webinars",
+      "name": "Upcoming Webinars",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "stopWorkflow",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "getAll",
+        "projectId": "nirey-f2faf",
+        "collection": "reminder_state",
+        "returnAll": true
+      },
+      "id": "reminder-state",
+      "name": "Reminder State",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// One item per webinar that has a reminder due and not yet sent for THIS\n// session date (so a rescheduled or re-run webinar gets fresh reminders).\n//   day   2 to 24 hours before the start\n//   hour  in the last 65 minutes before the start (runs are 15 minutes apart)\nconst all = (name) => { try { return $(name).all().map((i) => i.json); } catch { return []; } };\nconst idOf = (doc) => {\n  const id = String(doc._id ?? \"\") || String(doc._name ?? \"\").split(\"/\").pop() || \"\";\n  if (id) return id;\n  const m = /-([A-Za-z0-9]{16,40})$/.exec(String(doc.public_path ?? \"\"));\n  return m ? m[1] : \"\";\n};\nconst state = new Map(all(\"Reminder State\").filter((s) => s && s.webinar_id).map((s) => [s.webinar_id, s]));\nconst now = Date.now();\nconst out = [];\nfor (const doc of all(\"Upcoming Webinars\")) {\n  const id = idOf(doc ?? {});\n  if (!id || doc.status !== \"published\") continue;\n  const start = Date.parse(doc.next_session_at ?? \"\");\n  if (!Number.isFinite(start)) continue;\n  const until = start - now;\n  const kind = until > 0 && until <= 65 * 60 * 1000 ? \"hour\"\n    : until > 2 * 60 * 60 * 1000 && until <= 24 * 60 * 60 * 1000 ? \"day\"\n    : null;\n  if (!kind) continue;\n  const prev = state.get(id) ?? {};\n  if (prev[`${kind}_sent_for`] === doc.next_session_at) continue;\n  out.push({\n    json: {\n      webinar: { ...doc, id },\n      kind,\n      start_iso: doc.next_session_at,\n      prev_day: String(prev.day_sent_for ?? \"\"),\n      prev_hour: String(prev.hour_sent_for ?? \"\"),\n    },\n  });\n}\nreturn out;"
+      },
+      "id": "due-reminders",
+      "name": "Due Reminders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-over-webinars",
+      "name": "Loop Over Webinars",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all();"
+      },
+      "id": "current-webinar",
+      "name": "Current Webinar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "getAll",
+        "projectId": "nirey-f2faf",
+        "collection": "={{ 'webinars/' + $json.webinar.id + '/registrants' }}",
+        "returnAll": true
+      },
+      "id": "load-registrants",
+      "name": "Load Registrants",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "users",
+        "documentId": "={{ $('Current Webinar').first().json.webinar.owner_id || 'no-owner' }}"
+      },
+      "id": "load-owner",
+      "name": "Load Owner",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "={{ 'webinars/' + $('Current Webinar').first().json.webinar.id + '/private' }}",
+        "documentId": "session"
+      },
+      "id": "load-session-link",
+      "name": "Load Session Link",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Webinar email templates — single source of truth.\n *\n * n8n Code nodes cannot import files, so n8n/email/build-workflows.mjs inlines\n * this file into each workflow that sends email. Edit HERE, then rebuild; never\n * edit the copies inside the workflow JSON.\n *\n * Deliverability (this is a multi-user platform, and every user's email goes\n * out from the same domain, so one bad template hurts everyone):\n *   - multipart: every email has a plain-text part, not HTML only\n *   - no images, no tracking pixels, no link shorteners\n *   - every link points at webinarstackai.com, the sending domain, with one\n *     exception: the host's own session link (Zoom, Meet...) in a\n *     confirmation. That is https only, shown with its domain spelled out,\n *     and only ever sent to people who registered for that host's webinar\n *   - user-written text is HTML-escaped and length-capped; users cannot add\n *     links anywhere else, so the platform cannot be used to send phishing\n *   - a footer saying who sent it and why the recipient is getting it\n */\n\n// Emails are sent by n8n's Gmail node from the connected Google Workspace\n// account, so the From ADDRESS is that account; templates only set the\n// display name.\nconst BRAND = {\n  site: \"https://webinarstackai.com\",\n  product: \"Webinar Stack\",\n  // Sender identification in bulk-email footers (Australia's Spam Act). Add a\n  // postal address here before emailing US recipients (CAN-SPAM requires one).\n  company: \"Explosion Marketing International\",\n  postalAddress: \"\",\n};\n\nconst COLORS = {\n  page: \"#f4f1e8\",\n  card: \"#ffffff\",\n  ink: \"#1d2a27\",\n  muted: \"#5f6b67\",\n  rule: \"#e4dfd3\",\n  button: \"#1f4d3d\",\n};\n\nfunction esc(value) {\n  return String(value ?? \"\")\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\")\n    .replace(/'/g, \"&#39;\");\n}\n\nfunction clip(value, max) {\n  const text = String(value ?? \"\").replace(/\\s+/g, \" \").trim();\n  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;\n}\n\nfunction firstName(name) {\n  const first = clip(name, 60).split(\" \")[0];\n  return first || \"there\";\n}\n\n/**\n * The display name in the From header. User-controlled, so stripped of\n * anything that could break out of the header: quotes, angle brackets, @,\n * control characters and newlines (header injection).\n */\nfunction senderName(presenter) {\n  const clean = String(presenter ?? \"\")\n    .replace(/[\\u0000-\\u001f\\u007f\"<>@\\\\]/g, \"\")\n    .replace(/\\s+/g, \" \")\n    .trim()\n    .slice(0, 40);\n  return clean ? `${clean} via ${BRAND.product}` : BRAND.product;\n}\n\n/**\n * The ONLY place that knows the sending step's input format (n8n's Gmail\n * node). Templates return a neutral email; this maps it. Attachments travel\n * as n8n binary data, built separately by the workflow.\n */\nfunction gmailPayload(email, { to, replyTo } = {}) {\n  return {\n    to,\n    subject: email.subject,\n    html: email.html,\n    senderName: email.fromName,\n    replyTo: replyTo || \"\",\n  };\n}\n\n\n/** Falls back to UTC for anything that is not a real IANA zone. */\nfunction safeTimezone(tz) {\n  try {\n    if (!tz) return \"UTC\";\n    new Intl.DateTimeFormat(\"en-US\", { timeZone: tz }).format(new Date());\n    return tz;\n  } catch {\n    return \"UTC\";\n  }\n}\n\n/**\n * \" (Sydney time)\" from \"Australia/Sydney\". Offsets like GMT+11 are exact but\n * most people don't know their own; a city they recognise.\n */\nfunction zoneCity(zone) {\n  if (!zone || zone === \"UTC\" || !zone.includes(\"/\")) return \"\";\n  const city = zone.split(\"/\").pop().replace(/_/g, \" \");\n  return city ? ` (${city} time)` : \"\";\n}\n\nfunction sessionParts(iso, tz) {\n  const date = new Date(iso);\n  if (!iso || Number.isNaN(date.getTime())) return null;\n  const zone = safeTimezone(tz);\n  return {\n    date: new Intl.DateTimeFormat(\"en-GB\", {\n      weekday: \"long\", day: \"numeric\", month: \"long\", year: \"numeric\", timeZone: zone,\n    }).format(date),\n    time: `${new Intl.DateTimeFormat(\"en-US\", {\n      hour: \"numeric\", minute: \"2-digit\", timeZoneName: \"short\", timeZone: zone,\n    }).format(date)}${zoneCity(zone)}`,\n  };\n}\n\n/**\n * UTF-8 -> base64 without Buffer or btoa, neither of which is guaranteed in\n * the n8n Code sandbox (it already lacks `crypto`).\n */\nfunction toBase64(input) {\n  const bytes = [];\n  for (const ch of String(input)) {\n    const code = ch.codePointAt(0);\n    if (code < 0x80) bytes.push(code);\n    else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63));\n    else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));\n    else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));\n  }\n  const table = \"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/\";\n  let out = \"\";\n  for (let i = 0; i < bytes.length; i += 3) {\n    const a = bytes[i];\n    const b = bytes[i + 1] ?? 0;\n    const c = bytes[i + 2] ?? 0;\n    const n = (a << 16) | (b << 8) | c;\n    out += table[(n >> 18) & 63] + table[(n >> 12) & 63];\n    out += i + 1 < bytes.length ? table[(n >> 6) & 63] : \"=\";\n    out += i + 2 < bytes.length ? table[n & 63] : \"=\";\n  }\n  return out;\n}\n\nfunction utcStamp(date) {\n  return date.toISOString().replace(/[-:]/g, \"\").replace(/\\.\\d{3}/, \"\");\n}\n\n/**\n * The public page: the readable /<host>/<title>-<id> link when the webinar\n * has one, else the original /w?id= form (both work).\n */\nfunction pageUrl(webinar) {\n  const path = String(webinar.public_path ?? \"\");\n  if (/^\\/[a-z0-9-]{1,40}\\/[a-z0-9-]*[A-Za-z0-9]{16,40}$/.test(path)) return `${BRAND.site}${path}`;\n  return `${BRAND.site}/w?id=${encodeURIComponent(webinar.id)}`;\n}\n\n/** The host's join link, or \"\" if it is not a plain https URL. */\nfunction safeJoinUrl(raw) {\n  const url = String(raw ?? \"\").trim();\n  if (!url || url.length > 1000 || /\\s/.test(url) || !/^https:\\/\\/[^/\\s]+/i.test(url)) return \"\";\n  return url;\n}\n\n/** \"zoom.us\" from a join link, so people can see where it goes. */\nfunction linkHost(url) {\n  const m = /^https:\\/\\/([^/:?#]+)/i.exec(url);\n  return m ? m[1].replace(/^www\\./i, \"\").toLowerCase() : \"\";\n}\n\nfunction sessionEnd(webinar) {\n  const start = new Date(webinar.next_session_at);\n  const minutes = Number(webinar.duration_minutes) > 0 ? Math.min(Number(webinar.duration_minutes), 1440) : 60;\n  return new Date(start.getTime() + minutes * 60 * 1000);\n}\n\nfunction calendarDetails(webinar, joinUrl) {\n  return [\n    clip(webinar.subtitle, 240),\n    joinUrl ? `Join here: ${joinUrl}` : \"\",\n    `Session page: ${pageUrl(webinar)}`,\n  ].filter(Boolean).join(\"\\n\\n\");\n}\n\nfunction googleCalendarUrl(webinar, joinUrl = \"\") {\n  const start = new Date(webinar.next_session_at);\n  const end = sessionEnd(webinar);\n  // Built by hand: URLSearchParams is not guaranteed in the n8n sandbox.\n  const params = {\n    action: \"TEMPLATE\",\n    text: clip(webinar.title, 120),\n    dates: `${utcStamp(start)}/${utcStamp(end)}`,\n    details: calendarDetails(webinar, joinUrl),\n    ...(joinUrl ? { location: joinUrl } : {}),\n  };\n  const query = Object.entries(params)\n    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)\n    .join(\"&\");\n  return `https://calendar.google.com/calendar/render?${query}`;\n}\n\n/**\n * The calendar invite, base64-encoded for an email attachment. Carries the\n * join link (as the location, so calendar apps show a Join button) and two\n * reminders: an hour and ten minutes before.\n */\nfunction icsAttachment(webinar, joinUrl = \"\") {\n  const start = new Date(webinar.next_session_at);\n  if (Number.isNaN(start.getTime())) return null;\n  const end = sessionEnd(webinar);\n  const text = (v) =>\n    String(v ?? \"\").replace(/\\\\/g, \"\\\\\\\\\").replace(/[,;]/g, (m) => `\\\\${m}`).replace(/\\r?\\n/g, \"\\\\n\");\n  const body = [\n    \"BEGIN:VCALENDAR\",\n    \"VERSION:2.0\",\n    \"PRODID:-//Webinar Stack//EN\",\n    \"METHOD:PUBLISH\",\n    \"BEGIN:VEVENT\",\n    `UID:${webinar.id}-${utcStamp(start)}@webinarstackai.com`,\n    `DTSTAMP:${utcStamp(new Date())}`,\n    `DTSTART:${utcStamp(start)}`,\n    `DTEND:${utcStamp(end)}`,\n    `SUMMARY:${text(clip(webinar.title, 120))}`,\n    `DESCRIPTION:${text(calendarDetails(webinar, joinUrl))}`,\n    ...(joinUrl ? [`LOCATION:${text(joinUrl)}`] : []),\n    `URL:${joinUrl || pageUrl(webinar)}`,\n    ...[\"PT1H\", \"PT10M\"].flatMap((before) => [\n      \"BEGIN:VALARM\",\n      \"ACTION:DISPLAY\",\n      `DESCRIPTION:${text(clip(webinar.title, 120))}`,\n      `TRIGGER:-${before}`,\n      \"END:VALARM\",\n    ]),\n    \"END:VEVENT\",\n    \"END:VCALENDAR\",\n  ].join(\"\\r\\n\");\n  return { filename: \"webinar.ics\", content: toBase64(body), type: \"text/calendar\", disposition: \"attachment\" };\n}\n\n/** The shared shell: a single centred column, inline styles, no images. */\nfunction layout({ preheader, body, footer }) {\n  return `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<meta name=\"color-scheme\" content=\"light\">\n<title>${esc(BRAND.product)}</title>\n</head>\n<body style=\"margin:0;padding:0;background:${COLORS.page};\">\n<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;\">${esc(preheader)}</div>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:${COLORS.page};\">\n<tr><td align=\"center\" style=\"padding:32px 16px;\">\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:560px;\">\n<tr><td style=\"padding:0 4px 16px;font:600 13px/1.4 Arial,Helvetica,sans-serif;letter-spacing:0.08em;text-transform:uppercase;color:${COLORS.muted};\">${esc(BRAND.product)}</td></tr>\n<tr><td style=\"background:${COLORS.card};border:1px solid ${COLORS.rule};border-radius:12px;padding:32px 28px;font:15px/1.6 Arial,Helvetica,sans-serif;color:${COLORS.ink};\">\n${body}\n</td></tr>\n<tr><td style=\"padding:20px 4px 0;font:12px/1.6 Arial,Helvetica,sans-serif;color:${COLORS.muted};\">\n${footer}\n</td></tr>\n</table>\n</td></tr>\n</table>\n</body>\n</html>`;\n}\n\nfunction button(href, label) {\n  return `<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:8px 0 4px;\"><tr>\n<td style=\"background:${COLORS.button};border-radius:8px;\">\n<a href=\"${esc(href)}\" style=\"display:inline-block;padding:12px 22px;font:600 15px/1 Arial,Helvetica,sans-serif;color:#ffffff;text-decoration:none;\">${esc(label)}</a>\n</td></tr></table>`;\n}\n\n/**\n * Sent seconds after someone registers.\n * @param {{webinar: object, registrant: {name: string, email: string}, timezone: string, joinUrl?: string}} input\n */\nfunction confirmationEmail({ webinar, registrant, timezone, joinUrl: rawJoinUrl }) {\n  const joinUrl = safeJoinUrl(rawJoinUrl);\n  const title = clip(webinar.title, 120) || \"the webinar\";\n  const presenter = clip(webinar.presenter_name, 60);\n  const when = sessionParts(webinar.next_session_at, timezone);\n  const bullets = (Array.isArray(webinar.bullets) ? webinar.bullets : [])\n    .map((b) => clip(b, 140))\n    .filter(Boolean)\n    .slice(0, 4);\n  const link = pageUrl(webinar);\n  const hasDate = Boolean(when);\n\n  const subject = `You're registered: ${clip(title, 70)}`;\n  const preheader = hasDate\n    ? `${when.date} at ${when.time}. Add it to your calendar so you don't miss it.`\n    : \"Your place is saved. We'll share the date soon.\";\n\n  const joinHtml = joinUrl\n    ? `<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:0 0 20px;background:${COLORS.page};border-radius:10px;\">\n<tr><td style=\"padding:16px 18px;\">\n<div style=\"font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:${COLORS.muted};\">How to join</div>\n<p style=\"margin:6px 0 10px;font-size:14px;\">At the start time, open this link${linkHost(joinUrl) ? ` (${esc(linkHost(joinUrl))})` : \"\"}:</p>\n${button(joinUrl, \"Join the session\")}\n<p style=\"margin:10px 0 0;font-size:12px;color:${COLORS.muted};word-break:break-all;\">${esc(joinUrl)}</p>\n</td></tr></table>`\n    : `<p style=\"margin:0 0 20px;font-size:14px;color:${COLORS.muted};\">We'll email you the link to join before the session starts.</p>`;\n\n  const sessionHtml = hasDate\n    ? `<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:20px 0;border:1px solid ${COLORS.rule};border-radius:10px;\">\n<tr><td style=\"padding:16px 18px;\">\n<div style=\"font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:${COLORS.muted};\">When</div>\n<div style=\"margin-top:4px;font-size:17px;font-weight:700;\">${esc(when.date)}</div>\n<div style=\"font-size:15px;\">${esc(when.time)}</div>\n${presenter ? `<div style=\"margin-top:8px;font-size:14px;color:${COLORS.muted};\">Hosted by ${esc(presenter)}</div>` : \"\"}\n</td></tr></table>\n${joinHtml}\n${button(googleCalendarUrl(webinar, joinUrl), \"Add to Google Calendar\")}\n<p style=\"margin:8px 0 0;font-size:13px;color:${COLORS.muted};\">Using Apple Calendar or Outlook? Open the invite attached to this email.</p>`\n    : `<p style=\"margin:20px 0;\">The date hasn't been set yet. We'll email you when it is.</p>`;\n\n  const bulletsHtml = bullets.length\n    ? `<p style=\"margin:28px 0 8px;font-weight:700;\">What you'll learn</p>\n<ul style=\"margin:0;padding-left:20px;\">${bullets.map((b) => `<li style=\"margin:0 0 6px;\">${esc(b)}</li>`).join(\"\")}</ul>`\n    : \"\";\n\n  const body = `<p style=\"margin:0 0 12px;\">Hi ${esc(firstName(registrant.name))},</p>\n<p style=\"margin:0;\">You're registered for <strong>${esc(title)}</strong>.</p>\n${sessionHtml}\n${bulletsHtml}\n<p style=\"margin:28px 0 0;\">Keep this email so the details are easy to find. You can always see the session page here: <a href=\"${esc(link)}\" style=\"color:${COLORS.button};\">${esc(link.replace(\"https://\", \"\"))}</a></p>`;\n\n  const footer = `You're receiving this because ${esc(registrant.email)} was used to register for \"${esc(title)}\" on webinarstackai.com.${presenter ? ` Replying to this email reaches ${esc(presenter)}.` : \"\"}<br>If this wasn't you, you can ignore this email.<br>Sent by ${esc(BRAND.product)}.`;\n\n  const text = [\n    `Hi ${firstName(registrant.name)},`,\n    \"\",\n    `You're registered for \"${title}\".`,\n    \"\",\n    ...(hasDate\n      ? [\n          `When: ${when.date}, ${when.time}`,\n          ...(presenter ? [`Hosted by: ${presenter}`] : []),\n          \"\",\n          ...(joinUrl ? [`Join the session: ${joinUrl}`, \"\"] : []),\n          `Add to Google Calendar: ${googleCalendarUrl(webinar, joinUrl)}`,\n          \"Apple Calendar or Outlook: open the attached invite.\",\n        ]\n      : [\"The date hasn't been set yet. We'll email you when it is.\"]),\n    ...(bullets.length ? [\"\", \"What you'll learn:\", ...bullets.map((b) => `- ${b}`)] : []),\n    \"\",\n    `Session page: ${link}`,\n    \"\",\n    \"--\",\n    `You're receiving this because ${registrant.email} was used to register for \"${title}\" on webinarstackai.com. If this wasn't you, you can ignore this email.`,\n    `Sent by ${BRAND.product}.`,\n  ].join(\"\\n\");\n\n  const attachment = hasDate ? icsAttachment(webinar, joinUrl) : null;\n\n  return {\n    fromName: senderName(webinar.presenter_name),\n    subject,\n    html: layout({ preheader, body, footer }),\n    text,\n    attachments: attachment ? [attachment] : [],\n  };\n}\n\n/**\n * Reminder before a session: \"day\" (sent 2-24 hours before) or \"hour\" (in\n * the hour before). The time is shown in the host's timezone, labelled: we\n * don't store each registrant's zone, and \"in about N hours\" is exact anyway.\n * @param {{webinar: object, registrant: {name: string, email: string}, kind: \"day\" | \"hour\", joinUrl?: string, now?: number}} input\n */\nfunction reminderEmail({ webinar, registrant, kind, joinUrl: rawJoinUrl, now = Date.now() }) {\n  const joinUrl = safeJoinUrl(rawJoinUrl);\n  const title = clip(webinar.title, 120) || \"the webinar\";\n  const presenter = clip(webinar.presenter_name, 60);\n  const when = sessionParts(webinar.next_session_at, webinar.owner_timezone);\n  const link = pageUrl(webinar);\n  const soon = kind === \"hour\";\n  const hours = Math.max(1, Math.round((Date.parse(webinar.next_session_at) - now) / 3600000));\n  const inWords = soon ? \"in about an hour\" : `in about ${hours} hour${hours === 1 ? \"\" : \"s\"}`;\n\n  const subject = soon ? `Starting soon: ${clip(title, 70)}` : `Coming up: ${clip(title, 70)}`;\n  const preheader = joinUrl\n    ? `Starts ${inWords}. Your join link is inside.`\n    : `Starts ${inWords}${when ? `: ${when.date} at ${when.time}` : \"\"}.`;\n\n  const whenHtml = when\n    ? `<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:20px 0;border:1px solid ${COLORS.rule};border-radius:10px;\">\n<tr><td style=\"padding:16px 18px;\">\n<div style=\"font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:${COLORS.muted};\">Starts ${esc(inWords)}</div>\n<div style=\"margin-top:4px;font-size:17px;font-weight:700;\">${esc(when.date)}</div>\n<div style=\"font-size:15px;\">${esc(when.time)}</div>\n${presenter ? `<div style=\"margin-top:8px;font-size:14px;color:${COLORS.muted};\">Hosted by ${esc(presenter)}</div>` : \"\"}\n</td></tr></table>`\n    : \"\";\n\n  const joinHtml = joinUrl\n    ? `<p style=\"margin:0 0 6px;font-size:14px;\">${soon ? \"When it's time, join here\" : \"Here's your link to join\"}${linkHost(joinUrl) ? ` (${esc(linkHost(joinUrl))})` : \"\"}:</p>\n${button(joinUrl, \"Join the session\")}\n<p style=\"margin:10px 0 0;font-size:12px;color:${COLORS.muted};word-break:break-all;\">${esc(joinUrl)}</p>`\n    : `<p style=\"margin:0;font-size:14px;color:${COLORS.muted};\">The host will share the link to join. Keep an eye on your inbox.</p>`;\n\n  const tip = soon\n    ? `<p style=\"margin:20px 0 0;font-size:14px;color:${COLORS.muted};\">Tip: join a couple of minutes early so you can check your sound before it starts.</p>`\n    : `<p style=\"margin:20px 0 0;font-size:14px;color:${COLORS.muted};\">Put it in your calendar now if you haven't. The invite is attached to your confirmation email.</p>`;\n\n  const body = `<p style=\"margin:0 0 12px;\">Hi ${esc(firstName(registrant.name))},</p>\n<p style=\"margin:0;\">${soon ? \"\" : \"A quick reminder: \"}<strong>${esc(title)}</strong> starts ${esc(inWords)}.</p>\n${whenHtml}\n${joinHtml}\n${tip}\n<p style=\"margin:28px 0 0;font-size:14px;\">Session page: <a href=\"${esc(link)}\" style=\"color:${COLORS.button};\">${esc(link.replace(\"https://\", \"\"))}</a></p>`;\n\n  const footer = `You're receiving this because ${esc(registrant.email)} was registered for \"${esc(title)}\" on webinarstackai.com.${presenter ? ` Replying to this email reaches ${esc(presenter)}.` : \"\"}<br>Sent by ${esc(BRAND.product)}.`;\n\n  const text = [\n    `Hi ${firstName(registrant.name)},`,\n    \"\",\n    `${soon ? \"\" : \"A quick reminder: \"}\"${title}\" starts ${inWords}.`,\n    ...(when ? [\"\", `When: ${when.date}, ${when.time}`, ...(presenter ? [`Hosted by: ${presenter}`] : [])] : []),\n    \"\",\n    joinUrl ? `Join the session: ${joinUrl}` : \"The host will share the link to join. Keep an eye on your inbox.\",\n    \"\",\n    `Session page: ${link}`,\n    \"\",\n    \"--\",\n    `You're receiving this because ${registrant.email} was registered for \"${title}\" on webinarstackai.com.`,\n    `Sent by ${BRAND.product}.`,\n  ].join(\"\\n\");\n\n  return {\n    fromName: senderName(webinar.presenter_name),\n    subject,\n    html: layout({ preheader, body, footer }),\n    text,\n    attachments: [],\n  };\n}\n\n/**\n * The owner's morning summary of new registrations across their webinars.\n * `total` is optional: the summary is built from the email log, which knows\n * the day's registrations but not each webinar's all-time count.\n * @param {{ownerName: string, groups: Array<{webinar: object, fresh: Array<{name: string, email: string}>, total?: number}>}} input\n */\nfunction digestEmail({ ownerName, groups }) {\n  const MAX_LISTED = 25;\n  const newCount = groups.reduce((n, g) => n + g.fresh.length, 0);\n  const subject = `${newCount} new registration${newCount === 1 ? \"\" : \"s\"} since yesterday`;\n  const preheader = groups\n    .map((g) => `${clip(g.webinar.title, 40)}: ${g.fresh.length} new`)\n    .join(\" · \");\n\n  const sections = groups\n    .map((g) => {\n      const title = clip(g.webinar.title, 120) || \"Untitled webinar\";\n      const listUrl = `${BRAND.site}/provider/webinars/edit?id=${encodeURIComponent(g.webinar.id)}&tab=registrants`;\n      const listed = g.fresh.slice(0, MAX_LISTED);\n      const more = g.fresh.length - listed.length;\n      return `<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:0 0 20px;border:1px solid ${COLORS.rule};border-radius:10px;\">\n<tr><td style=\"padding:16px 18px;\">\n<div style=\"font-size:16px;font-weight:700;\">${esc(title)}</div>\n<div style=\"margin-top:2px;font-size:13px;color:${COLORS.muted};\">${g.fresh.length} new${typeof g.total === \"number\" ? ` · ${g.total} total` : \"\"}</div>\n<ul style=\"margin:12px 0 0;padding-left:18px;font-size:14px;\">${listed\n        .map((r) => `<li style=\"margin:0 0 4px;\">${esc(clip(r.name, 80))} <span style=\"color:${COLORS.muted};\">${esc(r.email)}</span></li>`)\n        .join(\"\")}${more > 0 ? `<li style=\"color:${COLORS.muted};\">and ${more} more</li>` : \"\"}</ul>\n<p style=\"margin:12px 0 0;font-size:14px;\"><a href=\"${esc(listUrl)}\" style=\"color:${COLORS.button};\">See everyone who registered</a></p>\n</td></tr></table>`;\n    })\n    .join(\"\");\n\n  const body = `<p style=\"margin:0 0 6px;\">Good morning ${esc(firstName(ownerName))},</p>\n<p style=\"margin:0 0 22px;\">${newCount === 1 ? \"One person\" : `${newCount} people`} registered for your webinars in the last 24 hours.</p>\n${sections}`;\n\n  const footer = `You're getting this daily summary because you run webinars on ${esc(BRAND.product)}. It's only sent on days when someone registers.`;\n\n  const text = [\n    `Good morning ${firstName(ownerName)},`,\n    \"\",\n    `${newCount} new registration${newCount === 1 ? \"\" : \"s\"} in the last 24 hours.`,\n    \"\",\n    ...groups.flatMap((g) => [\n      `${clip(g.webinar.title, 120)} (${g.fresh.length} new${typeof g.total === \"number\" ? `, ${g.total} total` : \"\"})`,\n      ...g.fresh.slice(0, MAX_LISTED).map((r) => `- ${clip(r.name, 80)} <${r.email}>`),\n      ...(g.fresh.length > MAX_LISTED ? [`- and ${g.fresh.length - MAX_LISTED} more`] : []),\n      `See everyone: ${BRAND.site}/provider/webinars/edit?id=${encodeURIComponent(g.webinar.id)}&tab=registrants`,\n      \"\",\n    ]),\n    \"--\",\n    `You're getting this daily summary because you run webinars on ${BRAND.product}. It's only sent on days when someone registers.`,\n  ].join(\"\\n\");\n\n  return {\n    fromName: BRAND.product,\n    subject,\n    html: layout({ preheader, body, footer }),\n    text,\n    attachments: [],\n  };\n}\n\n/**\n * Sent once, the first time a genuinely new account signs in.\n * @param {{name: string, email: string}} input\n */\nfunction welcomeEmail({ name, email }) {\n  const steps = [\n    [\"Find your ideal buyer\", \"Brainstorm with the AI in Webinar Chat and build a buyer blueprint.\", \"/provider/webinar-chat\"],\n    [\"Shape your offer\", \"Turn that blueprint into a clear, priced offer in Webinar Offer.\", \"/provider/webinar-offer\"],\n    [\"Create your presentation\", \"Generate a slide deck in Webinar Content, then download it as PowerPoint or PDF.\", \"/provider/webinar-content\"],\n    [\"Add your brand\", \"Upload your logo, colours and documents so everything looks like you.\", \"/provider/webinar-upload\"],\n    [\"Get registrations\", \"Publish a registration page with a live countdown and share the link.\", \"/provider/webinars\"],\n  ];\n\n  const subject = `Welcome to ${BRAND.product}, ${firstName(name)}`;\n  const preheader = \"Here's how to go from idea to a webinar people sign up for.\";\n\n  const stepsHtml = steps\n    .map(([title, text, path], i) => `<tr>\n<td valign=\"top\" style=\"padding:0 12px 16px 0;width:28px;\">\n<div style=\"width:26px;height:26px;border-radius:13px;background:${COLORS.button};color:#ffffff;font:700 13px/26px Arial,Helvetica,sans-serif;text-align:center;\">${i + 1}</div>\n</td>\n<td valign=\"top\" style=\"padding:0 0 16px;\">\n<a href=\"${esc(BRAND.site + path)}\" style=\"font-weight:700;color:${COLORS.ink};text-decoration:none;\">${esc(title)}</a>\n<div style=\"font-size:14px;color:${COLORS.muted};\">${esc(text)}</div>\n</td></tr>`)\n    .join(\"\");\n\n  const body = `<p style=\"margin:0 0 12px;\">Hi ${esc(firstName(name))},</p>\n<p style=\"margin:0 0 22px;\">Welcome to ${esc(BRAND.product)}. Everything you need to plan, build and fill a webinar is in one place. Here's what you can do:</p>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">${stepsHtml}</table>\n${button(`${BRAND.site}/provider`, \"Open your workspace\")}\n<p style=\"margin:22px 0 0;font-size:14px;color:${COLORS.muted};\">Tip: start with Webinar Chat. Everything you tell it carries through to your offer and your slides.</p>`;\n\n  const footer = `You're receiving this because ${esc(email)} was used to create an account at webinarstackai.com.<br>Sent by ${esc(BRAND.product)}, ${esc(BRAND.company)}.`;\n\n  const text = [\n    `Hi ${firstName(name)},`,\n    \"\",\n    `Welcome to ${BRAND.product}. Here's what you can do:`,\n    \"\",\n    ...steps.map(([title, line, path], i) => `${i + 1}. ${title}: ${line}\\n   ${BRAND.site}${path}`),\n    \"\",\n    `Open your workspace: ${BRAND.site}/provider`,\n    \"\",\n    \"Tip: start with Webinar Chat. Everything you tell it carries through to your offer and your slides.\",\n    \"\",\n    \"--\",\n    `You're receiving this because ${email} was used to create an account at webinarstackai.com.`,\n    `Sent by ${BRAND.product}, ${BRAND.company}.`,\n  ].join(\"\\n\");\n\n  return {\n    fromName: BRAND.product,\n    subject,\n    html: layout({ preheader, body, footer }),\n    text,\n    attachments: [],\n  };\n}\n\nfunction unsubscribeLinks(uid, token) {\n  const q = `u=${encodeURIComponent(uid)}&t=${encodeURIComponent(token)}`;\n  return {\n    // A page that asks the person to confirm. Never unsubscribe on a plain\n    // GET: mail scanners pre-open links. (The one-click List-Unsubscribe\n    // header is not used: n8n's Gmail node cannot set custom headers.)\n    page: `${BRAND.site}/unsubscribe?${q}`,\n  };\n}\n\n/** Escapes, then links bare https URLs. Only for admin-written text. */\nfunction linkify(escapedText) {\n  return escapedText.replace(\n    /https:\\/\\/[^\\s<>\"']+[^\\s<>\"'.,;:!?)]/g,\n    (url) => `<a href=\"${url}\" style=\"color:${COLORS.button};\">${url}</a>`,\n  );\n}\n\n/**\n * An admin's announcement to users. The message is plain text: blank lines\n * become paragraphs, https links become clickable, and {first_name} is\n * replaced per recipient.\n * @param {{subject: string, message: string, recipient: {uid: string, name: string, email: string, token: string}}} input\n */\nfunction broadcastEmail({ subject, message, recipient }) {\n  const personalise = (s) => String(s ?? \"\").replace(/\\{first_name\\}/g, firstName(recipient.name));\n  const cleanSubject = clip(personalise(subject), 150);\n  const paragraphs = personalise(message)\n    .replace(/\\r\\n/g, \"\\n\")\n    .split(/\\n{2,}/)\n    .map((p) => p.trim())\n    .filter(Boolean);\n  const links = unsubscribeLinks(recipient.uid, recipient.token);\n\n  const body = paragraphs\n    .map((p) => `<p style=\"margin:0 0 14px;\">${linkify(esc(p)).replace(/\\n/g, \"<br>\")}</p>`)\n    .join(\"\");\n\n  const identity = [BRAND.company, BRAND.postalAddress].filter(Boolean).map(esc).join(\", \");\n  const footer = `You're receiving this because you have a ${esc(BRAND.product)} account.<br><a href=\"${esc(links.page)}\" style=\"color:${COLORS.muted};\">Unsubscribe from these emails</a> · ${identity}`;\n\n  const text = [\n    ...paragraphs,\n    \"\",\n    \"--\",\n    `You're receiving this because you have a ${BRAND.product} account.`,\n    `Unsubscribe: ${links.page}`,\n    [BRAND.company, BRAND.postalAddress].filter(Boolean).join(\", \"),\n  ].join(\"\\n\\n\").replace(/\\n{3,}/g, \"\\n\\n\");\n\n  return {\n    fromName: BRAND.product,\n    subject: cleanSubject,\n    html: layout({ preheader: paragraphs[0] ? clip(paragraphs[0], 110) : cleanSubject, body, footer }),\n    text,\n    attachments: [],\n  };\n}\n\n// Exported for the local preview/test script and the admin preview; n8n ignores this.\nif (typeof module !== \"undefined\") {\n  module.exports = {\n    confirmationEmail, reminderEmail, digestEmail, welcomeEmail, broadcastEmail, unsubscribeLinks,\n    gmailPayload,\n    senderName, safeTimezone, sessionParts, esc, toBase64,\n  };\n}\n\n// ── glue ──\n\nconst EMAIL = /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/;\nconst first = (name) => { try { return $(name).first()?.json ?? {}; } catch { return {}; } };\nconst ctx = first(\"Current Webinar\");\nconst owner = first(\"Load Owner\");\nconst session = first(\"Load Session Link\");\nconst webinar = ctx.webinar ?? {};\nconst now = Date.now();\n// People who registered moments ago just got the confirmation (which has\n// everything); don't follow it straight up with a reminder.\nconst freshMs = ctx.kind === \"day\" ? 6 * 60 * 60 * 1000 : 20 * 60 * 1000;\n\nconst seen = new Set();\nconst out = [];\nfor (const item of $(\"Load Registrants\").all()) {\n  const r = item.json ?? {};\n  const to = String(r.email ?? \"\").trim().toLowerCase();\n  if (!EMAIL.test(to) || seen.has(to)) continue;\n  seen.add(to);\n  const created = Date.parse(r._createTime ?? \"\");\n  if (Number.isFinite(created) && now - created < freshMs) continue;\n  const email = reminderEmail({\n    webinar,\n    registrant: { name: r.name, email: to },\n    kind: ctx.kind,\n    joinUrl: session.join_url,\n    now,\n  });\n  out.push({ json: { payload: gmailPayload(email, { to, replyTo: EMAIL.test(String(owner.email ?? \"\")) ? owner.email : undefined }) } });\n}\n// Always hand something on: an empty branch would end the loop early.\nreturn out.length ? out : [{ json: { skip: 1 } }];"
+      },
+      "id": "build-reminders",
+      "name": "Build Reminders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip ? 0 : 1 }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "has-recipients",
+      "name": "Has Recipients",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.payload.to }}",
+        "subject": "={{ $json.payload.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.payload.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $json.payload.senderName }}",
+          "replyTo": "={{ $json.payload.replyTo }}"
+        }
+      },
+      "id": "send-reminder",
+      "name": "Send Reminder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2860,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "wRAdlx4C2JELtf3I",
+          "name": "bibeks gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function sendOutcome(res) {\n  if (res && typeof res.id === \"string\" && res.id.length > 0) return { ok: true, detail: res.id };\n  const err = res && res.error;\n  const message = String((err && (err.message ?? err.description)) ?? err ?? (res && res.message) ?? \"unknown\");\n  return { ok: false, detail: message.slice(0, 300) };\n}\n\nconst ctx = $(\"Current Webinar\").first().json;\nlet sent = 0;\nlet failed = 0;\nconst errors = new Set();\nfor (const item of $input.all()) {\n  if (item.json?.skip) continue;\n  const outcome = sendOutcome(item.json ?? {});\n  if (outcome.ok) sent += 1;\n  else {\n    failed += 1;\n    errors.add(outcome.detail);\n  }\n}\nreturn [{\n  json: {\n    webinar_id: ctx.webinar.id,\n    kind: ctx.kind,\n    start_iso: ctx.start_iso,\n    prev_day: ctx.prev_day,\n    prev_hour: ctx.prev_hour,\n    sent,\n    failed,\n    error: [...errors].join(\" | \").slice(0, 300),\n  },\n}];"
+      },
+      "id": "tally",
+      "name": "Tally",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Marks each reminder as sent for this session date, keeping the other\n// kind's mark as it was. If EVERY email for a webinar failed, it is left\n// unmarked so the next run (15 minutes later) tries again.\nconst tallies = $input.all().map((i) => i.json).filter((t) => t && t.webinar_id);\nconst failedTotal = tallies.reduce((n, t) => n + (t.failed || 0), 0);\nconst errors = tallies.filter((t) => t.error).map((t) => `${t.webinar_id} (${t.kind}): ${t.error}`).join(\" | \");\nconst entries = tallies\n  .filter((t) => !(t.sent === 0 && t.failed > 0))\n  .map((t) => ({\n    json: {\n      webinar_id: t.webinar_id,\n      day_sent_for: t.kind === \"day\" ? t.start_iso : t.prev_day,\n      hour_sent_for: t.kind === \"hour\" ? t.start_iso : t.prev_hour,\n      updated_at: new Date().toISOString(),\n      failed_total: failedTotal,\n      errors,\n    },\n  }));\nreturn entries.length ? entries : [{ json: { noop: 1, failed_total: failedTotal, errors } }];"
+      },
+      "id": "reminder-state-entries",
+      "name": "Reminder State Entries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.noop ? 0 : 1 }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "has-entries",
+      "name": "Has Entries",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "upsert",
+        "projectId": "nirey-f2faf",
+        "collection": "reminder_state",
+        "updateKey": "webinar_id",
+        "columns": "webinar_id,day_sent_for,hour_sent_for,updated_at"
+      },
+      "id": "save-reminder-state",
+      "name": "Save Reminder State",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        3740,
+        0
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const entries = $(\"Reminder State Entries\").all().map((i) => i.json);\nconst failed = entries[0]?.failed_total ?? 0;\nif (failed > 0) throw new Error(`${failed} reminder email(s) not sent: ${entries[0].errors}`);\nreturn $input.all();"
+      },
+      "id": "fail-if-any-failed",
+      "name": "Fail If Any Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        0
+      ],
+      "executeOnce": true
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Reminder Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reminder Window": {
+      "main": [
+        [
+          {
+            "node": "Upcoming Webinars",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upcoming Webinars": {
+      "main": [
+        [
+          {
+            "node": "Reminder State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reminder State": {
+      "main": [
+        [
+          {
+            "node": "Due Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Due Reminders": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Webinars",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Webinars": {
+      "main": [
+        [
+          {
+            "node": "Reminder State Entries",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Current Webinar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Current Webinar": {
+      "main": [
+        [
+          {
+            "node": "Load Registrants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Registrants": {
+      "main": [
+        [
+          {
+            "node": "Load Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Owner": {
+      "main": [
+        [
+          {
+            "node": "Load Session Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Session Link": {
+      "main": [
+        [
+          {
+            "node": "Build Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reminders": {
+      "main": [
+        [
+          {
+            "node": "Has Recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Recipients": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tally",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reminder": {
+      "main": [
+        [
+          {
+            "node": "Tally",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tally": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Webinars",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reminder State Entries": {
+      "main": [
+        [
+          {
+            "node": "Has Entries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Entries": {
+      "main": [
+        [
+          {
+            "node": "Save Reminder State",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail If Any Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Reminder State": {
+      "main": [
+        [
+          {
+            "node": "Fail If Any Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "NF9VQqswnNCjyYGc"
+  },
+  "meta": {
+    "generatedBy": "n8n/email/build-workflows.mjs — do not edit by hand"
+  }
+}

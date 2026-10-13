@@ -745,7 +745,236 @@ link(unsubscribeConnections, "Save Opt-out", "Respond Unsubscribed");
 link(unsubscribeConnections, "Valid Link", "Respond Invalid", 1);
 const unsubscribe = workflow("14 - Email Unsubscribe", unsubscribeNodes, unsubscribeConnections);
 
+// ──────────────────────────────── Reminders ────────────────────────────────
+
+export const REMINDER_WINDOW = `// Runs every 15 minutes. Finds sessions starting within the next day; the
+// next node decides which reminder (if any) each one is due.
+const now = Date.now();
+const from = new Date(now).toISOString();
+const to = new Date(now + 25 * 60 * 60 * 1000).toISOString();
+// next_session_at is an ISO string, so a string range is a time range. A
+// single-field range needs no composite index; "published" is checked after.
+const query = {
+  structuredQuery: {
+    from: [{ collectionId: "webinars" }],
+    where: {
+      compositeFilter: {
+        op: "AND",
+        filters: [
+          { fieldFilter: { field: { fieldPath: "next_session_at" }, op: "GREATER_THAN", value: { stringValue: from } } },
+          { fieldFilter: { field: { fieldPath: "next_session_at" }, op: "LESS_THAN_OR_EQUAL", value: { stringValue: to } } },
+        ],
+      },
+    },
+  },
+};
+return [{ json: { query: JSON.stringify(query) } }];`;
+
+export const DUE_REMINDERS = `// One item per webinar that has a reminder due and not yet sent for THIS
+// session date (so a rescheduled or re-run webinar gets fresh reminders).
+//   day   2 to 24 hours before the start
+//   hour  in the last 65 minutes before the start (runs are 15 minutes apart)
+const all = (name) => { try { return $(name).all().map((i) => i.json); } catch { return []; } };
+const idOf = (doc) => {
+  const id = String(doc._id ?? "") || String(doc._name ?? "").split("/").pop() || "";
+  if (id) return id;
+  const m = /-([A-Za-z0-9]{16,40})$/.exec(String(doc.public_path ?? ""));
+  return m ? m[1] : "";
+};
+const state = new Map(all("Reminder State").filter((s) => s && s.webinar_id).map((s) => [s.webinar_id, s]));
+const now = Date.now();
+const out = [];
+for (const doc of all("Upcoming Webinars")) {
+  const id = idOf(doc ?? {});
+  if (!id || doc.status !== "published") continue;
+  const start = Date.parse(doc.next_session_at ?? "");
+  if (!Number.isFinite(start)) continue;
+  const until = start - now;
+  const kind = until > 0 && until <= 65 * 60 * 1000 ? "hour"
+    : until > 2 * 60 * 60 * 1000 && until <= 24 * 60 * 60 * 1000 ? "day"
+    : null;
+  if (!kind) continue;
+  const prev = state.get(id) ?? {};
+  if (prev[\`\${kind}_sent_for\`] === doc.next_session_at) continue;
+  out.push({
+    json: {
+      webinar: { ...doc, id },
+      kind,
+      start_iso: doc.next_session_at,
+      prev_day: String(prev.day_sent_for ?? ""),
+      prev_hour: String(prev.hour_sent_for ?? ""),
+    },
+  });
+}
+return out;`;
+
+export const BUILD_REMINDERS_GLUE = `
+const EMAIL = ${EMAIL_RE};
+const first = (name) => { try { return $(name).first()?.json ?? {}; } catch { return {}; } };
+const ctx = first("Current Webinar");
+const owner = first("Load Owner");
+const session = first("Load Session Link");
+const webinar = ctx.webinar ?? {};
+const now = Date.now();
+// People who registered moments ago just got the confirmation (which has
+// everything); don't follow it straight up with a reminder.
+const freshMs = ctx.kind === "day" ? 6 * 60 * 60 * 1000 : 20 * 60 * 1000;
+
+const seen = new Set();
+const out = [];
+for (const item of $("Load Registrants").all()) {
+  const r = item.json ?? {};
+  const to = String(r.email ?? "").trim().toLowerCase();
+  if (!EMAIL.test(to) || seen.has(to)) continue;
+  seen.add(to);
+  const created = Date.parse(r._createTime ?? "");
+  if (Number.isFinite(created) && now - created < freshMs) continue;
+  const email = reminderEmail({
+    webinar,
+    registrant: { name: r.name, email: to },
+    kind: ctx.kind,
+    joinUrl: session.join_url,
+    now,
+  });
+  out.push({ json: { payload: gmailPayload(email, { to, replyTo: EMAIL.test(String(owner.email ?? "")) ? owner.email : undefined }) } });
+}
+// Always hand something on: an empty branch would end the loop early.
+return out.length ? out : [{ json: { skip: 1 } }];`;
+
+export const TALLY_REMINDERS = `${OUTCOME}
+const ctx = $("Current Webinar").first().json;
+let sent = 0;
+let failed = 0;
+const errors = new Set();
+for (const item of $input.all()) {
+  if (item.json?.skip) continue;
+  const outcome = sendOutcome(item.json ?? {});
+  if (outcome.ok) sent += 1;
+  else {
+    failed += 1;
+    errors.add(outcome.detail);
+  }
+}
+return [{
+  json: {
+    webinar_id: ctx.webinar.id,
+    kind: ctx.kind,
+    start_iso: ctx.start_iso,
+    prev_day: ctx.prev_day,
+    prev_hour: ctx.prev_hour,
+    sent,
+    failed,
+    error: [...errors].join(" | ").slice(0, 300),
+  },
+}];`;
+
+export const REMINDER_STATE_ENTRIES = `// Marks each reminder as sent for this session date, keeping the other
+// kind's mark as it was. If EVERY email for a webinar failed, it is left
+// unmarked so the next run (15 minutes later) tries again.
+const tallies = $input.all().map((i) => i.json).filter((t) => t && t.webinar_id);
+const failedTotal = tallies.reduce((n, t) => n + (t.failed || 0), 0);
+const errors = tallies.filter((t) => t.error).map((t) => \`\${t.webinar_id} (\${t.kind}): \${t.error}\`).join(" | ");
+const entries = tallies
+  .filter((t) => !(t.sent === 0 && t.failed > 0))
+  .map((t) => ({
+    json: {
+      webinar_id: t.webinar_id,
+      day_sent_for: t.kind === "day" ? t.start_iso : t.prev_day,
+      hour_sent_for: t.kind === "hour" ? t.start_iso : t.prev_hour,
+      updated_at: new Date().toISOString(),
+      failed_total: failedTotal,
+      errors,
+    },
+  }));
+return entries.length ? entries : [{ json: { noop: 1, failed_total: failedTotal, errors } }];`;
+
+export const FAIL_IF_REMINDERS_FAILED = `const entries = $("Reminder State Entries").all().map((i) => i.json);
+const failed = entries[0]?.failed_total ?? 0;
+if (failed > 0) throw new Error(\`\${failed} reminder email(s) not sent: \${entries[0].errors}\`);
+return $input.all();`;
+
+x = 0;
+const reminderNodes = [
+  node("Every 15 Minutes", "n8n-nodes-base.scheduleTrigger", 1.2, {
+    rule: { interval: [{ field: "minutes", minutesInterval: 15 }] },
+  }),
+  code("Reminder Window", REMINDER_WINDOW),
+  node("Upcoming Webinars", "n8n-nodes-base.googleFirebaseCloudFirestore", 1.1, {
+    authentication: "serviceAccount",
+    operation: "query",
+    projectId: PROJECT_ID,
+    query: "={{ $json.query }}",
+  }, {
+    // A failed query must stop the run and reach Failure Alerts, not
+    // silently send nothing.
+    alwaysOutputData: true,
+    onError: "stopWorkflow",
+    credentials: FIRESTORE,
+  }),
+  node("Reminder State", "n8n-nodes-base.googleFirebaseCloudFirestore", 1.1, {
+    authentication: "serviceAccount",
+    operation: "getAll",
+    projectId: PROJECT_ID,
+    collection: "reminder_state",
+    returnAll: true,
+  }, {
+    executeOnce: true,
+    alwaysOutputData: true,
+    onError: "continueRegularOutput",
+    credentials: FIRESTORE,
+  }),
+  code("Due Reminders", DUE_REMINDERS),
+  node("Loop Over Webinars", "n8n-nodes-base.splitInBatches", 3, { batchSize: 1, options: {} }),
+  code("Current Webinar", "return $input.all();"),
+  node("Load Registrants", "n8n-nodes-base.googleFirebaseCloudFirestore", 1.1, {
+    authentication: "serviceAccount",
+    operation: "getAll",
+    projectId: PROJECT_ID,
+    collection: "={{ 'webinars/' + $json.webinar.id + '/registrants' }}",
+    returnAll: true,
+  }, {
+    alwaysOutputData: true,
+    onError: "continueRegularOutput",
+    credentials: FIRESTORE,
+  }),
+  { ...firestoreGet("Load Owner", "users", "={{ $('Current Webinar').first().json.webinar.owner_id || 'no-owner' }}"), executeOnce: true },
+  {
+    ...firestoreGet(
+      "Load Session Link",
+      "={{ 'webinars/' + $('Current Webinar').first().json.webinar.id + '/private' }}",
+      "session",
+    ),
+    executeOnce: true,
+  },
+  code("Build Reminders", `${TEMPLATE}\n// ── glue ──\n${BUILD_REMINDERS_GLUE}`, { executeOnce: true }),
+  ifPositive("Has Recipients", "={{ $json.skip ? 0 : 1 }}"),
+  emailSend("Send Reminder", { replyTo: true }),
+  code("Tally", TALLY_REMINDERS),
+  code("Reminder State Entries", REMINDER_STATE_ENTRIES),
+  ifPositive("Has Entries", "={{ $json.noop ? 0 : 1 }}"),
+  firestoreUpsert("Save Reminder State", "reminder_state", "webinar_id", ["webinar_id", "day_sent_for", "hour_sent_for", "updated_at"]),
+  code("Fail If Any Failed", FAIL_IF_REMINDERS_FAILED, { executeOnce: true }),
+];
+const reminderConnections = {};
+["Every 15 Minutes", "Reminder Window", "Upcoming Webinars", "Reminder State", "Due Reminders", "Loop Over Webinars"]
+  .reduce((prev, next) => (link(reminderConnections, prev, next), next));
+// splitInBatches v3: output 0 = done (everything fed back), output 1 = loop.
+link(reminderConnections, "Loop Over Webinars", "Reminder State Entries", 0);
+link(reminderConnections, "Loop Over Webinars", "Current Webinar", 1);
+["Current Webinar", "Load Registrants", "Load Owner", "Load Session Link", "Build Reminders", "Has Recipients"]
+  .reduce((prev, next) => (link(reminderConnections, prev, next), next));
+link(reminderConnections, "Has Recipients", "Send Reminder", 0);
+link(reminderConnections, "Has Recipients", "Tally", 1);
+link(reminderConnections, "Send Reminder", "Tally");
+link(reminderConnections, "Tally", "Loop Over Webinars");
+link(reminderConnections, "Reminder State Entries", "Has Entries");
+link(reminderConnections, "Has Entries", "Save Reminder State", 0);
+link(reminderConnections, "Has Entries", "Fail If Any Failed", 1);
+link(reminderConnections, "Save Reminder State", "Fail If Any Failed");
+const reminders = workflow("15 - Webinar Reminders", reminderNodes, reminderConnections);
+
 const OUTPUTS = {
+  "webinar-reminders-workflow.json": reminders,
   "webinar-registration-confirmation-workflow.json": confirmation,
   "webinar-morning-summary-workflow.json": summary,
   "welcome-email-workflow.json": welcome,
@@ -761,4 +990,4 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
 }
 
-export { confirmation, summary, welcome, broadcast, unsubscribe, TEMPLATE };
+export { confirmation, summary, welcome, broadcast, unsubscribe, reminders, TEMPLATE };
