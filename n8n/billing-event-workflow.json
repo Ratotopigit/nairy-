@@ -1,0 +1,178 @@
+{
+  "name": "17 - Billing Event",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "billing-event",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3718dbb7-6f03-4313-b1a0-af5d873fdb24",
+      "name": "Billing Event Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 192],
+      "webhookId": "3867b3e4-7653-430d-a9b4-65d4c6b7dd53",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Billing Webhook Secret" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Called only by webinarstackai.com/api/billing/webhook, which has already\n// verified Stripe's signature and fetched the current state from Stripe.\n// The header secret is checked by the Webhook node; this is defence in depth:\n// anything not shaped exactly like a billing update is refused.\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst u = body.update && typeof body.update === 'object' ? body.update : {};\nconst UID = /^[A-Za-z0-9_-]{1,128}$/;\nconst CUSTOMER = /^(cus_[A-Za-z0-9]{1,250})?$/;\nconst isoOrEmpty = (v) => v === '' || (typeof v === 'string' && v.length <= 40 && !Number.isNaN(Date.parse(v)));\n\nlet update = null;\nconst base = typeof body.event_id === 'string' && /^evt_[A-Za-z0-9_]{1,250}$/.test(body.event_id) && UID.test(String(u.uid ?? ''));\nif (base && u.kind === 'subscription'\n  && (u.plan === 'monthly' || u.plan === 'annual')\n  && typeof u.status === 'string' && /^[a-z_]{1,40}$/.test(u.status)\n  && isoOrEmpty(u.current_period_end)\n  && typeof u.cancel_at_period_end === 'boolean'\n  && /^sub_[A-Za-z0-9]{1,250}$/.test(String(u.stripe_subscription_id ?? ''))\n  && CUSTOMER.test(String(u.stripe_customer_id ?? ''))) {\n  update = {\n    kind: 'subscription', uid: u.uid, plan: u.plan, status: u.status,\n    current_period_end: u.current_period_end, cancel_at_period_end: u.cancel_at_period_end,\n    stripe_subscription_id: u.stripe_subscription_id, stripe_customer_id: u.stripe_customer_id || '',\n  };\n} else if (base && u.kind === 'lifetime'\n  && typeof u.active === 'boolean'\n  && /^(pi|cs)_[A-Za-z0-9_]{1,250}$/.test(String(u.lifetime_ref ?? ''))\n  && CUSTOMER.test(String(u.stripe_customer_id ?? ''))) {\n  update = {\n    kind: 'lifetime', uid: u.uid, active: u.active,\n    lifetime_ref: u.lifetime_ref, stripe_customer_id: u.stripe_customer_id || '',\n  };\n}\n\nreturn [{ json: {\n  ok: update ? 1 : 0,\n  uid: update ? update.uid : '',\n  event_id: update ? body.event_id : '',\n  event_type: update ? String(body.event_type || '').slice(0, 80) : '',\n  update,\n} }];"
+      },
+      "id": "27571f4d-5a4d-4869-a7d7-1dc94d096f9f",
+      "name": "Validate Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 192]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "leftValue": "={{ $json.ok }}", "operator": { "type": "number", "operation": "gt" }, "rightValue": 0 }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e57390a2-b0a2-4443-934b-5691bf00d5b2",
+      "name": "Valid Update",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [448, 192]
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "operation": "get",
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "billing",
+        "documentId": "={{ $json.uid }}"
+      },
+      "id": "670c7a6d-53c5-4a59-8ea5-f9c290cf7b1a",
+      "name": "Load Billing",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [672, 96],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": { "id": "LeMY3R0pzOuv9c8N", "name": "Firebase Service Account" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Applies one billing update to billing/{uid}. The update already reflects\n// Stripe's CURRENT state, so it is normally recorded as sent. Two guards stop\n// an unrelated event from overwriting a newer truth:\n//  - a subscription event never touches an account with Lifetime access;\n//  - an old, no-longer-paying subscription never replaces a different one\n//    that is still paid.\n// A lifetime revoke only applies to the purchase that granted it.\nconst req = $('Validate Update').first().json;\nconst u = req.update;\nconst loaded = $input.first() ? $input.first().json : {};\n\n// A missing document is normal (first purchase). Any other read failure must\n// stop here: the site answers Stripe with an error and Stripe retries later,\n// instead of a write based on a guessed current state.\nif (loaded && loaded.error) {\n  const text = JSON.stringify(loaded.error);\n  if (!/not.?found|404|NOT_FOUND/i.test(text)) throw new Error('Could not read billing/' + u.uid + ': ' + text.slice(0, 300));\n}\nconst cur = loaded && !loaded.error ? loaded : {};\n\nconst str = (v) => (typeof v === 'string' ? v : '');\nconst ms = (v) => { const t = Date.parse(str(v)); return Number.isFinite(t) ? t : 0; };\nconst PAID = ['active', 'trialing', 'past_due'];\nconst paying = (status, end) => PAID.includes(status) && ms(end) > Date.now();\n\nconst doc = {\n  uid: u.uid,\n  plan: ['monthly', 'annual', 'lifetime'].includes(cur.plan) ? cur.plan : 'none',\n  status: str(cur.status),\n  current_period_end: str(cur.current_period_end),\n  cancel_at_period_end: cur.cancel_at_period_end === true,\n  stripe_customer_id: str(cur.stripe_customer_id),\n  stripe_subscription_id: str(cur.stripe_subscription_id),\n  lifetime_ref: str(cur.lifetime_ref),\n};\n\nlet write = false;\nlet reason = '';\nif (u.kind === 'lifetime') {\n  if (u.active) {\n    Object.assign(doc, {\n      plan: 'lifetime', status: 'lifetime', current_period_end: '', cancel_at_period_end: false,\n      lifetime_ref: u.lifetime_ref, stripe_customer_id: u.stripe_customer_id || doc.stripe_customer_id,\n    });\n    write = true; reason = 'lifetime granted';\n  } else if (doc.plan === 'lifetime' && doc.lifetime_ref === u.lifetime_ref) {\n    Object.assign(doc, { plan: 'none', status: 'refunded' });\n    write = true; reason = 'lifetime revoked (refunded)';\n  } else {\n    reason = 'inactive lifetime payment that is not the recorded one: ignored';\n  }\n} else if (doc.plan === 'lifetime') {\n  reason = 'account has lifetime access: subscription event ignored';\n} else if (doc.stripe_subscription_id && doc.stripe_subscription_id !== u.stripe_subscription_id\n  && paying(doc.status, doc.current_period_end) && !paying(u.status, u.current_period_end)) {\n  reason = 'a different subscription is still paid: ignored';\n} else {\n  Object.assign(doc, {\n    plan: u.plan, status: u.status, current_period_end: u.current_period_end,\n    cancel_at_period_end: u.cancel_at_period_end, stripe_subscription_id: u.stripe_subscription_id,\n    stripe_customer_id: u.stripe_customer_id || doc.stripe_customer_id,\n  });\n  write = true; reason = 'subscription recorded';\n}\n\ndoc.last_event_id = req.event_id;\ndoc.updated_at = new Date().toISOString();\nreturn [{ json: { write: write ? 1 : 0, reason, ...doc } }];"
+      },
+      "id": "de320691-6c5b-4fd2-b0ed-6f87ecd0a560",
+      "name": "Merge Billing State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [896, 96]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "leftValue": "={{ $json.write }}", "operator": { "type": "number", "operation": "gt" }, "rightValue": 0 }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9520597a-cc6d-4bab-ad39-294bfc724ea6",
+      "name": "Should Write",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 96]
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "operation": "upsert",
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "billing",
+        "updateKey": "uid",
+        "columns": "uid,plan,status,current_period_end,cancel_at_period_end,stripe_customer_id,stripe_subscription_id,lifetime_ref,last_event_id,updated_at"
+      },
+      "id": "4eda1e81-a407-4e3d-a63d-0965f8cb3b20",
+      "name": "Save Billing",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [1344, 0],
+      "credentials": {
+        "googleApi": { "id": "LeMY3R0pzOuv9c8N", "name": "Firebase Service Account" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, saved: true, reason: $('Merge Billing State').first().json.reason }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "58d0b5ad-6de9-4f27-9167-e12df0f0c6bd",
+      "name": "Respond Saved",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1568, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, saved: false, reason: $json.reason }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "e10497c7-0d68-4832-89f8-1241efda84ff",
+      "name": "Respond Unchanged",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1344, 192]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'Invalid billing update.' }) }}",
+        "options": { "responseCode": 400 }
+      },
+      "id": "4c5423d2-786a-4edb-9b12-8c6ec3c2b15f",
+      "name": "Respond Invalid",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [672, 288]
+    }
+  ],
+  "connections": {
+    "Billing Event Webhook": { "main": [[{ "node": "Validate Update", "type": "main", "index": 0 }]] },
+    "Validate Update": { "main": [[{ "node": "Valid Update", "type": "main", "index": 0 }]] },
+    "Valid Update": {
+      "main": [
+        [{ "node": "Load Billing", "type": "main", "index": 0 }],
+        [{ "node": "Respond Invalid", "type": "main", "index": 0 }]
+      ]
+    },
+    "Load Billing": { "main": [[{ "node": "Merge Billing State", "type": "main", "index": 0 }]] },
+    "Merge Billing State": { "main": [[{ "node": "Should Write", "type": "main", "index": 0 }]] },
+    "Should Write": {
+      "main": [
+        [{ "node": "Save Billing", "type": "main", "index": 0 }],
+        [{ "node": "Respond Unchanged", "type": "main", "index": 0 }]
+      ]
+    },
+    "Save Billing": { "main": [[{ "node": "Respond Saved", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "NF9VQqswnNCjyYGc"
+  },
+  "meta": {
+    "note": "Exported from the live n8n workflow 2AfHjkmsWxJ7qKvX. n8n is the source of truth. The Billing Webhook Secret is a Header Auth credential (header X-Billing-Secret); its value is never stored here."
+  }
+}

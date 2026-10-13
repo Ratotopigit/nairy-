@@ -4,28 +4,48 @@ Plans: **Monthly $22/mo**, **Annually $99/yr**, **Lifetime $222 once** (confirme
 live in one place, `lib/plans.ts`, which both the Billing page and the first-login plan step read. If a price
 changes, change the Stripe Price and that file together.
 
+**Refund policy (decided): all payments are non-refundable.** It is shown before paying on the Billing page, the
+first-login plan step and Stripe's checkout page. If a refund is ever issued by hand in Stripe, a fully refunded
+Lifetime purchase still loses access automatically.
+
 ## Status
 
-- **Phase 1 + 2: built** (test mode). `billing/{uid}` rules + emulator tests, `useEntitlement()` in `lib/billing.ts`,
-  `POST /api/billing/checkout` in `functions/api/billing/checkout.js`, Billing page and onboarding wired to checkout.
+The decision was made to go live without a separate test-mode phase; the go-live check is a 100%-off promo code.
+
+- **Phase 1 + 2: built.** `billing/{uid}` rules + emulator tests, `useEntitlement()` in `lib/billing.ts`,
+  `POST /api/billing/checkout` (`functions/api/billing/checkout.js`), Billing page and onboarding wired to checkout.
   The buttons only switch on in a build that has `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`; without it they stay
   "Coming soon".
-- **Phase 3 (webhook): not built.** Until it is, a test payment succeeds in Stripe but `billing/{uid}` is never
-  written, so the Billing page says "still being confirmed".
-- Phases 4-6: not built.
+- **Phase 3: built.** `POST /api/billing/webhook` (`functions/api/billing/webhook.js`) verifies the Stripe signature,
+  re-reads the subscription / payment from Stripe (so late, repeated or out-of-order events can't undo newer
+  state) and sends one update to the n8n workflow **17 - Billing Event** (`n8n/billing-event-workflow.json`), which
+  writes `billing/{uid}`. Tested against real Firestore with a throwaway user (since deleted).
+- **Phase 4: built.** `POST /api/billing/portal` and a "Manage billing" button for anyone with a Stripe customer.
+- **Phase 5 (limits for free users): not built.** Waiting on the free-vs-paid decision; nothing is locked yet.
+- **Phase 6 (go live): steps below.**
 
-### Environment variables for Phases 1-2
+### Environment variables
 
 | Variable | Where | Secret |
 |---|---|---|
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Cloudflare Pages build variable (and `.env.local` for dev) | no |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `wrangler.toml` `[vars]` (build-time) | no |
 | `STRIPE_SECRET_KEY` | Cloudflare Pages, **encrypted** | yes |
+| `STRIPE_WEBHOOK_SECRET` | Cloudflare Pages, **encrypted** (`whsec_...` from the Stripe webhook endpoint) | yes |
+| `N8N_BILLING_SECRET` | Cloudflare Pages, **encrypted**; same value as the n8n "Billing Webhook Secret" credential | yes |
 | `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_ANNUAL`, `STRIPE_PRICE_LIFETIME` | Cloudflare Pages, encrypted (`price_...` ids) | no |
 | `APP_URL` | Cloudflare Pages, encrypted: `https://webinarstackai.com` | no |
 
-The Firebase API key and project id the function also needs already come from `wrangler.toml`. New variables
-apply on the **next deploy**. For local testing of the function, copy `.dev.vars.example` to `.dev.vars`
-(git-ignored), `npm run build`, then `npx wrangler pages dev out`.
+The Firebase API key, project id and n8n webhook base the functions also need already come from `wrangler.toml`.
+New variables apply on the **next deploy**. For local testing of the functions, copy `.dev.vars.example` to
+`.dev.vars` (git-ignored), `npm run build`, then `npx wrangler pages dev out`.
+
+### Stripe settings
+
+- **Webhook endpoint** `https://webinarstackai.com/api/billing/webhook`, events: `checkout.session.completed`,
+  `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`,
+  `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `charge.refunded`.
+- **Customer portal**: allow cancel **at the end of the billing period** (no proration, nothing refunded), update
+  payment method, invoice history. Leave plan switching off for now (the Billing page says it isn't available yet).
 
 ## 0. Ground rules (read first)
 

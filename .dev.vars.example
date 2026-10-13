@@ -1,6 +1,10 @@
 # Copy to .dev.vars (git-ignored) for `npx wrangler pages dev out`.
 # Production: set these as ENCRYPTED variables on the Cloudflare Pages project.
 STRIPE_SECRET_KEY=sk_test_xxx
+# From the Stripe webhook endpoint (or `stripe listen` locally).
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+# Same value as the n8n "Billing Webhook Secret" Header Auth credential.
+N8N_BILLING_SECRET=xxx
 STRIPE_PRICE_MONTHLY=price_xxx
 STRIPE_PRICE_ANNUAL=price_xxx
 STRIPE_PRICE_LIFETIME=price_xxx

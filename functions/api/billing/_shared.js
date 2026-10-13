@@ -66,33 +66,56 @@ function restMillis(value) {
   return Number.isFinite(ms) ? ms : null;
 }
 
+/** The caller's raw ID token (verifyIdToken has already checked it). */
+export function bearerToken(request) {
+  return (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+}
+
 /**
- * Does this account already have paid access? Reads billing/{uid} through the
- * Firestore REST API with the user's OWN ID token, so the security rules decide
- * (owner read) and no service account is needed here.
- *
- * Mirrors isPaid() in lib/billing.ts. Fails open (returns false) when the read
- * does not work, e.g. the rules are not deployed yet: a duplicate purchase can
- * be refunded, a blocked sale cannot be recovered.
+ * Reads billing/{uid} through the Firestore REST API with the user's OWN ID
+ * token, so the security rules decide (owner read) and no service account is
+ * needed here. Returns the document's REST `fields`, or null when there is no
+ * document or the read does not work.
  */
-export async function hasPaidAccess(idToken, uid, env) {
+export async function readBillingFields(idToken, uid, env) {
   const projectId = env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  if (!projectId) return false;
+  if (!projectId) return null;
   try {
     const res = await fetch(
       `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/billing/${encodeURIComponent(uid)}`,
       { headers: { Authorization: `Bearer ${idToken}` } },
     );
-    if (!res.ok) return false;
-    const fields = (await res.json())?.fields || {};
-    const plan = fields.plan?.stringValue;
-    const status = fields.status?.stringValue;
-    if (plan === "lifetime") return true;
-    const end = restMillis(fields.current_period_end);
-    return ["active", "trialing", "past_due"].includes(status) && end !== null && end > Date.now();
+    if (!res.ok) return null;
+    return (await res.json())?.fields || {};
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Does this account already have paid access? Mirrors isPaid() in
+ * lib/billing.ts. Fails open (returns false) when the read does not work, e.g.
+ * the rules are not deployed yet: a duplicate purchase can be refunded, a
+ * blocked sale cannot be recovered.
+ */
+export async function hasPaidAccess(idToken, uid, env) {
+  const fields = await readBillingFields(idToken, uid, env);
+  if (!fields) return false;
+  const plan = fields.plan?.stringValue;
+  const status = fields.status?.stringValue;
+  if (plan === "lifetime") return true;
+  const end = restMillis(fields.current_period_end);
+  return ["active", "trialing", "past_due"].includes(status) && end !== null && end > Date.now();
+}
+
+/** GET from the Stripe REST API. Throws on any non-2xx, so callers fail loudly. */
+export async function stripeGet(path, env) {
+  const res = await fetch(`https://api.stripe.com/v1/${path}`, {
+    headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Stripe ${res.status}: ${body?.error?.message || "request failed"}`);
+  return body;
 }
 
 /** POST a form-encoded body to the Stripe REST API. Returns { ok, status, body }. */

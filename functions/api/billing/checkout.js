@@ -15,7 +15,7 @@
  * plus NEXT_PUBLIC_FIREBASE_API_KEY / NEXT_PUBLIC_FIREBASE_PROJECT_ID, which
  * wrangler.toml already provides at runtime.
  */
-import { PLANS, hasPaidAccess, json, stripePost, verifyIdToken } from "./_shared.js";
+import { PLANS, bearerToken, hasPaidAccess, json, stripePost, verifyIdToken } from "./_shared.js";
 
 export async function onRequestPost({ request, env }) {
   const user = await verifyIdToken(request, env);
@@ -38,8 +38,7 @@ export async function onRequestPost({ request, env }) {
     return json({ error: "Payments aren't available right now." }, 503);
   }
 
-  const idToken = request.headers.get("Authorization").replace(/^Bearer\s+/i, "");
-  if (await hasPaidAccess(idToken, user.uid, env)) {
+  if (await hasPaidAccess(bearerToken(request), user.uid, env)) {
     return json({ error: "You already have a paid plan." }, 409);
   }
 
@@ -51,6 +50,11 @@ export async function onRequestPost({ request, env }) {
     "metadata[uid]": user.uid,
     "metadata[plan]": plan,
     allow_promotion_codes: "true",
+    // Shown next to Stripe's Pay button, so the policy is seen before paying.
+    "custom_text[submit][message]":
+      mode === "subscription"
+        ? "All payments are non-refundable. Cancel anytime; access continues until the end of the paid period."
+        : "All payments are non-refundable.",
     success_url: `${appUrl}/provider/billing?status=success`,
     cancel_url: `${appUrl}/provider/billing?status=cancelled`,
   };
