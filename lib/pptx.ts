@@ -115,6 +115,54 @@ export async function exportPptx(opts: {
     const slideKind = s.imageKind ?? "photo";
     const isTitle = s.type === "title" || s.type === "closing";
 
+    /** Up to two headline numbers under the text, as SlideView shows them. */
+    const inlineMetrics =
+      s.type === "metrics" && (s.layout === "A" || s.layout === "C") ? metrics.slice(0, 2) : [];
+    const inlineSizes = () => ({
+      value: pt(fit(2.8, longest(inlineMetrics.map((m) => m.value)), 6, 0.55)),
+      label: pt(fit(1.2, longest(inlineMetrics.map((m) => m.label)), 26, 0.75)),
+    });
+    const inlineMetricsH = (w: number) => {
+      if (!inlineMetrics.length) return 0;
+      const cellW = (w - inch(RHYTHM * 1.6) * (inlineMetrics.length - 1)) / inlineMetrics.length;
+      const sz = inlineSizes();
+      return (sz.value * 1.15) / 72 + textH(longest(inlineMetrics.map((m) => m.label)), cellW, sz.label, 1.4);
+    };
+    const drawInlineMetrics = (x: number, y: number, w: number) => {
+      const gapX = inch(RHYTHM * 1.6);
+      const cellW = (w - gapX * (inlineMetrics.length - 1)) / inlineMetrics.length;
+      const sz = inlineSizes();
+      const valueH = (sz.value * 1.15) / 72;
+      const labelH = textH(longest(inlineMetrics.map((m) => m.label)), cellW, sz.label, 1.4);
+      inlineMetrics.forEach((m, i) => {
+        const cx = x + i * (cellW + gapX);
+        slide.addText(m.value, {
+          ...BOX,
+          x: cx,
+          y,
+          w: cellW,
+          h: valueH,
+          valign: "top",
+          fontFace: head,
+          fontSize: sz.value,
+          bold: opts.spec.headingWeight >= 600,
+          color: primary,
+        });
+        slide.addText(m.label, {
+          ...BOX,
+          x: cx,
+          y: y + valueH,
+          w: cellW,
+          h: labelH,
+          valign: "top",
+          fontFace: body,
+          fontSize: sz.label,
+          color: muted,
+          lineSpacing: Math.round(sz.label * 1.4 * 10) / 10,
+        });
+      });
+    };
+
     /**
      * Draw the eyebrow / title / rule / body stack into a column, returning the
      * y after it. `topY` is the top of the stack; pass `align: "center"` to mirror
@@ -165,7 +213,7 @@ export async function exportPptx(opts: {
           fontFace: head,
           fontSize: size,
           bold: opts.spec.headingWeight >= 600,
-          lineSpacingMultiple: 1.1,
+          lineSpacing: Math.round(size * 1.1 * 10) / 10,
           color: ink,
         });
         y += h + gap;
@@ -198,9 +246,14 @@ export async function exportPptx(opts: {
           fontFace: body,
           fontSize: size,
           color: muted,
-          lineSpacingMultiple: 1.55,
+          lineSpacing: Math.round(size * 1.55 * 10) / 10,
         });
         y += h + gap;
+      }
+
+      if (inlineMetrics.length) {
+        drawInlineMetrics(o.x, y, o.w);
+        y += inlineMetricsH(o.w) + gap;
       }
 
       return y - o.y - gap;
@@ -214,6 +267,7 @@ export async function exportPptx(opts: {
       if (s.title) h += textH(s.title.length, o.w, pt(fit(o.titleCqw, s.title.length, o.titleComfy, 0.5)), 1.1) + gap;
       if (opts.spec.rule) h += 0.028 + gap;
       if (s.body) h += textH(s.body.length, o.w, pt(fit(1.75, s.body.length, o.bodyComfy, 0.7)), 1.55) + gap;
+      if (inlineMetrics.length) h += inlineMetricsH(o.w) + gap;
       return Math.max(h - gap, 0);
     };
 
@@ -242,7 +296,7 @@ export async function exportPptx(opts: {
       if (!bullets.length) return;
       const size = pt(countFit(fit(1.7, longest(bullets), 62, 0.65), bullets.length, 4, 0.7));
       slide.addText(
-        bullets.map((b) => ({ text: b, options: { breakLine: true } })),
+        bullets.map((b) => ({ text: b, options: { breakLine: true, bullet: { type: "number" as const } } })),
         {
           ...BOX,
           x,
@@ -253,8 +307,7 @@ export async function exportPptx(opts: {
           fontFace: body,
           fontSize: size,
           color: ink,
-          bullet: { type: "number" },
-          lineSpacingMultiple: 1.45,
+          lineSpacing: Math.round(size * 1.45 * 10) / 10,
           paraSpaceAfter: size * 0.55,
         },
       );
@@ -309,7 +362,7 @@ export async function exportPptx(opts: {
           fontFace: body,
           fontSize: labelSize,
           color: muted,
-          lineSpacingMultiple: 1.4,
+          lineSpacing: Math.round(labelSize * 1.4 * 10) / 10,
         });
       });
     };
@@ -370,7 +423,7 @@ export async function exportPptx(opts: {
             fontFace: body,
             fontSize: restSize,
             color: muted,
-            lineSpacingMultiple: 1.5,
+            lineSpacing: Math.round(restSize * 1.5 * 10) / 10,
           });
         }
       });
@@ -422,7 +475,7 @@ export async function exportPptx(opts: {
           fontFace: body,
           fontSize: size,
           color: ink,
-          lineSpacingMultiple: 1.4,
+          lineSpacing: Math.round(size * 1.4 * 10) / 10,
         });
       });
     };
@@ -501,6 +554,55 @@ export async function exportPptx(opts: {
       }
     };
 
+    /**
+     * Left-to-right fade of the deck background colour. `stops` are
+     * [position 0..1, opacity 0..1]. PowerPoint shape fills cannot fade, so the
+     * fade is a one-row PNG with a real alpha gradient stretched over the slide;
+     * without a canvas (non-browser) it falls back to thin translucent bands.
+     */
+    const fadeBands = (stops: [number, number][]) => {
+      const alphaAt = (t: number) => {
+        for (let i = 1; i < stops.length; i += 1) {
+          if (t <= stops[i][0]) {
+            const [t0, a0] = stops[i - 1];
+            const [t1, a1] = stops[i];
+            return a0 + ((a1 - a0) * (t - t0)) / Math.max(t1 - t0, 1e-6);
+          }
+        }
+        return stops[stops.length - 1][1];
+      };
+      if (typeof document !== "undefined") {
+        const canvas = document.createElement("canvas");
+        canvas.width = 1024;
+        canvas.height = 4;
+        const g = canvas.getContext("2d");
+        if (g) {
+          const n = parseInt(bg, 16);
+          const rgb = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+          const grad = g.createLinearGradient(0, 0, 1024, 0);
+          stops.forEach(([t, a]) => grad.addColorStop(clamp(t, 0, 1), `rgba(${rgb},${clamp(a, 0, 1)})`));
+          g.fillStyle = grad;
+          g.fillRect(0, 0, 1024, 4);
+          slide.addImage({ data: canvas.toDataURL("image/png"), x: 0, y: 0, w: dim.w, h: dim.h });
+          return;
+        }
+      }
+      const bands = 48;
+      const w = dim.w / bands;
+      for (let i = 0; i < bands; i += 1) {
+        const a = clamp(alphaAt((i + 0.5) / bands), 0, 1);
+        if (a <= 0.01) continue;
+        slide.addShape("rect", {
+          x: i * w,
+          y: 0,
+          w: w + 0.01,
+          h: dim.h,
+          fill: { color: bg, transparency: Math.round((1 - a) * 100) },
+          line: { type: "none" },
+        });
+      }
+    };
+
     // ---------------- Title & closing ----------------
     if (isTitle) {
       const centered = s.layout === "B" || s.layout === "D";
@@ -533,8 +635,8 @@ export async function exportPptx(opts: {
         } catch {
           /* ignore unsupported image data */
         }
-        // PowerPoint shape fills are solid, so the on-screen gradient becomes
-        // one or two translucent bands in the deck's own background colour.
+        // Matches the on-screen overlay: a near-solid wash on the text side
+        // easing to 40% on the far side (centred titles get an even wash).
         if (centered) {
           slide.addShape("rect", {
             x: 0, y: 0, w: dim.w, h: dim.h,
@@ -542,16 +644,7 @@ export async function exportPptx(opts: {
             line: { type: "none" },
           });
         } else {
-          slide.addShape("rect", {
-            x: 0, y: 0, w: dim.w * 0.55, h: dim.h,
-            fill: { color: bg, transparency: 6 },
-            line: { type: "none" },
-          });
-          slide.addShape("rect", {
-            x: dim.w * 0.55, y: 0, w: dim.w * 0.45, h: dim.h,
-            fill: { color: bg, transparency: 45 },
-            line: { type: "none" },
-          });
+          fadeBands([[0, 0.96], [0.48, 0.88], [1, 0.4]]);
         }
       }
 
@@ -581,23 +674,8 @@ export async function exportPptx(opts: {
     // ---------------- Overlay (layout C, visual/split) ----------------
     else if (s.layout === "C" && (s.type === "visual" || s.type === "split")) {
       drawMedia(0, 0, dim.w, dim.h);
-      // Approximates the on-screen left-to-right background fade.
-      slide.addShape("rect", {
-        x: 0,
-        y: 0,
-        w: dim.w * 0.4,
-        h: dim.h,
-        fill: { color: bg },
-        line: { type: "none" },
-      });
-      slide.addShape("rect", {
-        x: dim.w * 0.4,
-        y: 0,
-        w: dim.w * 0.28,
-        h: dim.h,
-        fill: { color: bg, transparency: 45 },
-        line: { type: "none" },
-      });
+      // The on-screen fade: solid to 34% of the width, clear by 68%.
+      fadeBands([[0, 1], [0.34, 1], [0.68, 0]]);
       const textW = dim.w * 0.58 - pad * 2;
       const geo = { w: textW, titleCqw: h1 * 0.9, titleComfy: 38, bodyComfy: 120 };
       const h = stackH(geo);
