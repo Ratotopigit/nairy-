@@ -20,6 +20,10 @@ export interface BillingRecord {
   plan: BillingPlan;
   status: string;
   currentPeriodEnd: number | null;
+  /** The subscription stops at currentPeriodEnd instead of renewing. */
+  cancelAtPeriodEnd: boolean;
+  /** Set once the user has paid through Stripe: they have a billing portal to open. */
+  hasStripeCustomer: boolean;
 }
 
 const PAID_STATUSES = ["active", "trialing", "past_due"];
@@ -43,6 +47,8 @@ function parseRecord(data: Record<string, unknown> | undefined): BillingRecord {
     plan: plan === "monthly" || plan === "annual" || plan === "lifetime" ? plan : "none",
     status: typeof data?.status === "string" ? data.status : "",
     currentPeriodEnd: toMillis(data?.current_period_end),
+    cancelAtPeriodEnd: data?.cancel_at_period_end === true,
+    hasStripeCustomer: typeof data?.stripe_customer_id === "string" && data.stripe_customer_id.startsWith("cus_"),
   };
 }
 
@@ -66,7 +72,7 @@ export interface EntitlementState {
   error: boolean;
 }
 
-const NONE: BillingRecord = { plan: "none", status: "", currentPeriodEnd: null };
+const NONE: BillingRecord = { plan: "none", status: "", currentPeriodEnd: null, cancelAtPeriodEnd: false, hasStripeCustomer: false };
 
 /** Live view of the signed-in user's plan. Updates the moment the server records a payment. */
 export function useEntitlement(): EntitlementState {
@@ -109,21 +115,31 @@ const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
 export const billingEnabled = PUBLISHABLE_KEY.startsWith("pk_");
 export const billingTestMode = PUBLISHABLE_KEY.startsWith("pk_test_");
 
-/** Asks the server for a Stripe Checkout page for this plan and returns its URL. */
-export async function createCheckoutUrl(plan: CheckoutPlan): Promise<string> {
+/** POSTs to one of the billing functions and returns the Stripe URL it hands back. */
+async function requestStripeUrl(path: string, body: unknown, fallbackError: string): Promise<string> {
   const token = await getFirebaseAuthToken();
   if (!token) throw new Error("Sign in again and retry.");
   let res: Response;
   try {
-    res = await fetch("/api/billing/checkout", {
+    res = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify(body),
     });
   } catch {
     throw new Error("Couldn't reach the server. Check your connection and try again.");
   }
   const data = (await res.json().catch(() => null)) as { url?: unknown; error?: unknown } | null;
   if (res.ok && typeof data?.url === "string") return data.url;
-  throw new Error(typeof data?.error === "string" ? data.error : "Couldn't start checkout. Try again.");
+  throw new Error(typeof data?.error === "string" ? data.error : fallbackError);
+}
+
+/** Asks the server for a Stripe Checkout page for this plan and returns its URL. */
+export function createCheckoutUrl(plan: CheckoutPlan): Promise<string> {
+  return requestStripeUrl("/api/billing/checkout", { plan }, "Couldn't start checkout. Try again.");
+}
+
+/** Asks the server for a Stripe Customer Portal link (cancel, card, invoices). */
+export function createPortalUrl(): Promise<string> {
+  return requestStripeUrl("/api/billing/portal", {}, "Couldn't open billing management. Try again.");
 }

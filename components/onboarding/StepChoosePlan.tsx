@@ -4,7 +4,7 @@ import React from "react";
 import { Check, Sparkles } from "lucide-react";
 import { OnboardingData, SubscriptionTier } from "@/lib/onboarding";
 import { billingEnabled } from "@/lib/billing";
-import { PLAN_CATALOG, PLAN_FEATURES } from "@/lib/plans";
+import { PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES } from "@/lib/plans";
 
 /**
  * Last onboarding step. Shows exactly the plans and prices of the Billing page
@@ -128,6 +128,7 @@ export function StepChoosePlan({
             ? "Secure checkout by Stripe. Promo codes are entered at checkout."
             : "Card payments are coming soon. Nothing is charged yet."}
         </p>
+        {billingEnabled ? <p className="max-w-md text-xs font-medium text-foreground">{PAYMENT_TERMS}</p> : null}
         <button
           type="button"
           disabled={isSubmitting}

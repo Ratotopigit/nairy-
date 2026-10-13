@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Building2, Check, CreditCard, Crown, Gift } from "lucide-react";
 import { useEffect, useState, type ComponentType } from "react";
-import { billingEnabled, billingTestMode, createCheckoutUrl, useEntitlement, type CheckoutPlan } from "@/lib/billing";
-import { PLAN_CATALOG, PLAN_FEATURES } from "@/lib/plans";
+import { billingEnabled, billingTestMode, createCheckoutUrl, createPortalUrl, useEntitlement, type CheckoutPlan } from "@/lib/billing";
+import { PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES } from "@/lib/plans";
 
 /**
  * Billing. Three ways to pay for the same product. Checkout is hosted by
@@ -65,18 +65,39 @@ export default function BillingPage() {
     }
   }
 
+  const [openingPortal, setOpeningPortal] = useState(false);
+  async function openPortal() {
+    setError("");
+    setOpeningPortal(true);
+    try {
+      window.location.assign(await createPortalUrl());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't open billing management. Try again.");
+      setOpeningPortal(false);
+    }
+  }
+
   const currentPlan = paid && record.plan !== "none" ? record.plan : null;
-  const subtitle = currentPlan
-    ? currentPlan === "lifetime"
-      ? "You have lifetime access. Everything below is included."
-      : `You're on the ${PLAN_LABEL[currentPlan]} plan${record.currentPeriodEnd ? `, paid through ${formatDate(record.currentPeriodEnd)}` : ""}.`
-    : loading && billingEnabled
-      ? "Checking your plan…"
-      : "You're not on a paid plan yet. Every plan includes everything below.";
+  const endDate = record.currentPeriodEnd ? formatDate(record.currentPeriodEnd) : "";
+  let subtitle = "You're not on a paid plan yet. Every plan includes everything below.";
+  if (currentPlan === "lifetime") {
+    subtitle = "You have lifetime access. Everything below is included.";
+  } else if (currentPlan) {
+    const name = PLAN_LABEL[currentPlan];
+    if (record.status === "past_due") {
+      subtitle = `Your last payment for the ${name} plan didn't go through. Update your card under Manage billing to keep access.`;
+    } else if (record.cancelAtPeriodEnd) {
+      subtitle = `Your ${name} plan is cancelled and ends${endDate ? ` on ${endDate}` : " at the end of the paid period"}.`;
+    } else {
+      subtitle = `You're on the ${name} plan.${endDate ? ` It renews on ${endDate}.` : ""}`;
+    }
+  } else if (loading && billingEnabled) {
+    subtitle = "Checking your plan…";
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Link
           href="/provider/webinars"
           aria-label="Back to webinars"
@@ -84,10 +105,22 @@ export default function BillingPage() {
         >
           <ArrowLeft className="size-4" />
         </Link>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Billing</h1>
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
+        {billingEnabled && record.hasStripeCustomer ? (
+          <button
+            type="button"
+            onClick={() => void openPortal()}
+            disabled={openingPortal}
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-[#cfdccf] bg-white px-4 text-sm font-semibold transition-opacity disabled:cursor-wait disabled:opacity-60"
+            style={{ color: GREEN }}
+          >
+            <CreditCard className="size-4" />
+            {openingPortal ? "Opening…" : "Manage billing"}
+          </button>
+        ) : null}
       </div>
 
       {returned === "success" ? (
@@ -205,6 +238,7 @@ export default function BillingPage() {
                     : "You pay on Stripe's own page, so your card details never touch our servers. Have a promo code? Enter it at checkout."
                   : "You'll add and manage your card here. Until then, nothing is charged and nothing is locked."}
               </p>
+              {billingEnabled ? <p className="mt-1.5 text-sm font-medium text-[#1d2a27]">{PAYMENT_TERMS}</p> : null}
             </div>
           </div>
         </div>

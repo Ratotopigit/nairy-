@@ -58,6 +58,14 @@ export const PLAN_CATALOG: PlanInfo[] = [
   },
 ];
 
+/**
+ * Payment terms, shown before anyone pays (Billing page, first-login plan step,
+ * and on Stripe's checkout page via functions/api/billing/checkout.js, which
+ * keeps its own copy of the first sentence).
+ */
+export const PAYMENT_TERMS =
+  "All payments are non-refundable. You can cancel a subscription anytime and keep access until the end of the period you've paid for.";
+
 /** Every plan includes all of these. */
 export const PLAN_FEATURES = [
   "Unlimited webinars and pages",
