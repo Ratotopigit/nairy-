@@ -31,6 +31,9 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = "84398638524"
 NEXT_PUBLIC_FIREBASE_APP_ID = "1:84398638524:web:73049a61ee5baedc5097b9"
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID = "G-FEFS6JDC96"
 NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL = "https://explosionmarketing.app.n8n.cloud/webhook"
+# Stripe publishable key (public by design). Its presence switches the Pay
+# buttons on (lib/billing.ts); remove this line to switch them back off.
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_live_51SctZ8Rv2NBwIUcLGQkyRvgmMVSmLTkTpSiHIVTclcsP5nXhXrwL7ryKcsutjK7q08YHcvIvXhMMf3jn6XZ1SOce00bnlnZEhe"
 # Live Stripe prices: $22/month, $99/year, $222 one-time (see lib/plans.ts).
 STRIPE_PRICE_MONTHLY = "price_1UQ8kGRv2NBwIUcLEOZtxOWa"
 STRIPE_PRICE_ANNUAL = "price_1UQ8lVRv2NBwIUcLhRReXmPx"
