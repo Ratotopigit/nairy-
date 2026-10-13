@@ -795,7 +795,11 @@ for (const doc of all("Upcoming Webinars")) {
     : null;
   if (!kind) continue;
   const prev = state.get(id) ?? {};
-  if (prev[\`\${kind}_sent_for\`] === doc.next_session_at) continue;
+  // Compare instants, not strings: Firestore hands a stored timestamp back as
+  // "...:00Z" while the webinar carries "...:00.000Z", so a string compare
+  // never matched and the same reminder went out every 15 minutes.
+  const sentFor = Date.parse(prev[\`\${kind}_sent_for\`] ?? "");
+  if (Number.isFinite(sentFor) && sentFor === start) continue;
   out.push({
     json: {
       webinar: { ...doc, id },
