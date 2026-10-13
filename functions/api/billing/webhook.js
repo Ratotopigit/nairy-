@@ -92,7 +92,9 @@ async function subscriptionUpdate(subscriptionId, env) {
     plan: subscriptionPlan(sub, env),
     status: String(sub.status || ""),
     current_period_end: periodEndIso(sub),
-    cancel_at_period_end: sub.cancel_at_period_end === true,
+    // Newer API versions (and the Customer Portal) schedule the end with
+    // cancel_at instead of cancel_at_period_end. Either one means "won't renew".
+    cancel_at_period_end: sub.cancel_at_period_end === true || (typeof sub.cancel_at === "number" && sub.cancel_at > 0),
     stripe_customer_id: idOf(sub.customer),
     stripe_subscription_id: sub.id,
   };
