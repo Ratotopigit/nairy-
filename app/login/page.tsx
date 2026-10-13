@@ -71,6 +71,8 @@ export default function LoginPage() {
       const { auth } = await import("@/lib/firebase/config");
       const { checkUserOnboardingStatus } = await import("@/lib/onboarding");
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const { claimLocalData } = await import("@/lib/local-account");
+      claimLocalData(userCredential.user.uid);
       const isCompleted = await checkUserOnboardingStatus(userCredential.user.uid);
       setIsLoading(false);
       router.replace(isCompleted ? "/provider" : "/onboarding");

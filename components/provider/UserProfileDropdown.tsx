@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { onAuthStateChanged, signOut as firebaseSignOut, updateProfile, type User } from "firebase/auth";
+import { clearLocalUserData } from "@/lib/local-account";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, isFirebaseConfigured, storage } from "@/lib/firebase/config";
 import { resolveUserFirstName } from "@/lib/onboarding";
@@ -338,17 +339,9 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
   async function handleSignOut() {
     setIsOpen(false);
     try {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("astrocraft_user_first_name");
-        localStorage.removeItem("astrocraft_user_last_name");
-        localStorage.removeItem("astrocraft_user_photo");
-        localStorage.removeItem("astrocraft_google_photo");
-        if (currentUser?.uid) {
-          localStorage.removeItem(`astrocraft_user_first_name_${currentUser.uid}`);
-          localStorage.removeItem(`astrocraft_user_last_name_${currentUser.uid}`);
-          localStorage.removeItem(`astrocraft_user_photo_${currentUser.uid}`);
-        }
-      }
+      // Decks, chats, names and photos cached in this browser go too, so
+      // whoever signs in next never sees this account's work.
+      clearLocalUserData();
       await firebaseSignOut(auth);
     } catch (err) {
       console.warn("Sign out warning:", err);

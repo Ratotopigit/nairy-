@@ -1,6 +1,7 @@
 "use client";
 
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { claimLocalData } from "@/lib/local-account";
 import { useState } from "react";
 import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
 import { checkUserOnboardingStatus } from "@/lib/onboarding";
@@ -27,6 +28,8 @@ export function OAuthButtons({ onError }: Props) {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
       const user = userCredential.user;
+      // Before caching this account's name and photo below.
+      claimLocalData(user.uid);
 
       // Extract and cache Google photo URL and display name
       const googlePhoto =

@@ -4,12 +4,16 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
+import { claimLocalData } from "@/lib/local-account";
 import { checkUserOnboardingStatus } from "@/lib/onboarding";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null | undefined>(() => {
     if (typeof window !== "undefined" && auth.currentUser) {
+      // Runs before the first render of the workspace, so another account's
+      // cached deck or chat is gone before any page can read it.
+      claimLocalData(auth.currentUser.uid);
       return auth.currentUser;
     }
     return undefined;
@@ -31,6 +35,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) claimLocalData(currentUser.uid);
       setUser(currentUser);
       if (currentUser) {
         try {

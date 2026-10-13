@@ -74,6 +74,8 @@ export default function SignupPage() {
       const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
       const { auth } = await import("@/lib/firebase/config");
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const { claimLocalData } = await import("@/lib/local-account");
+      claimLocalData(userCredential.user.uid);
       if (fullName.trim()) {
         await updateProfile(userCredential.user, { displayName: fullName.trim() });
       }

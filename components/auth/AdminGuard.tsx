@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
+import { claimLocalData } from "@/lib/local-account";
 import { checkIsAdmin, syncUserProfile } from "@/lib/user-profile";
 import NotFound from "@/app/not-found";
 
@@ -45,6 +46,8 @@ export default function AdminGuard({ children }: AdminGuardProps) {
         triggerTarpit404();
         return;
       }
+
+      claimLocalData(currentUser.uid);
 
       // Automatically sync user document into `users` collection so owner sees their profile in Firebase!
       syncUserProfile(currentUser);
