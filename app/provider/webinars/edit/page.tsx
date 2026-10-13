@@ -15,6 +15,7 @@ import {
   Loader2,
   Lock,
   Palette,
+  PencilLine,
   Plus,
   RotateCcw,
   X,
@@ -26,14 +27,14 @@ import { getTemplate, themedColors } from "@/lib/webinar-templates";
 import { ThemeColorField } from "@/components/webinar/ThemeColorField";
 import {
   DURATION_OPTIONS,
-  getJoinUrl,
+  getPrivate,
   getWebinar,
   isValidJoinUrl,
   listRegistrants,
   publicPath,
   registrantsCsv,
   registrationUrl,
-  saveJoinUrl,
+  savePrivate,
   saveWebinar,
   sessionPhase,
   WEBINAR_LIMITS,
@@ -94,6 +95,8 @@ function Editor() {
   const [pickerOpen, setPickerOpen] = useState(false);
   // The join link lives in a private document, saved on its own.
   const [joinUrl, setJoinUrl] = useState("");
+  // Host's private notes ("what is this one for?"), saved with the join link.
+  const [notes, setNotes] = useState("");
   const [joinState, setJoinState] = useState<SaveState>("idle");
   const joinLoadedRef = useRef(false);
   const loadedRef = useRef(false);
@@ -115,7 +118,9 @@ function Editor() {
       setWebinar(found);
       setLoadState("ready");
       try {
-        setJoinUrl(await getJoinUrl(found.id));
+        const saved = await getPrivate(found.id);
+        setJoinUrl(saved.join_url);
+        setNotes(saved.notes);
       } catch (e) {
         // Rules not published yet, or offline: the field still works and
         // saving reports the problem.
@@ -137,15 +142,15 @@ function Editor() {
     }
     setJoinState("saving");
     const timer = window.setTimeout(() => {
-      saveJoinUrl(webinar.id, joinUrl)
+      savePrivate(webinar.id, { join_url: joinUrl, notes })
         .then(() => setJoinState("saved"))
-        .catch((e) => {
-          console.error("join link save failed:", e);
+        .catch((e: unknown) => {
+          console.error("private details save failed:", e);
           setJoinState("error");
         });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [joinUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [joinUrl, notes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Autosave, debounced. The first render after load is skipped so opening a
   // webinar never writes to it.
@@ -283,12 +288,18 @@ function Editor() {
         >
           <ArrowLeft className="size-4" />
         </Link>
-        <input
-          value={webinar.name}
-          onChange={(e) => update("name", e.target.value)}
-          aria-label="Internal webinar name"
-          className="min-w-0 flex-1 bg-transparent text-xl font-semibold tracking-[-0.02em] outline-none sm:text-2xl"
-        />
+        <label className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1 transition-colors hover:bg-secondary/60 focus-within:bg-secondary/60">
+          <input
+            value={webinar.name}
+            onChange={(e) => update("name", e.target.value)}
+            maxLength={WEBINAR_LIMITS.name}
+            placeholder="Name this webinar"
+            aria-label="Webinar name (only you see it)"
+            title="Click to rename. Only you see this name."
+            className="min-w-0 flex-1 bg-transparent text-xl font-semibold tracking-[-0.02em] outline-none placeholder:text-muted-foreground sm:text-2xl"
+          />
+          <PencilLine className="size-4 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
+        </label>
         <span
           className={`text-xs ${saveState === "error" ? "text-red-700" : "text-muted-foreground"}`}
           role={saveState === "error" ? "alert" : "status"}
@@ -411,6 +422,17 @@ function Editor() {
               </button>
             </div>
 
+            <Field label="Notes for you" hint="What this webinar is for, who it's aimed at. Only you see this; it also helps when you @mention it in Webinar Chat.">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                maxLength={WEBINAR_LIMITS.notes}
+                rows={2}
+                placeholder="e.g. October cohort for coaches; push the 1:1 offer at the end"
+                className={`${INPUT} resize-none`}
+              />
+            </Field>
+
             <div className="space-y-4 rounded-xl border border-border bg-card/60 p-3.5">
               <ThemeColorField
                 label="Button colour"
@@ -497,7 +519,7 @@ function Editor() {
                 {joinInvalid
                   ? "That doesn't look like a link. It should start with https://"
                   : joinState === "error"
-                    ? "The link couldn't be saved. Check your connection, or that the latest database rules are published."
+                    ? "Your session link and notes couldn't be saved. Check your connection, or that the latest database rules are published."
                     : joinState === "saving"
                       ? "Saving…"
                       : "Private. Never shown on the page; only emailed to people who register, inside their calendar invite."}

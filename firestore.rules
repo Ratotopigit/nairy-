@@ -135,18 +135,20 @@ service cloud.firestore {
         allow update: if false;
       }
 
-      // The join link (Zoom, Meet...). Owner only: it is never public, so
-      // nobody can join without registering. n8n reads it with the service
-      // account to put it in the confirmation email and calendar invite.
+      // The join link (Zoom, Meet...) and the host's own notes. Owner only:
+      // never public, so nobody can join without registering. n8n reads the
+      // link with the service account for the confirmation email and invite.
       match /private/{docId} {
         allow read, delete: if docId == "session" && isAuthenticated()
           && get(/databases/$(database)/documents/webinars/$(webinarId)).data.owner_id == request.auth.uid;
         allow create, update: if docId == "session" && isAuthenticated()
           && get(/databases/$(database)/documents/webinars/$(webinarId)).data.owner_id == request.auth.uid
-          && request.resource.data.keys().hasOnly(['join_url', 'updated_at'])
+          && request.resource.data.keys().hasOnly(['join_url', 'notes', 'updated_at'])
           && request.resource.data.join_url is string
           && request.resource.data.join_url.size() <= 1000
-          && (request.resource.data.join_url == "" || request.resource.data.join_url.matches('^https://.+'));
+          && (request.resource.data.join_url == "" || request.resource.data.join_url.matches('^https://.+'))
+          && (!('notes' in request.resource.data)
+            || (request.resource.data.notes is string && request.resource.data.notes.size() <= 1000));
       }
     }
 

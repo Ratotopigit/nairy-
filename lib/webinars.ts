@@ -3,9 +3,9 @@
  *
  *   webinars/{webinarId}                      owner-managed, public when published
  *   webinars/{webinarId}/registrants/{id}     anyone may create, only the owner reads
- *   webinars/{webinarId}/private/session      owner only: the join link. n8n
- *                                             emails it to registrants; it is
- *                                             never on the public page.
+ *   webinars/{webinarId}/private/session      owner only: the join link (n8n
+ *                                             emails it to registrants) and the
+ *                                             host's own notes. Never public.
  *
  * Access is enforced by firestore.rules, not here. In particular a registrant
  * may only carry `name`, `email` and a server `created_at`, so this module
@@ -80,6 +80,7 @@ export type Registrant = {
 
 export const WEBINAR_LIMITS = {
   joinUrl: 1000,
+  notes: 1000,
   title: 120,
   subtitle: 240,
   bullet: 140,
@@ -187,8 +188,17 @@ export async function getWebinar(webinarId: string): Promise<Webinar | null> {
   }
 }
 
-export async function createWebinar(ownerId: string): Promise<string> {
-  const ref = await addDoc(collection(db, "webinars"), emptyWebinar(ownerId));
+/**
+ * `name` is the host's own label ("October AI masterclass") and also starts
+ * as the public headline, which they can then change independently.
+ */
+export async function createWebinar(ownerId: string, input: { name: string; notes?: string }): Promise<string> {
+  const name = input.name.trim().slice(0, WEBINAR_LIMITS.name) || "Untitled webinar";
+  const ref = await addDoc(collection(db, "webinars"), { ...emptyWebinar(ownerId), name, title: name.slice(0, WEBINAR_LIMITS.title) });
+  if (input.notes?.trim()) {
+    // Best effort: the webinar exists either way, and notes can be added later.
+    await savePrivate(ref.id, { join_url: "", notes: input.notes }).catch(() => {});
+  }
   return ref.id;
 }
 
@@ -289,7 +299,7 @@ export function idFromPublicPath(pathname: string): string | null {
   return /^[A-Za-z0-9]{16,40}$/.test(id) ? id : null;
 }
 
-// ── The private join link ─────────────────────────────────────────────────
+// ── Private: join link and notes ──────────────────────────────────────────
 
 export function isValidJoinUrl(value: string): boolean {
   if (!value) return true; // optional
@@ -301,15 +311,19 @@ export function isValidJoinUrl(value: string): boolean {
   }
 }
 
-/** Owner only (rules). "" when none is set. */
-export async function getJoinUrl(webinarId: string): Promise<string> {
+export type WebinarPrivate = { join_url: string; notes: string };
+
+/** Owner only (rules). Empty strings when nothing is set. */
+export async function getPrivate(webinarId: string): Promise<WebinarPrivate> {
   const snap = await getDoc(doc(db, "webinars", webinarId, "private", "session"));
-  return snap.exists() ? String(snap.data().join_url ?? "") : "";
+  const data = snap.exists() ? snap.data() : {};
+  return { join_url: String(data.join_url ?? ""), notes: String(data.notes ?? "") };
 }
 
-export async function saveJoinUrl(webinarId: string, joinUrl: string): Promise<void> {
+export async function savePrivate(webinarId: string, value: WebinarPrivate): Promise<void> {
   await setDoc(doc(db, "webinars", webinarId, "private", "session"), {
-    join_url: joinUrl.trim(),
+    join_url: value.join_url.trim(),
+    notes: value.notes.trim().slice(0, WEBINAR_LIMITS.notes),
     updated_at: new Date().toISOString(),
   });
 }
@@ -412,6 +426,38 @@ export function registrationUrl(webinar: Pick<Webinar, "id" | "public_path">): s
   return webinar.public_path
     ? `${origin}${webinar.public_path}`
     : `${origin}/w?id=${encodeURIComponent(webinar.id)}`;
+}
+
+/** A registration with the webinar it belongs to, for views across webinars. */
+export type WebinarRegistrant = Registrant & { webinar_id: string; webinar_name: string };
+
+/**
+ * Owner only. Every registrant of every webinar passed in, newest first. One
+ * person on two webinars appears twice (once per webinar), which is what the
+ * per-webinar filters need.
+ */
+export async function listAllRegistrants(webinars: Webinar[]): Promise<WebinarRegistrant[]> {
+  const lists = await Promise.all(
+    webinars.map(async (w) => {
+      try {
+        const rows = await listRegistrants(w.id);
+        return rows.map((r) => ({ ...r, webinar_id: w.id, webinar_name: w.name || w.title }));
+      } catch {
+        return [];
+      }
+    }),
+  );
+  return lists
+    .flat()
+    .sort((a, b) => (b.created_at?.getTime() ?? 0) - (a.created_at?.getTime() ?? 0));
+}
+
+export function webinarRegistrantsCsv(rows: WebinarRegistrant[]): string {
+  const cell = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const lines = rows.map((r) =>
+    [cell(r.name), cell(r.email), cell(r.webinar_name), cell(r.created_at ? r.created_at.toISOString() : "")].join(","),
+  );
+  return ["name,email,webinar,registered_at", ...lines].join("\n");
 }
 
 export function registrantsCsv(rows: Registrant[]): string {

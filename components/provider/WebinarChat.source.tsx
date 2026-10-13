@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AtSign,
   Check,
   ChevronDown,
   ChevronUp,
@@ -45,6 +46,8 @@ import { loadStudioContext } from "@/lib/workspace-context";
 import { saveWorkspaceMemory, type WorkspaceMemory } from "@/lib/workspace-memory";
 import { resolveUserFirstName } from "@/lib/onboarding";
 import { n8nWebhookUrl } from "@/lib/n8n-url";
+import { listWebinars, sessionPhase, type Webinar } from "@/lib/webinars";
+import { activeMention, buildWebinarContext, matchMentions, mentionLabel } from "@/lib/webinar-chat-context";
 import VoiceWaveVisualizer from "./VoiceWaveVisualizer";
 import {
   chatService,
@@ -386,6 +389,50 @@ export default function PresentationChat() {
 
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // "@" mentions: the host's webinars, offered while typing "@name".
+  const [webinars, setWebinars] = useState<Webinar[]>([]);
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionOptions = mention ? matchMentions(mention.query, webinars) : [];
+
+  function updateMention(value: string, caret: number) {
+    const next = activeMention(value, caret);
+    setMention(next);
+    if (!next) setMentionIndex(0);
+  }
+
+  function pickMention(webinar: Webinar) {
+    if (!mention) return;
+    const el = textareaRef.current;
+    const caret = el?.selectionStart ?? draft.length;
+    const insert = `@${mentionLabel(webinar)} `;
+    const next = draft.slice(0, mention.start) + insert + draft.slice(caret);
+    setDraft(next);
+    setMention(null);
+    setMentionIndex(0);
+    window.requestAnimationFrame(() => {
+      if (!el) return;
+      const pos = mention.start + insert.length;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  }
+
+  function startMention() {
+    const el = textareaRef.current;
+    const caret = el?.selectionStart ?? draft.length;
+    const needsSpace = caret > 0 && !/\s/.test(draft[caret - 1] ?? "");
+    const insert = `${needsSpace ? " " : ""}@`;
+    const next = draft.slice(0, caret) + insert + draft.slice(caret);
+    setDraft(next);
+    setMention({ start: caret + insert.length - 1, query: "" });
+    setMentionIndex(0);
+    window.requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(caret + insert.length, caret + insert.length);
+    });
+  }
   const blueprintScrollRef = useRef<HTMLDivElement>(null);
 
   // The chat id whose content is currently loaded into state. When a deep link
@@ -447,6 +494,12 @@ export default function PresentationChat() {
         if (cancelled) return;
         setWorkspaceMemory(studio.memory);
         setAssetContext(studio.assetContext);
+        // For "@" mentions; the chat works the same without them.
+        void listWebinars(user.uid)
+          .then((rows) => {
+            if (!cancelled) setWebinars(rows);
+          })
+          .catch(() => {});
         const memName = resolveUserFirstName(user, studio.memory);
         if (memName) setUserName(memName);
       } catch (e) {
@@ -932,6 +985,10 @@ export default function PresentationChat() {
     const existingSession = history.find((h) => h.session_id === activeSessionId);
     const docId = existingSession?._docId || activeSessionId;
 
+    // Live numbers for any webinar tagged with "@" (or an overview when the
+    // message asks about webinars in general). Never blocks the message.
+    const webinarContext = await buildWebinarContext(text, webinars).catch(() => "");
+
     void chatService.sendMessage({
       sessionId: activeSessionId,
       text,
@@ -944,6 +1001,7 @@ export default function PresentationChat() {
       userId,
       userToken: token,
       docId,
+      webinarContext,
     });
   }
 
@@ -1654,7 +1712,57 @@ export default function PresentationChat() {
 
         {/* Message Input Footer */}
         <footer className="shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6 sm:py-4">
-          <div className="mx-auto max-w-3xl">
+          <div className="relative mx-auto max-w-3xl">
+            {mention ? (
+              <div
+                role="listbox"
+                aria-label="Your webinars"
+                className="absolute inset-x-0 bottom-full z-30 mb-2 overflow-hidden rounded-2xl border border-border bg-card shadow-lg animate-in fade-in slide-in-from-bottom-1"
+              >
+                <div className="flex items-center gap-1.5 border-b border-border px-3.5 py-2 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                  <AtSign className="size-3" />
+                  Bring a webinar into the chat
+                </div>
+                {mentionOptions.length ? (
+                  mentionOptions.map((w, i) => {
+                    const phase = sessionPhase(w);
+                    return (
+                      <button
+                        key={w.id}
+                        type="button"
+                        role="option"
+                        aria-selected={i === mentionIndex}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          pickMention(w);
+                        }}
+                        onMouseEnter={() => setMentionIndex(i)}
+                        className={`flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left text-sm transition-colors ${
+                          i === mentionIndex ? "bg-secondary" : ""
+                        }`}
+                      >
+                        <span className="min-w-0 truncate font-medium">{mentionLabel(w)}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {w.status !== "published"
+                            ? "Draft"
+                            : phase === "live"
+                              ? "Live now"
+                              : phase === "upcoming"
+                                ? "Upcoming"
+                                : phase === "none"
+                                  ? "No date"
+                                  : "Ended"}
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="px-3.5 py-3 text-sm text-muted-foreground">
+                    {webinars.length ? "No webinar matches that name." : "You don't have any webinars yet. Create one in Webinars."}
+                  </p>
+                )}
+              </div>
+            ) : null}
             {mergeToast && (
               <div className="mb-2 inline-flex items-center gap-2 rounded-lg bg-primary/15 border border-primary/30 px-3 py-1 text-xs text-foreground animate-in fade-in slide-in-from-bottom-2">
                 <Check className="size-3.5 text-primary" />
@@ -1683,10 +1791,33 @@ export default function PresentationChat() {
                       ? "Q3: What’s the biggest problem you solve & the result they achieve?..."
                       : step === 4
                       ? "Q4: What’s one hesitation or objection prospects might have?..."
-                      : "Ask anything about your strategy, offer, or presentation..."
+                      : "Ask anything, or type @ to talk about one of your webinars..."
                   }
-                  onChange={(e) => setDraft(e.target.value)}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    updateMention(e.target.value, e.target.selectionStart ?? e.target.value.length);
+                  }}
+                  onSelect={(e) => updateMention(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
+                  onBlur={() => window.setTimeout(() => setMention(null), 120)}
                   onKeyDown={(e) => {
+                    if (mention && mentionOptions.length) {
+                      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                        e.preventDefault();
+                        const delta = e.key === "ArrowDown" ? 1 : -1;
+                        setMentionIndex((i) => (i + delta + mentionOptions.length) % mentionOptions.length);
+                        return;
+                      }
+                      if (e.key === "Enter" || e.key === "Tab") {
+                        e.preventDefault();
+                        pickMention(mentionOptions[Math.min(mentionIndex, mentionOptions.length - 1)]);
+                        return;
+                      }
+                    }
+                    if (mention && e.key === "Escape") {
+                      e.preventDefault();
+                      setMention(null);
+                      return;
+                    }
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       void handleSend();
@@ -1695,6 +1826,16 @@ export default function PresentationChat() {
                   className="max-h-56 min-h-[48px] flex-1 resize-none bg-transparent px-4 py-3 text-sm sm:text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/75 focus:outline-none overflow-y-auto no-scrollbar"
                 />
                 <div className="flex items-center gap-1.5 sm:gap-2 p-2 pb-2.5 pr-2.5 shrink-0 self-end">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={startMention}
+                    aria-label="Mention a webinar"
+                    title="Mention a webinar (@)"
+                    className="grid size-9 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  >
+                    <AtSign className="size-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={toggleVoiceInput}

@@ -201,6 +201,8 @@ class ChatService {
     userId: string;
     userToken: string;
     docId?: string;
+    /** Live registration data for webinars tagged with @ (see lib/webinar-chat-context). */
+    webinarContext?: string;
   }): Promise<void> {
     const {
       sessionId,
@@ -214,6 +216,7 @@ class ChatService {
       userId,
       userToken,
       docId,
+      webinarContext,
     } = params;
 
     // If already generating for this session, ignore duplicate send
@@ -272,6 +275,7 @@ class ChatService {
           step,
           asset_context: assetContext,
           workspace_context: assetContext,
+          webinar_context: webinarContext ?? "",
           synthesize: isBlueprintRequest,
           initiate_build: isInitiateBuild,
         }),
