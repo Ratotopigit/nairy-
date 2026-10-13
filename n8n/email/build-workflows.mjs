@@ -20,7 +20,8 @@ const FIRESTORE = { googleApi: { id: "LeMY3R0pzOuv9c8N", name: "Firebase Service
 // connected in n8n with "Sign in with Google" (Gmail OAuth2). The From address
 // is whichever account is connected. On import n8n asks which credential to
 // use if this id does not exist.
-const GMAIL = { gmailOAuth2: { id: "REPLACE_WITH_GMAIL_CREDENTIAL", name: "Explosion Marketing Gmail" } };
+// The Gmail login saved in the explosionmarketing n8n instance (an id, not a secret).
+const GMAIL = { gmailOAuth2: { id: "wRAdlx4C2JELtf3I", name: "bibeks gmail" } };
 const FAILURE_ALERTS_WORKFLOW = "NF9VQqswnNCjyYGc"; // "08 - Failure Alerts", as on the other workflows
 const EMAIL_RE = "/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/";
 

@@ -33,12 +33,12 @@ Never hand-edit the generated `n8n/*-workflow.json`; the next build overwrites t
 
 ## One-time setup
 
-1. In n8n: **Credentials → Add credential → Gmail OAuth2 API → Sign in with Google**, using the Explosion Marketing account the emails should come from. Name it `Explosion Marketing Gmail`.
-2. Import the five JSON files. In each **Send…** node, choose that credential.
+1. In n8n: **Credentials → Add credential → Gmail OAuth2 API → Sign in with Google**, using the account the emails should come from. The live instance uses the credential `bibeks gmail` (id in `GMAIL` in `build-workflows.mjs`); on another instance, change that id and rebuild.
+2. Import the five JSON files. Check each **Send…** node shows that credential.
 3. **Publish** each workflow. Drafts do nothing until published.
 
 ## Limits to know
 
-- Google Workspace allows roughly **2,000 emails per day per account**, shared across all of these workflows. Plenty for confirmations and welcomes. A broadcast to thousands of users would hit it, and the overflow is recorded as `failed` and raises Failure Alerts.
+- Google Workspace allows roughly **2,000 emails per day per account** (a personal @gmail.com account: about **500**), shared across all of these workflows. Plenty for confirmations and welcomes. A broadcast to thousands of users would hit it, and the overflow is recorded as `failed` and raises Failure Alerts.
 - The Gmail node cannot set custom headers, so broadcasts carry a visible unsubscribe link (which Australia's Spam Act requires) but no one-click `List-Unsubscribe` header. Fine at this volume; revisit with a dedicated sending service if broadcasts grow large.
 - Anyone can put someone else's address into a sign-up or registration form. If that gets abused, add Cloudflare Turnstile to those forms.

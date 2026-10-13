@@ -126,8 +126,8 @@
       "onError": "continueRegularOutput",
       "credentials": {
         "gmailOAuth2": {
-          "id": "REPLACE_WITH_GMAIL_CREDENTIAL",
-          "name": "Explosion Marketing Gmail"
+          "id": "wRAdlx4C2JELtf3I",
+          "name": "bibeks gmail"
         }
       }
     },
