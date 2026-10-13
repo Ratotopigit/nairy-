@@ -49,6 +49,10 @@ function Editor() {
   const [webinar, setWebinar] = useState<Webinar | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "missing" | "ready">("loading");
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  // What is actually stored. The public page only works once this says
+  // "published", so the Live link is shown from it, not from the editor's state.
+  const [storedStatus, setStoredStatus] = useState<"draft" | "published">("draft");
+  const urgentSave = useRef(false);
   // ?tab=registrants lets the morning summary email link straight to the list.
   const [tab, setTab] = useState<"page" | "registrants">(params.get("tab") === "registrants" ? "registrants" : "page");
   const [panel, setPanel] = useState<PanelId>("content");
@@ -81,6 +85,7 @@ function Editor() {
         return;
       }
       setWebinar(found);
+      setStoredStatus(found.status);
       setLoadState("ready");
       try {
         const saved = await getPrivate(found.id);
@@ -126,14 +131,20 @@ function Editor() {
       return;
     }
     setSaveState("saving");
+    // Publishing and unpublishing save at once; typing waits for a pause.
+    const delay = urgentSave.current ? 0 : 700;
+    urgentSave.current = false;
     const timer = window.setTimeout(() => {
       saveWebinar(webinar, hostName())
-        .then(() => setSaveState("saved"))
+        .then(() => {
+          setSaveState("saved");
+          setStoredStatus(webinar.status);
+        })
         .catch((e) => {
           console.error("webinar save failed:", e);
           setSaveState("error");
         });
-    }, 700);
+    }, delay);
     return () => window.clearTimeout(timer);
   }, [webinar]);
 
@@ -197,6 +208,7 @@ function Editor() {
       return;
     }
     setNotice(null);
+    urgentSave.current = true;
     update("status", published ? "draft" : "published");
   }
 
@@ -263,7 +275,15 @@ function Editor() {
         </button>
       </div>
 
-      {published ? (
+      {published && storedStatus !== "published" ? (
+        <p role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+          {saveState === "error"
+            ? "Couldn't publish. Check your connection and try again; the page isn't live yet."
+            : "Publishing… the link goes live in a moment."}
+        </p>
+      ) : null}
+
+      {published && storedStatus === "published" ? (
         <div className="reg-rise mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm">
           <span className="font-medium text-emerald-800">Live</span>
           <code className="min-w-0 flex-1 truncate text-xs text-emerald-900/80">{shareUrl}</code>
@@ -386,7 +406,7 @@ function Editor() {
                 webinar={shown}
                 device={device}
                 onDevice={setDevice}
-                publicUrl={published ? shareUrl : null}
+                publicUrl={published && storedStatus === "published" ? shareUrl : null}
                 notice={sample ? "Showing sample text for this kind of business until you write your own headline." : undefined}
               />
             </div>

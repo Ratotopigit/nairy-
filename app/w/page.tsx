@@ -23,7 +23,7 @@ import { getWebinar, idFromPublicPath, registerForWebinar, type Webinar } from "
 
 function PublicRegistration() {
   const queryId = useSearchParams().get("id") ?? "";
-  const [state, setState] = useState<"loading" | "missing" | "ready">("loading");
+  const [state, setState] = useState<"loading" | "missing" | "unpublished" | "ready">("loading");
   const [webinar, setWebinar] = useState<Webinar | null>(null);
 
   useEffect(() => {
@@ -37,8 +37,13 @@ function PublicRegistration() {
       if (cancelled) return;
       // Only a published webinar is public. The rules already deny drafts to
       // visitors; this also covers the owner previewing while signed in.
-      if (!found || found.status !== "published") {
+      if (!found) {
         setState("missing");
+        return;
+      }
+      if (found.status !== "published") {
+        // Only the owner can read a draft, so this is them previewing.
+        setState("unpublished");
         return;
       }
       // Show the webinar's own readable link in the address bar, whatever
@@ -63,13 +68,24 @@ function PublicRegistration() {
     );
   }
 
+  if (state === "unpublished") {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#fbfaf6] px-6 text-center">
+        <div>
+          <h1 className="text-xl font-semibold text-[#1d2a27]">This webinar isn&apos;t published yet</h1>
+          <p className="mt-2 text-sm text-[#68736f]">Open it in your editor and press Publish. Nobody else can see it until you do.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (state === "missing" || !webinar) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#fbfaf6] px-6 text-center">
         <div>
           <h1 className="text-xl font-semibold text-[#1d2a27]">This webinar isn&apos;t available</h1>
           <p className="mt-2 text-sm text-[#68736f]">
-            The link may be wrong, or registration may have closed.
+            This link doesn&apos;t match any webinar. Check that it was copied in full.
           </p>
         </div>
       </div>

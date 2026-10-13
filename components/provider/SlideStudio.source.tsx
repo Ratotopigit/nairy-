@@ -33,7 +33,7 @@ import {
 } from "@/lib/deck";
 import { askAssistant, type AssistantActions } from "@/lib/assistant";
 import { HANDOFF } from "@/lib/creation-handoff";
-import { downloadDeckPdf } from "@/lib/deck-pdf";
+import { DeckPrint, type PrintJob } from "@/components/deck/DeckPrint";
 import { StatusLine, type StatusState } from "@/components/deck/StatusLine";
 import {
   linkBlueprintToContent,
@@ -751,15 +751,24 @@ export default function Builder() {
     }
   };
 
+  const [printJob, setPrintJob] = useState<PrintJob | null>(null);
+
   const handleExportPdf = async () => {
-    setStatus({ text: "Building PDF…", tone: "working" });
+    setStatus({ text: "Preparing PDF…", tone: "working" });
     try {
-      await downloadDeckPdf(
-        slides,
+      // Inline remote art first so every page prints with its picture.
+      const exportSlides = await resolveArtForExport(slides).catch(() => slides);
+      setPrintJob({
+        slides: exportSlides,
         palette,
-        `${(slides[0]?.title || description.split(/[.\n]/)[0] || "presentation").slice(0, 40).trim()}.pdf`,
-      );
-      setStatus({ text: `Downloaded PDF — ${slides.length} slides`, tone: "success" });
+        spec,
+        ratio,
+        image,
+        removeBg,
+        logo,
+        title: (slides[0]?.title || description.split(/[.\n]/)[0] || "presentation").slice(0, 40).trim(),
+      });
+      setStatus({ text: 'Choose "Save as PDF" as the destination in the print window.', tone: "working" });
     } catch (error) {
       const detail = error instanceof Error ? error.message : "";
       console.error("pdf export failed:", error);
@@ -813,6 +822,13 @@ export default function Builder() {
 
   return (
     <div className="deck-builder flex h-[calc(100dvh-4rem-1px)] min-h-0 flex-col overflow-hidden bg-background text-foreground">
+      <DeckPrint
+        job={printJob}
+        onDone={() => {
+          setPrintJob(null);
+          setStatus({ text: "PDF ready — check your downloads", tone: "success" });
+        }}
+      />
       <input
         ref={slideImageRef}
         type="file"

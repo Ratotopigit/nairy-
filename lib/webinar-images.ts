@@ -1,10 +1,14 @@
 /**
  * Images for registration pages: upload, find, suggest.
  *
- * Everything a page shows lives in the host's OWN Firebase Storage:
- *   - uploads are resized in the browser first (a phone photo is often 6MB;
- *     the page needs ~300KB), which also drops the photo's hidden EXIF data
- *     (camera, GPS location) before it reaches a public page;
+ * An image is stored as a small data URL right on the webinar document in
+ * Firestore (image_url, portrait_url, logo_url) and rendered from there. There
+ * is no separate file store to configure, wait on or get stuck on, and the
+ * public page gets its pictures in the same read as the rest of the page.
+ *   - every image is resized and re-encoded in the browser to a fixed size
+ *     budget (a Firestore document is limited to 1 MiB, and a phone photo is
+ *     often 6 MB), which also drops the photo's hidden EXIF data (camera, GPS
+ *     location) before it reaches a public page;
  *   - a stock photo picked from search is downloaded once through n8n and
  *     stored the same way, because Pixabay's terms don't allow permanent
  *     hot-linking of their image URLs, and a copy never rots.
@@ -14,18 +18,22 @@
  * never reaches the browser. It returns one best match per query, so a gallery
  * is built from a few related queries run side by side.
  */
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { auth, storage } from "@/lib/firebase/config";
+import { auth } from "@/lib/firebase/config";
 import { readN8nJson } from "@/lib/n8n-response";
 import { n8nWebhookUrl } from "@/lib/n8n-url";
 import { CATEGORY_PHOTO_TERMS, type TemplateCategory } from "@/lib/webinar-templates";
 
 export type ImageKind = "hero" | "portrait" | "logo";
 
-export const IMAGE_RULES: Record<ImageKind, { maxSide: number; label: string; allowAlpha: boolean }> = {
-  hero: { maxSide: 2200, label: "photo", allowAlpha: false },
-  portrait: { maxSide: 1400, label: "portrait", allowAlpha: false },
-  logo: { maxSide: 720, label: "logo", allowAlpha: true },
+/**
+ * `budget` is the encoded size in bytes. Base64 adds a third, and a webinar
+ * document holds all three images plus its text under Firestore's 1 MiB limit:
+ * 300 + 140 + 60 KB of image becomes about 670 KB of base64.
+ */
+export const IMAGE_RULES: Record<ImageKind, { maxSide: number; budget: number; label: string; allowAlpha: boolean }> = {
+  hero: { maxSide: 1600, budget: 300_000, label: "photo", allowAlpha: false },
+  portrait: { maxSide: 1000, budget: 140_000, label: "portrait", allowAlpha: false },
+  logo: { maxSide: 640, budget: 60_000, label: "logo", allowAlpha: true },
 };
 
 const MAX_INPUT_BYTES = 12 * 1024 * 1024;
@@ -54,48 +62,61 @@ export async function prepareImage(file: File, kind: ImageKind): Promise<{ blob:
     throw new ImageError("That image couldn't be read. Try saving it as a JPG or PNG first.");
   }
 
-  const { maxSide, allowAlpha } = IMAGE_RULES[kind];
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * scale));
-  const height = Math.max(1, Math.round(bitmap.height * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new ImageError("Your browser couldn't process that image.");
-  // Photos get a white backing so transparent areas don't turn black in JPEG.
-  if (!allowAlpha) {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
-  }
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close();
-
-  const toBlob = (type: string, quality?: number) =>
+  const { maxSide, budget, allowAlpha } = IMAGE_RULES[kind];
+  const toBlob = (canvas: HTMLCanvasElement, type: string, quality?: number) =>
     new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality));
 
-  if (allowAlpha) {
-    const png = await toBlob("image/png");
-    if (png) return { blob: png, ext: "png", type: "image/png" };
-  } else {
-    const webp = await toBlob("image/webp", 0.86);
-    if (webp && webp.type === "image/webp") return { blob: webp, ext: "webp", type: "image/webp" };
-    const jpeg = await toBlob("image/jpeg", 0.88);
-    if (jpeg) return { blob: jpeg, ext: "jpg", type: "image/jpeg" };
+  // Try progressively smaller sizes and lower quality until it fits the budget.
+  let side = Math.min(maxSide, Math.max(bitmap.width, bitmap.height));
+  try {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new ImageError("Your browser couldn't process that image.");
+      // Photos get a white backing so transparent areas don't turn black in JPEG.
+      if (!allowAlpha) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+      }
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(bitmap, 0, 0, width, height);
+
+      const candidates: { blob: Blob | null; ext: string }[] = [];
+      for (const quality of [0.82, 0.7, 0.58, 0.46]) {
+        // WebP keeps transparency for logos and is smaller than PNG or JPEG.
+        const webp = await toBlob(canvas, "image/webp", quality);
+        if (webp && webp.type === "image/webp") candidates.push({ blob: webp, ext: "webp" });
+        else if (!allowAlpha) candidates.push({ blob: await toBlob(canvas, "image/jpeg", quality), ext: "jpg" });
+        else break;
+        const last = candidates[candidates.length - 1].blob;
+        if (last && last.size <= budget) return { blob: last, ext: candidates[candidates.length - 1].ext, type: last.type };
+      }
+      if (allowAlpha && !candidates.length) {
+        const png = await toBlob(canvas, "image/png");
+        if (png && png.size <= budget) return { blob: png, ext: "png", type: "image/png" };
+      }
+      side = Math.round(side * 0.8);
+      if (side < 160) break;
+    }
+  } finally {
+    bitmap.close();
   }
-  throw new ImageError("Your browser couldn't process that image.");
+  throw new ImageError("That image is too detailed to store. Please try a simpler or smaller one.");
 }
 
-/** Stores an already-prepared image under the host's folder and returns its public URL. */
-export async function storeImage(webinarId: string, kind: ImageKind, prepared: { blob: Blob; ext: string; type: string }): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) throw new ImageError("You need to be signed in to add images.");
-  // Owner-only folder (storage.rules require it); the download URL carries an
-  // access token, so visitors can still see the image on the public page.
-  const fileRef = ref(storage, `${user.uid}/webinars/${webinarId}/${kind}-${Date.now()}.${prepared.ext}`);
-  await uploadBytes(fileRef, prepared.blob, { contentType: prepared.type, cacheControl: "public,max-age=31536000" });
-  return getDownloadURL(fileRef);
+/** Turns the prepared image into a data URL, ready to save on the webinar. */
+export async function storeImage(_webinarId: string, _kind: ImageKind, prepared: { blob: Blob; ext: string; type: string }): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => (typeof reader.result === "string" ? resolve(reader.result) : reject(new ImageError("The image couldn't be read.")));
+    reader.onerror = () => reject(new ImageError("The image couldn't be read."));
+    reader.readAsDataURL(prepared.blob);
+  });
 }
 
 export async function uploadWebinarImage(webinarId: string, file: File, kind: ImageKind): Promise<string> {
@@ -108,7 +129,7 @@ export type StockPhoto = {
   id: number;
   /** Small image for the grid. */
   preview: string;
-  /** The large image that gets copied into the host's storage. */
+  /** The large image that gets copied onto the webinar. */
   url: string;
   width: number;
   height: number;
@@ -167,7 +188,7 @@ export async function searchPhotos(query: string, _orientation: "horizontal" | "
 }
 
 /**
- * Copies a chosen stock photo into the host's storage and returns its URL.
+ * Copies a chosen stock photo onto the webinar (as a data URL) and returns it.
  * The bytes travel through n8n (the CDN sends no CORS headers), are resized
  * like any upload, and are then stored under the host's own folder.
  */
