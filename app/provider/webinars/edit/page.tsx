@@ -11,22 +11,47 @@ import {
   Download,
   ExternalLink,
   ImagePlus,
+  Link2,
   Loader2,
+  Lock,
+  Palette,
   Plus,
+  RotateCcw,
   X,
 } from "lucide-react";
 import { auth, storage } from "@/lib/firebase/config";
 import { RegistrationPage } from "@/components/webinar/RegistrationPage";
+import { TemplatePicker, TemplateThumbnail } from "@/components/webinar/TemplatePicker";
+import { getTemplate, themedColors } from "@/lib/webinar-templates";
+import { ThemeColorField } from "@/components/webinar/ThemeColorField";
 import {
+  DURATION_OPTIONS,
+  getJoinUrl,
   getWebinar,
+  isValidJoinUrl,
   listRegistrants,
+  publicPath,
   registrantsCsv,
   registrationUrl,
+  saveJoinUrl,
   saveWebinar,
+  sessionPhase,
   WEBINAR_LIMITS,
   type Registrant,
   type Webinar,
 } from "@/lib/webinars";
+
+/** The account holder's name, for the readable link (/<name>/<title>-<id>). */
+function hostName(): string {
+  const user = auth.currentUser;
+  return user?.displayName?.trim() || user?.email?.split("@")[0] || "";
+}
+
+function durationLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} minutes`;
+  const h = minutes / 60;
+  return `${h} hour${h === 1 ? "" : "s"}`;
+}
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -66,6 +91,11 @@ function Editor() {
   const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // The join link lives in a private document, saved on its own.
+  const [joinUrl, setJoinUrl] = useState("");
+  const [joinState, setJoinState] = useState<SaveState>("idle");
+  const joinLoadedRef = useRef(false);
   const loadedRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -84,9 +114,38 @@ function Editor() {
       }
       setWebinar(found);
       setLoadState("ready");
+      try {
+        setJoinUrl(await getJoinUrl(found.id));
+      } catch (e) {
+        // Rules not published yet, or offline: the field still works and
+        // saving reports the problem.
+        console.warn("join link load failed:", e);
+      }
     });
     return unsubscribe;
   }, [id]);
+
+  useEffect(() => {
+    if (loadState !== "ready" || !webinar) return;
+    if (!joinLoadedRef.current) {
+      joinLoadedRef.current = true;
+      return;
+    }
+    if (!isValidJoinUrl(joinUrl.trim())) {
+      setJoinState("idle");
+      return;
+    }
+    setJoinState("saving");
+    const timer = window.setTimeout(() => {
+      saveJoinUrl(webinar.id, joinUrl)
+        .then(() => setJoinState("saved"))
+        .catch((e) => {
+          console.error("join link save failed:", e);
+          setJoinState("error");
+        });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [joinUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Autosave, debounced. The first render after load is skipped so opening a
   // webinar never writes to it.
@@ -98,7 +157,7 @@ function Editor() {
     }
     setSaveState("saving");
     const timer = window.setTimeout(() => {
-      saveWebinar(webinar)
+      saveWebinar(webinar, hostName())
         .then(() => setSaveState("saved"))
         .catch((e) => {
           console.error("webinar save failed:", e);
@@ -144,6 +203,11 @@ function Editor() {
     setWebinar((current) => (current ? { ...current, [key]: value } : current));
 
   const published = webinar.status === "published";
+  const template = getTemplate(webinar.template_id);
+  const phase = sessionPhase(webinar);
+  // What the link will be after the next save, so it updates as they type.
+  const shareUrl = registrationUrl({ id: webinar.id, public_path: publicPath(webinar, hostName()) });
+  const joinInvalid = !isValidJoinUrl(joinUrl.trim());
 
   function togglePublish() {
     if (!webinar) return;
@@ -157,7 +221,7 @@ function Editor() {
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(registrationUrl(webinar!.id));
+      await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -249,7 +313,7 @@ function Editor() {
       {published ? (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm reg-rise">
           <span className="font-medium text-emerald-800">Live</span>
-          <code className="min-w-0 flex-1 truncate text-xs text-emerald-900/80">{registrationUrl(webinar.id)}</code>
+          <code className="min-w-0 flex-1 truncate text-xs text-emerald-900/80">{shareUrl}</code>
           <button
             type="button"
             onClick={() => void copyLink()}
@@ -259,7 +323,7 @@ function Editor() {
             {copied ? "Copied" : "Copy link"}
           </button>
           <a
-            href={registrationUrl(webinar.id)}
+            href={shareUrl}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 shadow-sm transition hover:bg-emerald-100"
@@ -267,6 +331,18 @@ function Editor() {
             <ExternalLink className="size-3.5" />
             Open
           </a>
+        </div>
+      ) : null}
+
+      {phase === "ended" || phase === "closed" ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 reg-rise">
+          <RotateCcw className="size-4 shrink-0" />
+          <p className="min-w-0 flex-1">
+            {phase === "closed"
+              ? "This session finished over a week ago, so the public page is now hidden. "
+              : "This session has ended and registration is closed. "}
+            Pick a new date below to run it again. The same link keeps working.
+          </p>
         </div>
       ) : null}
 
@@ -314,6 +390,44 @@ function Editor() {
         <div className="mt-5 grid gap-6 lg:grid-cols-[400px_minmax(0,1fr)]">
           {/* Form */}
           <div className={`space-y-5 ${mobileView === "preview" ? "hidden lg:block" : ""}`}>
+            <div>
+              <span className="text-xs font-medium">Template</span>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="mt-1.5 flex w-full items-center gap-3 rounded-xl border border-border bg-card p-2 text-left transition hover:bg-secondary"
+              >
+                <div className="w-24 shrink-0 overflow-hidden rounded-lg border border-border">
+                  <TemplateThumbnail template={{ ...template, colors: themedColors(template, webinar) }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{template.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{template.category}</p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs">
+                  <Palette className="size-3.5" />
+                  Change
+                </span>
+              </button>
+            </div>
+
+            <div className="space-y-4 rounded-xl border border-border bg-card/60 p-3.5">
+              <ThemeColorField
+                label="Button colour"
+                hint="The register button"
+                value={webinar.theme_accent}
+                templateDefault={template.colors.accent}
+                onChange={(v) => update("theme_accent", v)}
+              />
+              <ThemeColorField
+                label="Brand colour"
+                hint="Badges, ticks, banner, artwork"
+                value={webinar.theme_brand}
+                templateDefault={template.colors.hero}
+                onChange={(v) => update("theme_brand", v)}
+              />
+            </div>
+
             <Field label="Headline">
               <textarea
                 value={webinar.title}
@@ -344,6 +458,51 @@ function Editor() {
                 className={INPUT}
               />
             </Field>
+
+            <Field label="Session length" hint="The page shows “Live now” during the session and “Ended” after it.">
+              <select
+                value={webinar.duration_minutes}
+                onChange={(e) => update("duration_minutes", Number(e.target.value))}
+                className={INPUT}
+              >
+                {DURATION_OPTIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {durationLabel(m)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <div>
+              <span className="flex items-center gap-1.5 text-xs font-medium">
+                Session link
+                <Lock className="size-3 text-muted-foreground" />
+              </span>
+              <div className="relative mt-1.5">
+                <Link2 className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={joinUrl}
+                  onChange={(e) => setJoinUrl(e.target.value)}
+                  maxLength={WEBINAR_LIMITS.joinUrl}
+                  inputMode="url"
+                  placeholder="Paste your Zoom, Google Meet or Teams link"
+                  aria-invalid={joinInvalid}
+                  className={`${INPUT} pl-10 ${joinInvalid ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+                />
+              </div>
+              <span
+                className={`mt-1 block text-[11px] ${joinInvalid || joinState === "error" ? "text-red-700" : "text-muted-foreground"}`}
+                role={joinState === "error" ? "alert" : undefined}
+              >
+                {joinInvalid
+                  ? "That doesn't look like a link. It should start with https://"
+                  : joinState === "error"
+                    ? "The link couldn't be saved. Check your connection, or that the latest database rules are published."
+                    : joinState === "saving"
+                      ? "Saving…"
+                      : "Private. Never shown on the page; only emailed to people who register, inside their calendar invite."}
+              </span>
+            </div>
 
             <div>
               <span className="text-xs font-medium">What they&apos;ll learn</span>
@@ -472,10 +631,22 @@ function Editor() {
                 <span className="ml-2 truncate text-[11px] text-muted-foreground">Preview — registering here does not save</span>
               </div>
               <div className="max-h-[calc(100vh-220px)] overflow-y-auto">
-                <RegistrationPage webinar={webinar} mode="preview" />
+                <RegistrationPage key={webinar.template_id} webinar={webinar} mode="preview" />
               </div>
             </div>
           </div>
+          <TemplatePicker
+            open={pickerOpen}
+            currentId={template.id}
+            onClose={() => setPickerOpen(false)}
+            onPick={(templateId) => {
+              // A new template starts with its own designed colours.
+              setWebinar((current) =>
+                current ? { ...current, template_id: templateId, theme_accent: "", theme_brand: "" } : current,
+              );
+              setPickerOpen(false);
+            }}
+          />
         </div>
       ) : (
         <div className="mt-5">

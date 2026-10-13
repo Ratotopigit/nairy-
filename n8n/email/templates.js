@@ -9,9 +9,12 @@
  * out from the same domain, so one bad template hurts everyone):
  *   - multipart: every email has a plain-text part, not HTML only
  *   - no images, no tracking pixels, no link shorteners
- *   - every link points at webinarstackai.com, the sending domain
+ *   - every link points at webinarstackai.com, the sending domain, with one
+ *     exception: the host's own session link (Zoom, Meet...) in a
+ *     confirmation. That is https only, shown with its domain spelled out,
+ *     and only ever sent to people who registered for that host's webinar
  *   - user-written text is HTML-escaped and length-capped; users cannot add
- *     links, so the platform cannot be used to send phishing links
+ *     links anywhere else, so the platform cannot be used to send phishing
  *   - a footer saying who sent it and why the recipient is getting it
  */
 
@@ -151,19 +154,53 @@ function utcStamp(date) {
   return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
-function pageUrl(webinarId) {
-  return `${BRAND.site}/w?id=${encodeURIComponent(webinarId)}`;
+/**
+ * The public page: the readable /<host>/<title>-<id> link when the webinar
+ * has one, else the original /w?id= form (both work).
+ */
+function pageUrl(webinar) {
+  const path = String(webinar.public_path ?? "");
+  if (/^\/[a-z0-9-]{1,40}\/[a-z0-9-]*[A-Za-z0-9]{16,40}$/.test(path)) return `${BRAND.site}${path}`;
+  return `${BRAND.site}/w?id=${encodeURIComponent(webinar.id)}`;
 }
 
-function googleCalendarUrl(webinar) {
+/** The host's join link, or "" if it is not a plain https URL. */
+function safeJoinUrl(raw) {
+  const url = String(raw ?? "").trim();
+  if (!url || url.length > 1000 || /\s/.test(url) || !/^https:\/\/[^/\s]+/i.test(url)) return "";
+  return url;
+}
+
+/** "zoom.us" from a join link, so people can see where it goes. */
+function linkHost(url) {
+  const m = /^https:\/\/([^/:?#]+)/i.exec(url);
+  return m ? m[1].replace(/^www\./i, "").toLowerCase() : "";
+}
+
+function sessionEnd(webinar) {
   const start = new Date(webinar.next_session_at);
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  const minutes = Number(webinar.duration_minutes) > 0 ? Math.min(Number(webinar.duration_minutes), 1440) : 60;
+  return new Date(start.getTime() + minutes * 60 * 1000);
+}
+
+function calendarDetails(webinar, joinUrl) {
+  return [
+    clip(webinar.subtitle, 240),
+    joinUrl ? `Join here: ${joinUrl}` : "",
+    `Session page: ${pageUrl(webinar)}`,
+  ].filter(Boolean).join("\n\n");
+}
+
+function googleCalendarUrl(webinar, joinUrl = "") {
+  const start = new Date(webinar.next_session_at);
+  const end = sessionEnd(webinar);
   // Built by hand: URLSearchParams is not guaranteed in the n8n sandbox.
   const params = {
     action: "TEMPLATE",
     text: clip(webinar.title, 120),
     dates: `${utcStamp(start)}/${utcStamp(end)}`,
-    details: `${clip(webinar.subtitle, 240)}\n\n${pageUrl(webinar.id)}`,
+    details: calendarDetails(webinar, joinUrl),
+    ...(joinUrl ? { location: joinUrl } : {}),
   };
   const query = Object.entries(params)
     .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
@@ -171,11 +208,15 @@ function googleCalendarUrl(webinar) {
   return `https://calendar.google.com/calendar/render?${query}`;
 }
 
-/** A one-hour .ics invite, base64-encoded for an email attachment. */
-function icsAttachment(webinar) {
+/**
+ * The calendar invite, base64-encoded for an email attachment. Carries the
+ * join link (as the location, so calendar apps show a Join button) and two
+ * reminders: an hour and ten minutes before.
+ */
+function icsAttachment(webinar, joinUrl = "") {
   const start = new Date(webinar.next_session_at);
   if (Number.isNaN(start.getTime())) return null;
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  const end = sessionEnd(webinar);
   const text = (v) =>
     String(v ?? "").replace(/\\/g, "\\\\").replace(/[,;]/g, (m) => `\\${m}`).replace(/\r?\n/g, "\\n");
   const body = [
@@ -189,8 +230,16 @@ function icsAttachment(webinar) {
     `DTSTART:${utcStamp(start)}`,
     `DTEND:${utcStamp(end)}`,
     `SUMMARY:${text(clip(webinar.title, 120))}`,
-    `DESCRIPTION:${text(`${clip(webinar.subtitle, 240)}\n\n${pageUrl(webinar.id)}`)}`,
-    `URL:${pageUrl(webinar.id)}`,
+    `DESCRIPTION:${text(calendarDetails(webinar, joinUrl))}`,
+    ...(joinUrl ? [`LOCATION:${text(joinUrl)}`] : []),
+    `URL:${joinUrl || pageUrl(webinar)}`,
+    ...["PT1H", "PT10M"].flatMap((before) => [
+      "BEGIN:VALARM",
+      "ACTION:DISPLAY",
+      `DESCRIPTION:${text(clip(webinar.title, 120))}`,
+      `TRIGGER:-${before}`,
+      "END:VALARM",
+    ]),
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
@@ -235,9 +284,10 @@ function button(href, label) {
 
 /**
  * Sent seconds after someone registers.
- * @param {{webinar: object, registrant: {name: string, email: string}, timezone: string}} input
+ * @param {{webinar: object, registrant: {name: string, email: string}, timezone: string, joinUrl?: string}} input
  */
-function confirmationEmail({ webinar, registrant, timezone }) {
+function confirmationEmail({ webinar, registrant, timezone, joinUrl: rawJoinUrl }) {
+  const joinUrl = safeJoinUrl(rawJoinUrl);
   const title = clip(webinar.title, 120) || "the webinar";
   const presenter = clip(webinar.presenter_name, 60);
   const when = sessionParts(webinar.next_session_at, timezone);
@@ -245,13 +295,23 @@ function confirmationEmail({ webinar, registrant, timezone }) {
     .map((b) => clip(b, 140))
     .filter(Boolean)
     .slice(0, 4);
-  const link = pageUrl(webinar.id);
+  const link = pageUrl(webinar);
   const hasDate = Boolean(when);
 
   const subject = `You're registered: ${clip(title, 70)}`;
   const preheader = hasDate
     ? `${when.date} at ${when.time}. Add it to your calendar so you don't miss it.`
     : "Your place is saved. We'll share the date soon.";
+
+  const joinHtml = joinUrl
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;background:${COLORS.page};border-radius:10px;">
+<tr><td style="padding:16px 18px;">
+<div style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:${COLORS.muted};">How to join</div>
+<p style="margin:6px 0 10px;font-size:14px;">At the start time, open this link${linkHost(joinUrl) ? ` (${esc(linkHost(joinUrl))})` : ""}:</p>
+${button(joinUrl, "Join the session")}
+<p style="margin:10px 0 0;font-size:12px;color:${COLORS.muted};word-break:break-all;">${esc(joinUrl)}</p>
+</td></tr></table>`
+    : `<p style="margin:0 0 20px;font-size:14px;color:${COLORS.muted};">We'll email you the link to join before the session starts.</p>`;
 
   const sessionHtml = hasDate
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid ${COLORS.rule};border-radius:10px;">
@@ -261,7 +321,8 @@ function confirmationEmail({ webinar, registrant, timezone }) {
 <div style="font-size:15px;">${esc(when.time)}</div>
 ${presenter ? `<div style="margin-top:8px;font-size:14px;color:${COLORS.muted};">Hosted by ${esc(presenter)}</div>` : ""}
 </td></tr></table>
-${button(googleCalendarUrl(webinar), "Add to Google Calendar")}
+${joinHtml}
+${button(googleCalendarUrl(webinar, joinUrl), "Add to Google Calendar")}
 <p style="margin:8px 0 0;font-size:13px;color:${COLORS.muted};">Using Apple Calendar or Outlook? Open the invite attached to this email.</p>`
     : `<p style="margin:20px 0;">The date hasn't been set yet. We'll email you when it is.</p>`;
 
@@ -284,7 +345,14 @@ ${bulletsHtml}
     `You're registered for "${title}".`,
     "",
     ...(hasDate
-      ? [`When: ${when.date}, ${when.time}`, ...(presenter ? [`Hosted by: ${presenter}`] : []), "", `Add to Google Calendar: ${googleCalendarUrl(webinar)}`, "Apple Calendar or Outlook: open the attached invite."]
+      ? [
+          `When: ${when.date}, ${when.time}`,
+          ...(presenter ? [`Hosted by: ${presenter}`] : []),
+          "",
+          ...(joinUrl ? [`Join the session: ${joinUrl}`, ""] : []),
+          `Add to Google Calendar: ${googleCalendarUrl(webinar, joinUrl)}`,
+          "Apple Calendar or Outlook: open the attached invite.",
+        ]
       : ["The date hasn't been set yet. We'll email you when it is."]),
     ...(bullets.length ? ["", "What you'll learn:", ...bullets.map((b) => `- ${b}`)] : []),
     "",
@@ -295,7 +363,7 @@ ${bulletsHtml}
     `Sent by ${BRAND.product}.`,
   ].join("\n");
 
-  const attachment = hasDate ? icsAttachment(webinar) : null;
+  const attachment = hasDate ? icsAttachment(webinar, joinUrl) : null;
 
   return {
     fromName: senderName(webinar.presenter_name),

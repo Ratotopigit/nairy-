@@ -186,6 +186,8 @@ const webinar = { ...first("Load Webinar"), id: req.webinar_id };
 const registrant = first("Load Registrant");
 const owner = first("Load Owner");
 const memory = first("Load Owner Memory");
+// Private to the host; only ever sent to people who registered.
+const session = first("Load Session Link");
 
 // Already handled: a retry or a replayed request. Never email twice.
 if (log.log_id || log.status) return [];
@@ -204,6 +206,7 @@ const email = confirmationEmail({
   webinar,
   registrant: { name: registrant.name, email: to },
   timezone: req.timezone,
+  joinUrl: session.join_url,
 });
 // Replies reach the webinar's owner, not a shared inbox. With no owner email
 // they fall back to the sending account itself.
@@ -285,6 +288,11 @@ const confirmationNodes = [
   ),
   firestoreGet("Load Owner", "users", "={{ $('Load Webinar').first().json.owner_id || 'no-owner' }}"),
   firestoreGet("Load Owner Memory", "workspace_memory", "={{ $('Load Webinar').first().json.owner_id || 'no-owner' }}"),
+  firestoreGet(
+    "Load Session Link",
+    "={{ 'webinars/' + $('Validate Request').first().json.webinar_id + '/private' }}",
+    "session",
+  ),
   code("Build Confirmation", `${TEMPLATE}\n// ── glue ──\n${BUILD_CONFIRMATION_GLUE}`),
   // A webinar without a date has no invite; attaching a missing file fails.
   ifPositive("Has Invite", "={{ $json.has_invite }}"),
@@ -297,7 +305,7 @@ const confirmationNodes = [
 const confirmationConnections = {};
 [
   "Registration Webhook", "Validate Request", "Load Email Log", "Load Webinar", "Load Registrant",
-  "Load Owner", "Load Owner Memory", "Build Confirmation", "Has Invite",
+  "Load Owner", "Load Owner Memory", "Load Session Link", "Build Confirmation", "Has Invite",
 ].reduce((prev, next) => (link(confirmationConnections, prev, next), next));
 link(confirmationConnections, "Has Invite", "Send With Invite", 0);
 link(confirmationConnections, "Has Invite", "Send Email", 1);

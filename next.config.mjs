@@ -7,6 +7,24 @@ const projectDir = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   ...(process.env.NODE_ENV === "production" ? { output: "export" } : {}),
   reactStrictMode: true,
+  // Dev only (a static export cannot have rewrites): readable webinar links,
+  // /<host>/<title>-<id>, which functions/[host]/[slug].js serves in
+  // production. "fallback" runs after every real route, so it never shadows
+  // one.
+  ...(process.env.NODE_ENV === "production"
+    ? {}
+    : {
+        async rewrites() {
+          return {
+            fallback: [
+              {
+                source: "/:host([a-z0-9-]{1,40})/:slug((?:[a-z0-9-]*-)?[A-Za-z0-9]{16,40})",
+                destination: "/w",
+              },
+            ],
+          };
+        },
+      }),
   poweredByHeader: false,
   images: {
     unoptimized: true,

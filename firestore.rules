@@ -115,7 +115,12 @@ service cloud.firestore {
       // (so nobody can smuggle extra fields or backdate an entry). Nobody but
       // the webinar's owner can read the list, and nobody can edit an entry.
       match /registrants/{registrantId} {
+        // closes_at (the session's end, written by the editor) shuts
+        // registration once the session is over. Older webinars without it
+        // stay open, as before.
         allow create: if get(/databases/$(database)/documents/webinars/$(webinarId)).data.status == "published"
+          && (get(/databases/$(database)/documents/webinars/$(webinarId)).data.get('closes_at', null) == null
+            || request.time < get(/databases/$(database)/documents/webinars/$(webinarId)).data.closes_at)
           && request.resource.data.keys().hasOnly(['name', 'email', 'created_at'])
           && request.resource.data.keys().hasAll(['name', 'email', 'created_at'])
           && request.resource.data.name is string
@@ -128,6 +133,20 @@ service cloud.firestore {
         allow read, delete: if isAuthenticated()
           && get(/databases/$(database)/documents/webinars/$(webinarId)).data.owner_id == request.auth.uid;
         allow update: if false;
+      }
+
+      // The join link (Zoom, Meet...). Owner only: it is never public, so
+      // nobody can join without registering. n8n reads it with the service
+      // account to put it in the confirmation email and calendar invite.
+      match /private/{docId} {
+        allow read, delete: if docId == "session" && isAuthenticated()
+          && get(/databases/$(database)/documents/webinars/$(webinarId)).data.owner_id == request.auth.uid;
+        allow create, update: if docId == "session" && isAuthenticated()
+          && get(/databases/$(database)/documents/webinars/$(webinarId)).data.owner_id == request.auth.uid
+          && request.resource.data.keys().hasOnly(['join_url', 'updated_at'])
+          && request.resource.data.join_url is string
+          && request.resource.data.join_url.size() <= 1000
+          && (request.resource.data.join_url == "" || request.resource.data.join_url.matches('^https://.+'));
       }
     }
 

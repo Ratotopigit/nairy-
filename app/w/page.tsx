@@ -4,24 +4,32 @@
  * Public registration page. Deliberately outside /provider so it is not
  * wrapped in AuthGuard — visitors register without an account.
  *
- * The webinar id travels as ?id= rather than a path segment: this is a static
- * export, and a dynamic segment only prerenders its placeholder, so a real id
- * in the path would 404.
+ * Two kinds of link land here:
+ *   /<host>/<title>-<id>   the readable link. The site is a static export, so
+ *                          Cloudflare serves this page for those paths
+ *                          (functions/[host]/[slug].ts) and the id is read
+ *                          from the address bar.
+ *   /w?id=<id>             the original form, still valid everywhere.
+ *
+ * Only the id finds the webinar. Made-up paths without a real id are "not
+ * available", and a real id with the wrong words is redirected to the
+ * webinar's own link.
  */
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { RegistrationPage } from "@/components/webinar/RegistrationPage";
-import { getWebinar, registerForWebinar, type Webinar } from "@/lib/webinars";
+import { getWebinar, idFromPublicPath, registerForWebinar, type Webinar } from "@/lib/webinars";
 
 function PublicRegistration() {
-  const id = useSearchParams().get("id") ?? "";
+  const queryId = useSearchParams().get("id") ?? "";
   const [state, setState] = useState<"loading" | "missing" | "ready">("loading");
   const [webinar, setWebinar] = useState<Webinar | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!id) {
+    const id = queryId || idFromPublicPath(window.location.pathname) || "";
+    if (!/^[A-Za-z0-9]{1,64}$/.test(id)) {
       setState("missing");
       return;
     }
@@ -33,6 +41,11 @@ function PublicRegistration() {
         setState("missing");
         return;
       }
+      // Show the webinar's own readable link in the address bar, whatever
+      // was typed or shared, without reloading.
+      if (found.public_path && window.location.pathname !== found.public_path) {
+        window.history.replaceState(null, "", found.public_path + window.location.hash);
+      }
       setWebinar(found);
       setState("ready");
       document.title = found.title;
@@ -40,7 +53,7 @@ function PublicRegistration() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [queryId]);
 
   if (state === "loading") {
     return (
@@ -64,11 +77,13 @@ function PublicRegistration() {
   }
 
   return (
-    <RegistrationPage
-      webinar={webinar}
-      mode="live"
-      onRegister={(name, email) => registerForWebinar(webinar.id, name, email)}
-    />
+    <div className="min-h-screen">
+      <RegistrationPage
+        webinar={webinar}
+        mode="live"
+        onRegister={(name, email) => registerForWebinar(webinar.id, name, email)}
+      />
+    </div>
   );
 }
 

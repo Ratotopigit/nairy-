@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Copy, ExternalLink, Loader2, Plus, Trash2, Users } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Plus, RotateCcw, Trash2, Users } from "lucide-react";
 import { auth } from "@/lib/firebase/config";
 import {
   countRegistrations,
@@ -11,6 +11,8 @@ import {
   deleteWebinar,
   listWebinars,
   registrationUrl,
+  sessionPhase,
+  type SessionPhase,
   type Webinar,
 } from "@/lib/webinars";
 
@@ -26,6 +28,23 @@ function sessionSummary(iso: string): string {
   return date.getTime() < Date.now() ? `Last session ${label}` : `Next session ${label}`;
 }
 
+/** The chip on each row: publishing state first, then where the session is. */
+function statusChip(webinar: Webinar, phase: SessionPhase): { label: string; className: string } {
+  if (webinar.status !== "published") return { label: "Draft", className: "bg-secondary text-muted-foreground" };
+  switch (phase) {
+    case "live":
+      return { label: "● Live now", className: "bg-red-50 text-red-700" };
+    case "upcoming":
+      return { label: "Upcoming", className: "bg-emerald-50 text-emerald-700" };
+    case "ended":
+      return { label: "Ended", className: "bg-amber-50 text-amber-800" };
+    case "closed":
+      return { label: "Finished", className: "bg-secondary text-muted-foreground" };
+    default:
+      return { label: "Published", className: "bg-emerald-50 text-emerald-700" };
+  }
+}
+
 export default function WebinarsPage() {
   const router = useRouter();
   const [webinars, setWebinars] = useState<Webinar[] | null>(null);
@@ -33,6 +52,12 @@ export default function WebinarsPage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  // History = sessions that finished over a week ago (their page is hidden).
+  const [view, setView] = useState<"active" | "history">("active");
+  const isHistory = (w: Webinar) => sessionPhase(w) === "closed";
+  const historyCount = webinars?.filter(isHistory).length ?? 0;
+  const activeCount = (webinars?.length ?? 0) - historyCount;
+  const shown = (webinars ?? []).filter((w) => (view === "history" ? isHistory(w) : !isHistory(w)));
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -82,7 +107,7 @@ export default function WebinarsPage() {
 
   async function handleCopy(webinar: Webinar) {
     try {
-      await navigator.clipboard.writeText(registrationUrl(webinar.id));
+      await navigator.clipboard.writeText(registrationUrl(webinar));
       setCopied(webinar.id);
       window.setTimeout(() => setCopied((c) => (c === webinar.id ? null : c)), 1600);
     } catch {
@@ -117,6 +142,22 @@ export default function WebinarsPage() {
       ) : null}
 
       <div className="mt-6 space-y-3">
+        {webinars !== null && webinars.length > 0 ? (
+          <div className="flex gap-1">
+            {(["active", "history"] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setView(key)}
+                className={`rounded-full border px-3.5 py-1.5 text-xs transition-colors ${
+                  view === key ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {key === "active" ? `Active (${activeCount})` : `History (${historyCount})`}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {webinars === null ? (
           [0, 1, 2].map((i) => (
             <div key={i} className="h-[104px] animate-pulse rounded-2xl border border-border bg-card/70" />
@@ -137,10 +178,19 @@ export default function WebinarsPage() {
               Create your first webinar
             </button>
           </div>
+        ) : shown.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border-strong bg-card/60 px-6 py-10 text-center text-sm text-muted-foreground">
+            {view === "history"
+              ? "Webinars move here a week after their session ends. Open one and pick a new date to run it again."
+              : "Nothing active. Open one from History and pick a new date to run it again."}
+          </p>
         ) : (
-          webinars.map((webinar) => {
+          shown.map((webinar) => {
             const count = counts[webinar.id];
             const published = webinar.status === "published";
+            const phase = sessionPhase(webinar);
+            const chip = statusChip(webinar, phase);
+            const finished = phase === "ended" || phase === "closed";
             return (
               <div
                 key={webinar.id}
@@ -150,11 +200,9 @@ export default function WebinarsPage() {
                   <div className="flex items-center gap-2">
                     <h2 className="truncate font-medium">{webinar.name}</h2>
                     <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                        published ? "bg-emerald-50 text-emerald-700" : "bg-secondary text-muted-foreground"
-                      }`}
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${chip.className}`}
                     >
-                      {published ? "Published" : "Draft"}
+                      {chip.label}
                     </span>
                   </div>
                   <p className="mt-1 truncate text-sm text-muted-foreground">{webinar.title}</p>
@@ -168,7 +216,16 @@ export default function WebinarsPage() {
                 </Link>
 
                 <div className="flex shrink-0 items-center gap-1.5">
-                  {published ? (
+                  {finished ? (
+                    <Link
+                      href={`/provider/webinars/edit?id=${webinar.id}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
+                    >
+                      <RotateCcw className="size-3.5" />
+                      Run again
+                    </Link>
+                  ) : null}
+                  {published && phase !== "closed" ? (
                     <>
                       <button
                         type="button"
@@ -179,7 +236,7 @@ export default function WebinarsPage() {
                         {copied === webinar.id ? "Copied" : "Copy link"}
                       </button>
                       <a
-                        href={registrationUrl(webinar.id)}
+                        href={registrationUrl(webinar)}
                         target="_blank"
                         rel="noreferrer"
                         aria-label="Open registration page"
