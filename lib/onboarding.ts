@@ -1,9 +1,15 @@
 import { doc, getDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { auth, db, isFirebaseConfigured } from "./firebase/config";
+import type { PlanId } from "./plans";
 import { saveWorkspaceMemory, type WorkspaceMemory } from "./workspace-memory";
 
-export type SubscriptionTier = "free" | "pro" | "premium";
+/**
+ * The plan picked on the last onboarding step: one of the Billing plans
+ * (lib/plans.ts), or "none" for "decide later". Only a preference: what the
+ * user has actually paid for lives in billing/{uid}, written by the server.
+ */
+export type SubscriptionTier = PlanId | "none";
 
 export interface OnboardingData {
   // Step 1 — About You
@@ -51,7 +57,7 @@ export const INITIAL_ONBOARDING_DATA: OnboardingData = {
   primaryLearningInterest: "",
   learningPreference: "",
   weeklyTimeCommitment: "",
-  selectedPlan: "pro",
+  selectedPlan: "annual",
 };
 
 // Legacy localStorage namespace. Kept verbatim on purpose: it is a storage key,

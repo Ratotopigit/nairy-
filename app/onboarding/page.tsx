@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { onAuthStateChanged, updateProfile, type User } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
+import { billingEnabled, createCheckoutUrl } from "@/lib/billing";
 import {
   INITIAL_ONBOARDING_DATA,
   OnboardingData,
@@ -234,6 +235,8 @@ export default function OnboardingPage() {
 
     setIsSubmitting(true);
     setSubmitError(null);
+    // So the clicked card (not the default one) shows the progress state.
+    setFormData((prev) => ({ ...prev, selectedPlan }));
 
     const completePayload: OnboardingData = {
       ...formData,
@@ -243,7 +246,17 @@ export default function OnboardingPage() {
     const result = await saveOnboardingCompletion(currentUser.uid, completePayload);
 
     if (result.success) {
-      router.replace("/provider");
+      if (selectedPlan === "none" || !billingEnabled) {
+        router.replace("/provider");
+        return;
+      }
+      // Straight to Stripe for the plan they picked. If checkout can't start,
+      // onboarding is still done: the Billing page has the same plans to retry.
+      try {
+        window.location.assign(await createCheckoutUrl(selectedPlan));
+      } catch {
+        router.replace("/provider/billing");
+      }
     } else {
       setIsSubmitting(false);
       setSubmitError(result.error || "Failed to complete onboarding. Please try again.");
