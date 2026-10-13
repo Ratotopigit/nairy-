@@ -10,7 +10,7 @@ interface StepChoosePlanProps {
   onSelectAndSubmit: (plan: SubscriptionTier) => void;
 }
 
-const PLANS: Array<{
+export const PLANS: Array<{
   id: SubscriptionTier;
   title: string;
   tagline: string;
