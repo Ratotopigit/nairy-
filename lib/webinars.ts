@@ -28,7 +28,9 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { n8nWebhookUrl } from "@/lib/n8n-url";
-import { DEFAULT_TEMPLATE_ID } from "@/lib/webinar-templates";
+import { isHex } from "@/lib/color";
+import type { CalendarEvent } from "@/lib/calendar";
+import { DEFAULT_TEMPLATE_ID, isFontPairId } from "@/lib/webinar-templates";
 
 export type WebinarStatus = "draft" | "published";
 
@@ -42,9 +44,27 @@ export type Webinar = {
   title: string;
   subtitle: string;
   bullets: string[];
+  /** Host name and title (the person presenting). */
   presenter_name: string;
   presenter_title: string;
+  /** Short host biography; the section is hidden while empty. */
+  host_bio: string;
+  /** The creator's business name and tagline, shown instead of any platform branding. */
+  brand_name: string;
+  brand_tagline: string;
+  /** Logo image URL (Firebase Storage). */
+  logo_url: string;
+  /** Hero / background photograph. */
   image_url: string;
+  /** Host portrait, used by the layouts that show one. */
+  portrait_url: string;
+  /** Where to centre each image when it is cropped, 0 to 100 (percent from left / top). */
+  image_focus_x: number;
+  image_focus_y: number;
+  portrait_focus_x: number;
+  portrait_focus_y: number;
+  /** One genuine line of social proof, e.g. "Trusted by 1,200 founders". Hidden while empty. */
+  social_proof: string;
   cta_label: string;
   /** ISO 8601 instant, or "" when no session is scheduled yet. */
   next_session_at: string;
@@ -53,8 +73,12 @@ export type Webinar = {
   /** Look of the public page; see lib/webinar-templates.ts. */
   template_id: string;
   /** Host's colour overrides ("#rrggbb"), "" = the template's own colours. */
-  theme_accent: string;
+  theme_bg: string;
+  theme_ink: string;
   theme_brand: string;
+  theme_accent: string;
+  /** Font pairing id (lib/webinar-templates FONT_PAIR_CATALOG), "" = the template's own. */
+  font_pair: string;
   /**
    * Readable public link, "/<host>/<title>-<id>", refreshed on every save.
    * Only the id at the end is used to find the webinar; the words are for
@@ -84,7 +108,12 @@ export const WEBINAR_LIMITS = {
   title: 120,
   subtitle: 240,
   bullet: 140,
-  bullets: 6,
+  bullets: 5,
+  brandName: 60,
+  brandTagline: 90,
+  hostBio: 280,
+  socialProof: 100,
+  hostTitle: 80,
   name: 120,
   email: 254,
 } as const;
@@ -118,13 +147,26 @@ export function emptyWebinar(ownerId: string): Omit<Webinar, "id"> {
     ],
     presenter_name: "",
     presenter_title: "",
+    host_bio: "",
+    brand_name: "",
+    brand_tagline: "",
+    logo_url: "",
     image_url: "",
+    portrait_url: "",
+    image_focus_x: 50,
+    image_focus_y: 50,
+    portrait_focus_x: 50,
+    portrait_focus_y: 35,
+    social_proof: "",
     cta_label: "Register now",
     next_session_at: "",
     duration_minutes: DEFAULT_DURATION,
     template_id: DEFAULT_TEMPLATE_ID,
-    theme_accent: "",
+    theme_bg: "",
+    theme_ink: "",
     theme_brand: "",
+    theme_accent: "",
+    font_pair: "",
     public_path: "",
     thank_you_message: "You're in. We'll see you at the session.",
     owner_timezone: browserTimezone(),
@@ -138,6 +180,12 @@ function toWebinar(id: string, data: Record<string, unknown>): Webinar {
   const base = emptyWebinar(String(data.owner_id ?? ""));
   const str = (key: keyof Webinar) =>
     typeof data[key] === "string" ? (data[key] as string) : (base[key as keyof typeof base] as string);
+  const pct = (key: keyof Webinar) => {
+    const v = data[key];
+    return typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : (base[key as keyof typeof base] as number);
+  };
+  // Colours and fonts are only trusted if they are well-formed.
+  const colour = (key: keyof Webinar) => (typeof data[key] === "string" && isHex(data[key] as string) ? (data[key] as string) : "");
   return {
     ...base,
     id,
@@ -151,7 +199,17 @@ function toWebinar(id: string, data: Record<string, unknown>): Webinar {
       : base.bullets,
     presenter_name: str("presenter_name"),
     presenter_title: str("presenter_title"),
+    host_bio: str("host_bio"),
+    brand_name: str("brand_name"),
+    brand_tagline: str("brand_tagline"),
+    logo_url: str("logo_url"),
     image_url: str("image_url"),
+    portrait_url: str("portrait_url"),
+    image_focus_x: pct("image_focus_x"),
+    image_focus_y: pct("image_focus_y"),
+    portrait_focus_x: pct("portrait_focus_x"),
+    portrait_focus_y: pct("portrait_focus_y"),
+    social_proof: str("social_proof"),
     cta_label: str("cta_label"),
     next_session_at: str("next_session_at"),
     duration_minutes:
@@ -159,8 +217,11 @@ function toWebinar(id: string, data: Record<string, unknown>): Webinar {
         ? Math.min(data.duration_minutes, 24 * 60)
         : DEFAULT_DURATION,
     template_id: str("template_id"),
-    theme_accent: str("theme_accent"),
-    theme_brand: str("theme_brand"),
+    theme_bg: colour("theme_bg"),
+    theme_ink: colour("theme_ink"),
+    theme_brand: colour("theme_brand"),
+    theme_accent: colour("theme_accent"),
+    font_pair: typeof data.font_pair === "string" && isFontPairId(data.font_pair) ? data.font_pair : "",
     public_path: str("public_path"),
     thank_you_message: str("thank_you_message"),
     owner_timezone: str("owner_timezone"),
@@ -339,17 +400,55 @@ export function isValidEmail(value: string): boolean {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value) && value.length <= WEBINAR_LIMITS.email;
 }
 
+export type RegistrationResult = {
+  registrantId: string;
+  /**
+   * The attendee's own join link, fetched in the background after the
+   * registration is saved. Resolves to null when the host set none or the
+   * lookup failed; the success screen works either way.
+   */
+  joinUrl: Promise<string | null>;
+};
+
 /**
  * Public: anyone may register for a published webinar. Once the registration
- * is saved, n8n is asked to send the confirmation email.
+ * is saved, n8n is asked to send the confirmation email, exactly once per
+ * registration (the workflow keys its log on webinar and registrant ids).
  */
-export async function registerForWebinar(webinarId: string, name: string, email: string): Promise<void> {
+export async function registerForWebinar(webinarId: string, name: string, email: string): Promise<RegistrationResult> {
   const ref = await addDoc(collection(db, "webinars", webinarId, "registrants"), {
     name: name.trim().slice(0, WEBINAR_LIMITS.name),
     email: normalizeEmail(email),
     created_at: serverTimestamp(),
   });
   requestConfirmationEmail(webinarId, ref.id);
+  return { registrantId: ref.id, joinUrl: fetchJoinInfo(webinarId, ref.id) };
+}
+
+/**
+ * The join link for someone who has JUST registered. Possession of the fresh
+ * registrant id (returned only to the registering browser) is the proof; the
+ * workflow re-checks that the registration exists, is recent and belongs to a
+ * published webinar. The host's private document is never readable by
+ * visitors, and this is the only way a link reaches the page.
+ */
+async function fetchJoinInfo(webinarId: string, registrantId: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(n8nWebhookUrl("webinar-join-info"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ webinar_id: webinarId, registrant_id: registrantId }),
+      signal: controller.signal,
+    });
+    window.clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { join_url?: unknown };
+    return typeof data.join_url === "string" && isValidJoinUrl(data.join_url) && data.join_url ? data.join_url : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -470,58 +569,19 @@ export function registrantsCsv(rows: Registrant[]): string {
 
 // ── Calendar ──────────────────────────────────────────────────────────────
 
-const CAL_NOTE = "Your join link is in your confirmation email.";
-
-function calStamp(d: Date): string {
-  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-}
-
-/**
- * Calendar entry for the visitor's "Add to calendar" button, with reminders
- * an hour and ten minutes before. The join link is private, so it is not in
- * here; the invite attached to the confirmation email carries it.
- */
-export function sessionIcs(webinar: Webinar, link: string): string | null {
+/** The webinar as a calendar event, or null while it has no date. */
+export function calendarEvent(webinar: Webinar, joinUrl?: string | null): CalendarEvent | null {
   const start = sessionStart(webinar);
   const end = sessionEnd(webinar);
   if (!start || !end) return null;
-  const text = (v: string) => v.replace(/\\/g, "\\\\").replace(/[,;]/g, (m) => `\\${m}`).replace(/\n/g, "\\n");
-  const alarm = (before: string) => [
-    "BEGIN:VALARM",
-    "ACTION:DISPLAY",
-    `DESCRIPTION:${text(webinar.title)}`,
-    `TRIGGER:-${before}`,
-    "END:VALARM",
-  ];
-  return [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//Webinar Stack//EN",
-    "BEGIN:VEVENT",
-    `UID:${webinar.id}-${calStamp(start)}@webinarstackai.com`,
-    `DTSTAMP:${calStamp(new Date())}`,
-    `DTSTART:${calStamp(start)}`,
-    `DTEND:${calStamp(end)}`,
-    `SUMMARY:${text(webinar.title)}`,
-    `DESCRIPTION:${text(`${webinar.subtitle}\n\n${CAL_NOTE}\n\n${link}`)}`,
-    `URL:${link}`,
-    ...alarm("PT1H"),
-    ...alarm("PT10M"),
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].join("\r\n");
-}
-
-/** Google Calendar "add event" link for the thank-you screen. */
-export function googleCalendarLink(webinar: Webinar, link: string): string | null {
-  const start = sessionStart(webinar);
-  const end = sessionEnd(webinar);
-  if (!start || !end) return null;
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: webinar.title,
-    dates: `${calStamp(start)}/${calStamp(end)}`,
-    details: `${webinar.subtitle}\n\n${CAL_NOTE}\n\n${link}`,
-  });
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+  return {
+    id: webinar.id,
+    title: webinar.title,
+    description: webinar.subtitle,
+    start: start.toISOString(),
+    end: end.toISOString(),
+    pageUrl: registrationUrl(webinar),
+    joinUrl: joinUrl || undefined,
+    hostName: webinar.presenter_name || undefined,
+  };
 }

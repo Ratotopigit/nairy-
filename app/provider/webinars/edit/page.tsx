@@ -2,31 +2,16 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Check, Copy, Download, ExternalLink, Loader2, PencilLine, RotateCcw } from "lucide-react";
+import { auth } from "@/lib/firebase/config";
+import { TemplatePicker } from "@/components/webinar/TemplatePicker";
+import { BrandPanel, ContentPanel, ImagesPanel, LayoutPanel } from "@/components/webinar/editor/EditorPanels";
+import { ImagePicker } from "@/components/webinar/editor/ImagePicker";
+import { PreviewPane, type Device } from "@/components/webinar/editor/PreviewPane";
+import { getTemplate } from "@/lib/webinar-templates";
+import { hasPlaceholderContent, previewWebinar } from "@/lib/webinar-preview";
 import {
-  ArrowLeft,
-  Check,
-  Copy,
-  Download,
-  ExternalLink,
-  ImagePlus,
-  Link2,
-  Loader2,
-  Lock,
-  Palette,
-  PencilLine,
-  Plus,
-  RotateCcw,
-  X,
-} from "lucide-react";
-import { auth, storage } from "@/lib/firebase/config";
-import { RegistrationPage } from "@/components/webinar/RegistrationPage";
-import { TemplatePicker, TemplateThumbnail } from "@/components/webinar/TemplatePicker";
-import { getTemplate, themedColors } from "@/lib/webinar-templates";
-import { ThemeColorField } from "@/components/webinar/ThemeColorField";
-import {
-  DURATION_OPTIONS,
   getPrivate,
   getWebinar,
   isValidJoinUrl,
@@ -48,34 +33,15 @@ function hostName(): string {
   return user?.displayName?.trim() || user?.email?.split("@")[0] || "";
 }
 
-function durationLabel(minutes: number): string {
-  if (minutes < 60) return `${minutes} minutes`;
-  const h = minutes / 60;
-  return `${h} hour${h === 1 ? "" : "s"}`;
-}
-
 type SaveState = "idle" | "saving" | "saved" | "error";
+type PanelId = "content" | "brand" | "images" | "layout";
 
-const INPUT =
-  "w-full rounded-xl border border-input bg-card px-3.5 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
-
-/** ISO instant -> the value a datetime-local input expects, in local time. */
-function toLocalInput(iso: string): string {
-  const d = new Date(iso);
-  if (!iso || Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="text-xs font-medium text-foreground">{label}</span>
-      <div className="mt-1.5">{children}</div>
-      {hint ? <span className="mt-1 block text-[11px] text-muted-foreground">{hint}</span> : null}
-    </label>
-  );
-}
+const PANELS: { id: PanelId; label: string }[] = [
+  { id: "content", label: "Content" },
+  { id: "brand", label: "Brand" },
+  { id: "images", label: "Images" },
+  { id: "layout", label: "Layout" },
+];
 
 function Editor() {
   const params = useSearchParams();
@@ -84,15 +50,15 @@ function Editor() {
   const [loadState, setLoadState] = useState<"loading" | "missing" | "ready">("loading");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   // ?tab=registrants lets the morning summary email link straight to the list.
-  const [tab, setTab] = useState<"page" | "registrants">(
-    params.get("tab") === "registrants" ? "registrants" : "page",
-  );
+  const [tab, setTab] = useState<"page" | "registrants">(params.get("tab") === "registrants" ? "registrants" : "page");
+  const [panel, setPanel] = useState<PanelId>("content");
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
+  const [device, setDevice] = useState<Device>("desktop");
   const [registrants, setRegistrants] = useState<Registrant[] | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [photoMode, setPhotoMode] = useState<"search" | "suggest" | null>(null);
   // The join link lives in a private document, saved on its own.
   const [joinUrl, setJoinUrl] = useState("");
   // Host's private notes ("what is this one for?"), saved with the join link.
@@ -100,7 +66,6 @@ function Editor() {
   const [joinState, setJoinState] = useState<SaveState>("idle");
   const joinLoadedRef = useRef(false);
   const loadedRef = useRef(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   useEffect(() => {
@@ -184,6 +149,13 @@ function Editor() {
       });
   }, [tab, webinar?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A brand-new webinar still has placeholder text; the preview shows sample
+  // copy in the template's category until the host writes their own.
+  const shown = useMemo(
+    () => (webinar ? previewWebinar(webinar, getTemplate(webinar.template_id).category, webinar.template_id) : null),
+    [webinar],
+  );
+
   if (loadState === "loading") {
     return (
       <div className="grid min-h-[50vh] place-items-center">
@@ -192,7 +164,7 @@ function Editor() {
     );
   }
 
-  if (loadState === "missing" || !webinar) {
+  if (loadState === "missing" || !webinar || !shown) {
     return (
       <div className="mx-auto max-w-md py-20 text-center">
         <p className="font-medium">Webinar not found</p>
@@ -213,11 +185,15 @@ function Editor() {
   // What the link will be after the next save, so it updates as they type.
   const shareUrl = registrationUrl({ id: webinar.id, public_path: publicPath(webinar, hostName()) });
   const joinInvalid = !isValidJoinUrl(joinUrl.trim());
+  const sample = hasPlaceholderContent(webinar);
+  const panelProps = { w: webinar, update, notify: setNotice };
 
   function togglePublish() {
     if (!webinar) return;
-    if (!published && !webinar.title.trim()) {
-      setNotice("Add a headline before publishing.");
+    if (!published && hasPlaceholderContent(webinar)) {
+      setNotice("Write your own headline before publishing. The page is showing sample text.");
+      setPanel("content");
+      setMobileView("edit");
       return;
     }
     setNotice(null);
@@ -230,35 +206,7 @@ function Editor() {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
-      setNotice("Couldn't copy the link — your browser blocked clipboard access.");
-    }
-  }
-
-  async function uploadImage(file: File) {
-    const user = auth.currentUser;
-    if (!user || !webinar) return;
-    if (!file.type.startsWith("image/")) {
-      setNotice("Please choose an image file.");
-      return;
-    }
-    if (file.size > 8 * 1024 * 1024) {
-      setNotice("That image is over 8 MB. Please use a smaller one.");
-      return;
-    }
-    setUploading(true);
-    setNotice(null);
-    try {
-      // Stored under the owner's folder (the storage rules require that). The
-      // download URL carries an access token, so visitors can still see it.
-      const path = `${user.uid}/webinars/${webinar.id}/${Date.now()}-${file.name.replace(/[^\w.-]+/g, "_")}`;
-      const fileRef = ref(storage, path);
-      await uploadBytes(fileRef, file, { contentType: file.type });
-      update("image_url", await getDownloadURL(fileRef));
-    } catch (e) {
-      console.error("image upload failed:", e);
-      setNotice("The image couldn't be uploaded. Please try again.");
-    } finally {
-      setUploading(false);
+      setNotice("Couldn't copy the link. Your browser blocked clipboard access.");
     }
   }
 
@@ -274,11 +222,10 @@ function Editor() {
     URL.revokeObjectURL(url);
   }
 
-  const saveLabel =
-    saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Not saved" : "";
+  const saveLabel = saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Not saved" : "";
 
   return (
-    <div className="mx-auto w-full max-w-[1400px]">
+    <div className="mx-auto w-full max-w-[1500px]">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-3">
         <Link
@@ -288,7 +235,7 @@ function Editor() {
         >
           <ArrowLeft className="size-4" />
         </Link>
-        <label className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1 transition-colors hover:bg-secondary/60 focus-within:bg-secondary/60">
+        <label className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1 transition-colors focus-within:bg-secondary/60 hover:bg-secondary/60">
           <input
             value={webinar.name}
             onChange={(e) => update("name", e.target.value)}
@@ -300,10 +247,7 @@ function Editor() {
           />
           <PencilLine className="size-4 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
         </label>
-        <span
-          className={`text-xs ${saveState === "error" ? "text-red-700" : "text-muted-foreground"}`}
-          role={saveState === "error" ? "alert" : "status"}
-        >
+        <span className={`text-xs ${saveState === "error" ? "text-red-700" : "text-muted-foreground"}`} role={saveState === "error" ? "alert" : "status"}>
           {saveState === "saving" ? <Loader2 className="mr-1 inline size-3 animate-spin" /> : null}
           {saveState === "saved" ? <Check className="mr-1 inline size-3" /> : null}
           {saveLabel}
@@ -312,9 +256,7 @@ function Editor() {
           type="button"
           onClick={togglePublish}
           className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
-            published
-              ? "border border-border bg-card text-foreground hover:bg-secondary"
-              : "bg-foreground text-background hover:opacity-90"
+            published ? "border border-border bg-card text-foreground hover:bg-secondary" : "bg-foreground text-background hover:opacity-90"
           }`}
         >
           {published ? "Unpublish" : "Publish"}
@@ -322,7 +264,7 @@ function Editor() {
       </div>
 
       {published ? (
-        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm reg-rise">
+        <div className="reg-rise mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm">
           <span className="font-medium text-emerald-800">Live</span>
           <code className="min-w-0 flex-1 truncate text-xs text-emerald-900/80">{shareUrl}</code>
           <button
@@ -346,13 +288,11 @@ function Editor() {
       ) : null}
 
       {phase === "ended" || phase === "closed" ? (
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 reg-rise">
+        <div className="reg-rise mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <RotateCcw className="size-4 shrink-0" />
           <p className="min-w-0 flex-1">
-            {phase === "closed"
-              ? "This session finished over a week ago, so the public page is now hidden. "
-              : "This session has ended and registration is closed. "}
-            Pick a new date below to run it again. The same link keeps working.
+            {phase === "closed" ? "This session finished over a week ago, so the public page is now hidden. " : "This session has ended and registration is closed. "}
+            Pick a new date in Content to run it again. The same link keeps working.
           </p>
         </div>
       ) : null}
@@ -371,9 +311,7 @@ function Editor() {
             type="button"
             onClick={() => setTab(key)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
-              tab === key
-                ? "border-foreground font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+              tab === key ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             {key === "page" ? "Registration page" : "Registrants"}
@@ -386,9 +324,7 @@ function Editor() {
                 key={v}
                 type="button"
                 onClick={() => setMobileView(v)}
-                className={`rounded-md px-3 py-1 text-xs capitalize transition-colors ${
-                  mobileView === v ? "bg-foreground text-background" : "text-muted-foreground"
-                }`}
+                className={`rounded-md px-3 py-1 text-xs capitalize transition-colors ${mobileView === v ? "bg-foreground text-background" : "text-muted-foreground"}`}
               >
                 {v}
               </button>
@@ -398,275 +334,84 @@ function Editor() {
       </div>
 
       {tab === "page" ? (
-        <div className="mt-5 grid gap-6 lg:grid-cols-[400px_minmax(0,1fr)]">
-          {/* Form */}
-          <div className={`space-y-5 ${mobileView === "preview" ? "hidden lg:block" : ""}`}>
-            <div>
-              <span className="text-xs font-medium">Template</span>
-              <button
-                type="button"
-                onClick={() => setPickerOpen(true)}
-                className="mt-1.5 flex w-full items-center gap-3 rounded-xl border border-border bg-card p-2 text-left transition hover:bg-secondary"
-              >
-                <div className="w-24 shrink-0 overflow-hidden rounded-lg border border-border">
-                  <TemplateThumbnail template={{ ...template, colors: themedColors(template, webinar) }} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{template.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{template.category}</p>
-                </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs">
-                  <Palette className="size-3.5" />
-                  Change
-                </span>
-              </button>
-            </div>
-
-            <Field label="Notes for you" hint="What this webinar is for, who it's aimed at. Only you see this; it also helps when you @mention it in Webinar Chat.">
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                maxLength={WEBINAR_LIMITS.notes}
-                rows={2}
-                placeholder="e.g. October cohort for coaches; push the 1:1 offer at the end"
-                className={`${INPUT} resize-none`}
-              />
-            </Field>
-
-            <div className="space-y-4 rounded-xl border border-border bg-card/60 p-3.5">
-              <ThemeColorField
-                label="Button colour"
-                hint="The register button"
-                value={webinar.theme_accent}
-                templateDefault={template.colors.accent}
-                onChange={(v) => update("theme_accent", v)}
-              />
-              <ThemeColorField
-                label="Brand colour"
-                hint="Badges, ticks, banner, artwork"
-                value={webinar.theme_brand}
-                templateDefault={template.colors.hero}
-                onChange={(v) => update("theme_brand", v)}
-              />
-            </div>
-
-            <Field label="Headline">
-              <textarea
-                value={webinar.title}
-                onChange={(e) => update("title", e.target.value)}
-                maxLength={WEBINAR_LIMITS.title}
-                rows={2}
-                className={`${INPUT} resize-none`}
-              />
-            </Field>
-
-            <Field label="Subheadline">
-              <textarea
-                value={webinar.subtitle}
-                onChange={(e) => update("subtitle", e.target.value)}
-                maxLength={WEBINAR_LIMITS.subtitle}
-                rows={3}
-                className={`${INPUT} resize-none`}
-              />
-            </Field>
-
-            <Field label="Session date and time" hint={`In your timezone (${timezone}). Visitors see it in theirs.`}>
-              <input
-                type="datetime-local"
-                value={toLocalInput(webinar.next_session_at)}
-                onChange={(e) =>
-                  update("next_session_at", e.target.value ? new Date(e.target.value).toISOString() : "")
-                }
-                className={INPUT}
-              />
-            </Field>
-
-            <Field label="Session length" hint="The page shows “Live now” during the session and “Ended” after it.">
-              <select
-                value={webinar.duration_minutes}
-                onChange={(e) => update("duration_minutes", Number(e.target.value))}
-                className={INPUT}
-              >
-                {DURATION_OPTIONS.map((m) => (
-                  <option key={m} value={m}>
-                    {durationLabel(m)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <div>
-              <span className="flex items-center gap-1.5 text-xs font-medium">
-                Session link
-                <Lock className="size-3 text-muted-foreground" />
-              </span>
-              <div className="relative mt-1.5">
-                <Link2 className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  value={joinUrl}
-                  onChange={(e) => setJoinUrl(e.target.value)}
-                  maxLength={WEBINAR_LIMITS.joinUrl}
-                  inputMode="url"
-                  placeholder="Paste your Zoom, Google Meet or Teams link"
-                  aria-invalid={joinInvalid}
-                  className={`${INPUT} pl-10 ${joinInvalid ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
-                />
-              </div>
-              <span
-                className={`mt-1 block text-[11px] ${joinInvalid || joinState === "error" ? "text-red-700" : "text-muted-foreground"}`}
-                role={joinState === "error" ? "alert" : undefined}
-              >
-                {joinInvalid
-                  ? "That doesn't look like a link. It should start with https://"
-                  : joinState === "error"
-                    ? "Your session link and notes couldn't be saved. Check your connection, or that the latest database rules are published."
-                    : joinState === "saving"
-                      ? "Saving…"
-                      : "Private. Never shown on the page; only emailed to people who register, inside their calendar invite."}
-              </span>
-            </div>
-
-            <div>
-              <span className="text-xs font-medium">What they&apos;ll learn</span>
-              <div className="mt-1.5 space-y-2">
-                {webinar.bullets.map((bullet, i) => (
-                  <div key={i} className="flex gap-2">
-                    <input
-                      value={bullet}
-                      maxLength={WEBINAR_LIMITS.bullet}
-                      onChange={(e) =>
-                        update(
-                          "bullets",
-                          webinar.bullets.map((b, j) => (j === i ? e.target.value : b)),
-                        )
-                      }
-                      className={INPUT}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => update("bullets", webinar.bullets.filter((_, j) => j !== i))}
-                      aria-label="Remove point"
-                      className="grid size-10 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-secondary"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  </div>
-                ))}
-                {webinar.bullets.length < WEBINAR_LIMITS.bullets ? (
-                  <button
-                    type="button"
-                    onClick={() => update("bullets", [...webinar.bullets, ""])}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <Plus className="size-3.5" />
-                    Add a point
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Presenter">
-                <input
-                  value={webinar.presenter_name}
-                  onChange={(e) => update("presenter_name", e.target.value)}
-                  placeholder="Nyrie Roos"
-                  className={INPUT}
-                />
-              </Field>
-              <Field label="Presenter title">
-                <input
-                  value={webinar.presenter_title}
-                  onChange={(e) => update("presenter_title", e.target.value)}
-                  placeholder="Founder"
-                  className={INPUT}
-                />
-              </Field>
-            </div>
-
-            <Field label="Image">
-              <div className="flex items-center gap-3">
-                {webinar.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={webinar.image_url} alt="" className="size-14 shrink-0 rounded-full object-cover" />
-                ) : (
-                  <div className="size-14 shrink-0 rounded-full bg-secondary" />
-                )}
+        <div className="mt-5 grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
+          {/* Editing panels */}
+          <div className={`min-w-0 ${mobileView === "preview" ? "hidden lg:block" : ""}`}>
+            <div role="tablist" aria-label="Editor sections" className="sticky top-0 z-10 -mx-1 mb-5 flex gap-1 rounded-xl border border-border bg-background/95 p-1 backdrop-blur">
+              {PANELS.map((p) => (
                 <button
+                  key={p.id}
                   type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3.5 py-2 text-sm transition-colors hover:bg-secondary disabled:opacity-60"
+                  role="tab"
+                  aria-selected={panel === p.id}
+                  onClick={() => setPanel(p.id)}
+                  className={`flex-1 rounded-lg px-2 py-2 text-sm transition-colors ${
+                    panel === p.id ? "bg-foreground font-medium text-background" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
                 >
-                  {uploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
-                  {webinar.image_url ? "Replace" : "Upload"}
+                  {p.label}
                 </button>
-                {webinar.image_url ? (
-                  <button
-                    type="button"
-                    onClick={() => update("image_url", "")}
-                    className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-                  >
-                    Remove
-                  </button>
-                ) : null}
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void uploadImage(file);
-                    e.target.value = "";
-                  }}
-                />
-              </div>
-            </Field>
+              ))}
+            </div>
 
-            <Field label="Button text">
-              <input
-                value={webinar.cta_label}
-                onChange={(e) => update("cta_label", e.target.value)}
-                maxLength={40}
-                className={INPUT}
+            {panel === "content" ? (
+              <ContentPanel
+                {...panelProps}
+                joinUrl={joinUrl}
+                setJoinUrl={setJoinUrl}
+                notes={notes}
+                setNotes={setNotes}
+                joinInvalid={joinInvalid}
+                joinState={joinState}
+                timezone={timezone}
               />
-            </Field>
-
-            <Field label="Thank-you message" hint="Shown after someone registers.">
-              <textarea
-                value={webinar.thank_you_message}
-                onChange={(e) => update("thank_you_message", e.target.value)}
-                rows={2}
-                className={`${INPUT} resize-none`}
+            ) : null}
+            {panel === "brand" ? <BrandPanel {...panelProps} onError={setNotice} /> : null}
+            {panel === "images" ? (
+              <ImagesPanel
+                {...panelProps}
+                onFind={() => setPhotoMode("search")}
+                onSuggest={() => setPhotoMode("suggest")}
+                suggesting={false}
+                onError={setNotice}
               />
-            </Field>
+            ) : null}
+            {panel === "layout" ? <LayoutPanel {...panelProps} onBrowse={() => setPickerOpen(true)} /> : null}
           </div>
 
           {/* Live preview: the exact component visitors get. */}
-          <div className={mobileView === "edit" ? "hidden lg:block" : ""}>
-            <div className="sticky top-4 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-              <div className="flex items-center gap-1.5 border-b border-border bg-secondary/60 px-3 py-2">
-                <span className="size-2.5 rounded-full bg-[#ddd7ca]" />
-                <span className="size-2.5 rounded-full bg-[#ddd7ca]" />
-                <span className="size-2.5 rounded-full bg-[#ddd7ca]" />
-                <span className="ml-2 truncate text-[11px] text-muted-foreground">Preview — registering here does not save</span>
-              </div>
-              <div className="max-h-[calc(100vh-220px)] overflow-y-auto">
-                <RegistrationPage key={webinar.template_id} webinar={webinar} mode="preview" />
-              </div>
+          <div className={`min-w-0 ${mobileView === "edit" ? "hidden lg:block" : ""}`}>
+            <div className="lg:sticky lg:top-4">
+              <PreviewPane
+                webinar={shown}
+                device={device}
+                onDevice={setDevice}
+                publicUrl={published ? shareUrl : null}
+                notice={sample ? "Showing sample text for this kind of business until you write your own headline." : undefined}
+              />
             </div>
           </div>
+
           <TemplatePicker
             open={pickerOpen}
-            currentId={template.id}
+            webinar={webinar}
             onClose={() => setPickerOpen(false)}
             onPick={(templateId) => {
-              // A new template starts with its own designed colours.
-              setWebinar((current) =>
-                current ? { ...current, template_id: templateId, theme_accent: "", theme_brand: "" } : current,
-              );
+              // Content, brand, colours, fonts and images all stay; only the design changes.
+              update("template_id", templateId);
               setPickerOpen(false);
+            }}
+          />
+          <ImagePicker
+            open={photoMode !== null}
+            webinarId={webinar.id}
+            mode={photoMode ?? "search"}
+            context={{ title: webinar.title, subtitle: webinar.subtitle, category: template.category }}
+            onClose={() => setPhotoMode(null)}
+            onPicked={(url) => {
+              update("image_url", url);
+              update("image_focus_x", 50);
+              update("image_focus_y", 50);
             }}
           />
         </div>
@@ -674,9 +419,7 @@ function Editor() {
         <div className="mt-5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              {registrants === null
-                ? "Loading…"
-                : `${registrants.length} registrant${registrants.length === 1 ? "" : "s"}`}
+              {registrants === null ? "Loading…" : `${registrants.length} registrant${registrants.length === 1 ? "" : "s"}`}
             </p>
             <button
               type="button"
@@ -712,9 +455,7 @@ function Editor() {
                     <tr key={r.id} className="border-b border-border last:border-0">
                       <td className="px-5 py-3">{r.name}</td>
                       <td className="px-5 py-3 text-muted-foreground">{r.email}</td>
-                      <td className="hidden px-5 py-3 text-muted-foreground sm:table-cell">
-                        {r.created_at ? r.created_at.toLocaleString() : "—"}
-                      </td>
+                      <td className="hidden px-5 py-3 text-muted-foreground sm:table-cell">{r.created_at ? r.created_at.toLocaleString() : "—"}</td>
                     </tr>
                   ))}
                 </tbody>

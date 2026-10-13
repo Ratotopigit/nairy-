@@ -1,0 +1,212 @@
+{
+  "name": "16 - Webinar Join Info",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webinar-join-info",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "join-info-webhook",
+      "name": "Join Info Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "webhookId": "webinar-join-info"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Only ids are accepted. A bad request still gets an (empty) answer, because\n// this webhook responds from a Respond to Webhook node.\nconst body = $json.body ?? {};\nconst ID = /^[A-Za-z0-9_-]{1,64}$/;\nconst webinarId = String(body.webinar_id ?? \"\");\nconst registrantId = String(body.registrant_id ?? \"\");\nconst valid = ID.test(webinarId) && ID.test(registrantId);\nreturn [{ json: { valid, webinar_id: valid ? webinarId : \"no-webinar\", registrant_id: valid ? registrantId : \"no-registrant\" } }];"
+      },
+      "id": "validate-join-request",
+      "name": "Validate Join Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "webinars",
+        "documentId": "={{ $('Validate Join Request').first().json.webinar_id }}"
+      },
+      "id": "load-webinar",
+      "name": "Load Webinar",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "={{ 'webinars/' + $('Validate Join Request').first().json.webinar_id + '/registrants' }}",
+        "documentId": "={{ $('Validate Join Request').first().json.registrant_id }}"
+      },
+      "id": "load-registrant",
+      "name": "Load Registrant",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": "nirey-f2faf",
+        "collection": "={{ 'webinars/' + $('Validate Join Request').first().json.webinar_id + '/private' }}",
+        "documentId": "session"
+      },
+      "id": "load-session-link",
+      "name": "Load Session Link",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "LeMY3R0pzOuv9c8N",
+          "name": "Firebase Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// The attendee join link goes only to a browser that holds the id of a\n// registration made in the last 2 hours on a published webinar. The registrant\n// id is random and returned only to the person who registered.\nconst first = (name) => { try { return $(name).first()?.json ?? {}; } catch { return {}; } };\nconst req = first(\"Validate Join Request\");\nconst webinar = first(\"Load Webinar\");\nconst registrant = first(\"Load Registrant\");\nconst session = first(\"Load Session Link\");\nconst created = Date.parse(registrant._createTime ?? \"\");\nconst ok = req.valid === true\n  && webinar.status === \"published\"\n  && typeof registrant.email === \"string\" && registrant.email.length > 0\n  && Number.isFinite(created) && Date.now() - created <= 2 * 60 * 60 * 1000;\nconst url = String(session.join_url ?? \"\").trim();\nconst joinUrl = ok && /^https:\\/\\/[^\\s]+$/i.test(url) ? url : \"\";\nreturn [{ json: { join_url: joinUrl } }];"
+      },
+      "id": "build-join-response",
+      "name": "Build Join Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-join-info",
+      "name": "Respond Join Info",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1540,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Join Info Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Join Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Join Request": {
+      "main": [
+        [
+          {
+            "node": "Load Webinar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Webinar": {
+      "main": [
+        [
+          {
+            "node": "Load Registrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Registrant": {
+      "main": [
+        [
+          {
+            "node": "Load Session Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Session Link": {
+      "main": [
+        [
+          {
+            "node": "Build Join Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Join Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Join Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "NF9VQqswnNCjyYGc"
+  },
+  "meta": {
+    "generatedBy": "n8n/email/build-workflows.mjs — do not edit by hand"
+  }
+}

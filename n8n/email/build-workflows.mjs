@@ -973,7 +973,61 @@ link(reminderConnections, "Has Entries", "Fail If Any Failed", 1);
 link(reminderConnections, "Save Reminder State", "Fail If Any Failed");
 const reminders = workflow("15 - Webinar Reminders", reminderNodes, reminderConnections);
 
+// ───────────────────────────── Join info ─────────────────────────────────
+
+export const VALIDATE_JOIN_REQUEST = `// Only ids are accepted. A bad request still gets an (empty) answer, because
+// this webhook responds from a Respond to Webhook node.
+const body = $json.body ?? {};
+const ID = /^[A-Za-z0-9_-]{1,64}$/;
+const webinarId = String(body.webinar_id ?? "");
+const registrantId = String(body.registrant_id ?? "");
+const valid = ID.test(webinarId) && ID.test(registrantId);
+return [{ json: { valid, webinar_id: valid ? webinarId : "no-webinar", registrant_id: valid ? registrantId : "no-registrant" } }];`;
+
+export const BUILD_JOIN_RESPONSE = `// The attendee join link goes only to a browser that holds the id of a
+// registration made in the last 2 hours on a published webinar. The registrant
+// id is random and returned only to the person who registered.
+const first = (name) => { try { return $(name).first()?.json ?? {}; } catch { return {}; } };
+const req = first("Validate Join Request");
+const webinar = first("Load Webinar");
+const registrant = first("Load Registrant");
+const session = first("Load Session Link");
+const created = Date.parse(registrant._createTime ?? "");
+const ok = req.valid === true
+  && webinar.status === "published"
+  && typeof registrant.email === "string" && registrant.email.length > 0
+  && Number.isFinite(created) && Date.now() - created <= 2 * 60 * 60 * 1000;
+const url = String(session.join_url ?? "").trim();
+const joinUrl = ok && /^https:\\/\\/[^\\s]+$/i.test(url) ? url : "";
+return [{ json: { join_url: joinUrl } }];`;
+
+x = 0;
+const joinInfoNodes = [
+  node("Join Info Webhook", "n8n-nodes-base.webhook", 2, {
+    httpMethod: "POST",
+    path: "webinar-join-info",
+    responseMode: "responseNode",
+    options: {},
+  }, { webhookId: "webinar-join-info" }),
+  code("Validate Join Request", VALIDATE_JOIN_REQUEST),
+  firestoreGet("Load Webinar", "webinars", "={{ $('Validate Join Request').first().json.webinar_id }}"),
+  firestoreGet(
+    "Load Registrant",
+    "={{ 'webinars/' + $('Validate Join Request').first().json.webinar_id + '/registrants' }}",
+    "={{ $('Validate Join Request').first().json.registrant_id }}",
+  ),
+  firestoreGet(
+    "Load Session Link",
+    "={{ 'webinars/' + $('Validate Join Request').first().json.webinar_id + '/private' }}",
+    "session",
+  ),
+  code("Build Join Response", BUILD_JOIN_RESPONSE),
+  respond("Respond Join Info", "$json", 200),
+];
+const joinInfo = workflow("16 - Webinar Join Info", joinInfoNodes);
+
 const OUTPUTS = {
+  "webinar-join-info-workflow.json": joinInfo,
   "webinar-reminders-workflow.json": reminders,
   "webinar-registration-confirmation-workflow.json": confirmation,
   "webinar-morning-summary-workflow.json": summary,
@@ -990,4 +1044,4 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
 }
 
-export { confirmation, summary, welcome, broadcast, unsubscribe, reminders, TEMPLATE };
+export { joinInfo, confirmation, summary, welcome, broadcast, unsubscribe, reminders, TEMPLATE };
