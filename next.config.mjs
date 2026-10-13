@@ -43,10 +43,13 @@ const nextConfig = {
   turbopack: {
     root: projectDir,
     resolveAlias: {
-      // Use the pre-built browser bundle — prevents Turbopack from trying to
-      // resolve pptxgenjs's Node.js internals (fs, zlib, etc.)
+      // Use the ES build (it imports jszip properly). The pre-built
+      // pptxgen.bundle.js is a classic script: it declares PptxGenJS as a
+      // script-level var and expects a global JSZip, so a bundler gets
+      // neither an export nor the global ("JSZip is not defined").
+      // Its Node-only imports are stubbed below.
       // NOTE: Turbopack resolveAlias requires relative paths from project root.
-      pptxgenjs: "./node_modules/pptxgenjs/dist/pptxgen.bundle.js",
+      pptxgenjs: "./node_modules/pptxgenjs/dist/pptxgen.es.js",
       "node:fs": "./lib/empty-node-module.js",
       "node:https": "./lib/empty-node-module.js",
     },
@@ -73,7 +76,7 @@ const nextConfig = {
     } else {
       config.resolve.alias.pptxgenjs = path.join(
         projectDir,
-        "node_modules/pptxgenjs/dist/pptxgen.bundle.js",
+        "node_modules/pptxgenjs/dist/pptxgen.es.js",
       );
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(

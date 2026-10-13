@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Camera,
   Check,
   ChevronDown,
+  CreditCard,
   Edit3,
   Loader2,
   LogOut,
@@ -734,10 +736,28 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
               </button>
 
 
+              {/* Option 3: Billing */}
+              <Link
+                href="/provider/billing"
+                role="menuitem"
+                onClick={() => setIsOpen(false)}
+                className="group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-[var(--nav-ink)] transition-colors hover:bg-[var(--nav-bg)] hover:text-black cursor-pointer"
+              >
+                <div className="grid size-7 place-items-center rounded-lg border border-[var(--nav-border)] bg-[var(--nav-surface)] text-[var(--nav-muted)] transition-colors group-hover:border-[var(--nav-border-strong)] group-hover:text-[var(--nav-ink)]">
+                  <CreditCard className="size-3.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block font-semibold">Billing</span>
+                  <span className="block text-[10px] text-[var(--nav-muted)]">
+                    Your plan and payment method
+                  </span>
+                </div>
+              </Link>
+
               {/* Divider */}
               <div className="my-1 border-t border-[var(--nav-border)]/70" />
 
-              {/* Option 3: Logout */}
+              {/* Option 4: Logout */}
               <button
                 type="button"
                 role="menuitem"
