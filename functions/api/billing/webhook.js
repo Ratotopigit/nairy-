@@ -12,10 +12,9 @@
  *
  * Any failure returns a non-2xx, so Stripe retries (with backoff, for days).
  *
- * Required environment (encrypted variables on Cloudflare Pages):
- *   STRIPE_WEBHOOK_SECRET (whsec_...), STRIPE_SECRET_KEY, N8N_BILLING_SECRET
- *   and the STRIPE_PRICE_* ids (to name a plan when metadata is missing).
- * NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL comes from wrangler.toml.
+ * Required environment: STRIPE_WEBHOOK_SECRET (whsec_...), STRIPE_SECRET_KEY
+ * and N8N_BILLING_SECRET (encrypted variables on Cloudflare Pages); the
+ * STRIPE_PRICE_* ids and NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL come from wrangler.toml.
  */
 import { json, stripeGet } from "./_shared.js";
 

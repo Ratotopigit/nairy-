@@ -32,8 +32,8 @@ The decision was made to go live without a separate test-mode phase; the go-live
 | `STRIPE_SECRET_KEY` | Cloudflare Pages, **encrypted** | yes |
 | `STRIPE_WEBHOOK_SECRET` | Cloudflare Pages, **encrypted** (`whsec_...` from the Stripe webhook endpoint) | yes |
 | `N8N_BILLING_SECRET` | Cloudflare Pages, **encrypted**; same value as the n8n "Billing Webhook Secret" credential | yes |
-| `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_ANNUAL`, `STRIPE_PRICE_LIFETIME` | Cloudflare Pages, encrypted (`price_...` ids) | no |
-| `APP_URL` | Cloudflare Pages, encrypted: `https://webinarstackai.com` | no |
+| `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_ANNUAL`, `STRIPE_PRICE_LIFETIME` | `wrangler.toml` `[vars]` (live ids, already set) | no |
+| `APP_URL` | `wrangler.toml` `[vars]`: `https://webinarstackai.com` (already set) | no |
 
 The Firebase API key, project id and n8n webhook base the functions also need already come from `wrangler.toml`.
 New variables apply on the **next deploy**. For local testing of the functions, copy `.dev.vars.example` to

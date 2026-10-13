@@ -9,11 +9,9 @@
  * comes from this function's environment, and the return URLs come from
  * APP_URL (never from the request, which would make Checkout an open redirect).
  *
- * Required environment (encrypted variables on Cloudflare Pages):
- *   STRIPE_SECRET_KEY, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_ANNUAL,
- *   STRIPE_PRICE_LIFETIME, APP_URL
- * plus NEXT_PUBLIC_FIREBASE_API_KEY / NEXT_PUBLIC_FIREBASE_PROJECT_ID, which
- * wrangler.toml already provides at runtime.
+ * Required environment: STRIPE_SECRET_KEY (encrypted variable on Cloudflare
+ * Pages); STRIPE_PRICE_MONTHLY / _ANNUAL / _LIFETIME, APP_URL and the
+ * NEXT_PUBLIC_FIREBASE_* values come from wrangler.toml.
  */
 import { PLANS, bearerToken, hasPaidAccess, json, stripePost, verifyIdToken } from "./_shared.js";
 
