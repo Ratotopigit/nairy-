@@ -11,24 +11,28 @@ import type { TemplateFont } from "@/lib/webinar-fonts";
 export type TemplateLayout =
   | "classic" // centred headline, picture + countdown beside the points and form
   | "split" // story on the left, one card with picture, countdown and form on the right
-  | "stage" // dark, centred, big headline and a stage-sized countdown
+  | "stage" // centred, big headline and a stage-sized countdown
   | "editorial" // magazine: left-aligned serif headline, numbered points
   | "spotlight" // one narrow centred card, picture on top
   | "band"; // coloured hero band with the headline, form card overlapping it
 
+/** The illustration shown when the host has no photo (components/webinar/TemplateArt). */
 export type TemplateArt =
-  | "orbits"
-  | "waves"
-  | "grid"
-  | "sunburst"
-  | "blobs"
-  | "stripes"
-  | "dots"
-  | "peaks"
-  | "rings"
-  | "petals"
-  | "arcs"
-  | "bolt";
+  | "desk" // someone at a laptop: business
+  | "conversation" // coach and client talking: coaching
+  | "presenter" // someone pointing at a rising chart: founders, business
+  | "meditate" // seated figure over soft hills: wellness
+  | "megaphone" // someone with a megaphone, floating cards: marketing
+  | "stage" // speaker under a spotlight between curtains: masterclasses
+  | "teacher" // teacher at a board with books: education
+  | "house" // modern house and a key: real estate
+  | "rocket" // rocket and planet: product launches
+  | "botanical" // leaves in a vase: calm, holistic
+  | "creative" // paint shapes and a brush: creative
+  | "arcs" // layered arcs: minimal
+  | "peaks" // rising chart: finance
+  | "stripes" // editorial stripes
+  | "bolt"; // lightning bolt: fitness
 
 export type TemplateCategory =
   | "Business"
@@ -51,9 +55,9 @@ export type WebinarTemplate = {
   tags: string[];
   layout: TemplateLayout;
   art: TemplateArt;
-  imageShape: "circle" | "rounded" | "arch" | "square" | "blob";
+  imageShape: "circle" | "rounded" | "square" | "blob";
   bulletStyle: "check" | "number" | "arrow" | "dash";
-  background: "plain" | "dots" | "grid" | "glow" | "paper" | "diagonal" | "gradient";
+  background: "plain" | "grid" | "glow" | "paper" | "diagonal" | "gradient" | "mesh";
   /** Small line above everything, e.g. "Free live training". */
   kicker: string;
   headingFont: TemplateFont;
@@ -71,23 +75,25 @@ export type WebinarTemplate = {
     /** Second colour used by artwork, badges and the band layout. */
     hero: string;
     heroInk: string;
-    /** Third colour for artwork. */
+    /** Backdrop of the artwork. */
     soft: string;
   };
 };
 
 export const DEFAULT_TEMPLATE_ID = "sage-classic";
 
+// Ids are stored on webinars, so they never change even when a template is
+// redesigned and renamed (e.g. "midnight-launch" is now "Launch Day").
 export const WEBINAR_TEMPLATES: WebinarTemplate[] = [
   {
     id: "sage-classic",
     name: "Sage Classic",
-    description: "Calm, trustworthy and warm. The original Webinar Stack look.",
+    description: "Calm, trustworthy and warm, with a host at work. The original Webinar Stack look.",
     category: "Business",
-    tags: ["consulting", "classic", "green", "warm", "professional"],
+    tags: ["consulting", "classic", "green", "warm", "professional", "laptop", "illustration"],
     layout: "classic",
-    art: "orbits",
-    imageShape: "circle",
+    art: "desk",
+    imageShape: "rounded",
     bulletStyle: "check",
     background: "paper",
     kicker: "Free live training",
@@ -103,36 +109,34 @@ export const WEBINAR_TEMPLATES: WebinarTemplate[] = [
       accentInk: "#ffffff",
       hero: "#1f4d3d",
       heroInk: "#f4f1e8",
-      soft: "#dfe8e1",
+      soft: "#e4ebe4",
     },
   },
   {
     id: "midnight-launch",
-    name: "Midnight Launch",
-    description: "Dark stage with electric cyan. Made for product launches and tech demos.",
+    name: "Launch Day",
+    description: "Bright and confident, with a rocket taking off. For product launches and demos.",
     category: "Tech & SaaS",
-    tags: ["dark", "launch", "product", "software", "ai", "startup", "neon", "demo"],
-    layout: "stage",
-    art: "grid",
+    tags: ["launch", "product", "software", "ai", "startup", "demo", "blue", "rocket", "illustration"],
+    layout: "split",
+    art: "rocket",
     imageShape: "rounded",
     bulletStyle: "arrow",
-    background: "glow",
-    kicker: "Live product session",
+    background: "mesh",
+    kicker: "Live product launch",
     headingFont: "spaceGrotesk",
     bodyFont: "inter",
-    uppercaseHeadline: true,
-    dark: true,
     colors: {
-      page: "#070b16",
-      surface: "#0f1629",
-      ink: "#eef3ff",
-      muted: "#93a1bf",
-      line: "#1f2a44",
-      accent: "#22d3ee",
-      accentInk: "#04131a",
-      hero: "#6366f1",
+      page: "#f5f7ff",
+      surface: "#ffffff",
+      ink: "#0b1533",
+      muted: "#55607a",
+      line: "#dfe5f5",
+      accent: "#2563eb",
+      accentInk: "#ffffff",
+      hero: "#1e3a8a",
       heroInk: "#ffffff",
-      soft: "#1e2b4f",
+      soft: "#dfe7ff",
     },
   },
   {
@@ -165,15 +169,15 @@ export const WEBINAR_TEMPLATES: WebinarTemplate[] = [
   {
     id: "sunrise-coach",
     name: "Sunrise Coach",
-    description: "Warm peach and coral with an arched portrait. Feels personal and hopeful.",
+    description: "Warm peach and coral, with a coach and client mid-conversation. Personal and hopeful.",
     category: "Coaching",
-    tags: ["life coach", "mindset", "women", "personal growth", "warm", "orange", "peach"],
+    tags: ["life coach", "mindset", "women", "personal growth", "warm", "orange", "peach", "people", "illustration"],
     layout: "split",
-    art: "sunburst",
-    imageShape: "arch",
+    art: "conversation",
+    imageShape: "rounded",
     bulletStyle: "check",
     background: "gradient",
-    kicker: "Free workshop",
+    kicker: "Free coaching workshop",
     headingFont: "dmSerif",
     bodyFont: "manrope",
     colors: {
@@ -184,46 +188,46 @@ export const WEBINAR_TEMPLATES: WebinarTemplate[] = [
       line: "#f2d7c6",
       accent: "#e8590c",
       accentInk: "#ffffff",
-      hero: "#ffb38a",
-      heroInk: "#2b1a12",
-      soft: "#ffe1cc",
+      hero: "#c2410c",
+      heroInk: "#ffffff",
+      soft: "#ffe3d0",
     },
   },
   {
     id: "ocean-calm",
-    name: "Ocean Calm",
-    description: "Soft aqua and gentle waves. For wellbeing, therapy and mindfulness sessions.",
+    name: "Bloom Wellness",
+    description: "Blush and berry with a meditating figure over soft hills. For wellbeing and therapy.",
     category: "Health & wellness",
-    tags: ["meditation", "therapy", "mental health", "yoga", "calm", "blue", "teal", "breathwork"],
+    tags: ["meditation", "therapy", "mental health", "yoga", "calm", "pink", "women", "breathwork", "illustration"],
     layout: "spotlight",
-    art: "waves",
-    imageShape: "blob",
+    art: "meditate",
+    imageShape: "rounded",
     bulletStyle: "dash",
-    background: "gradient",
-    kicker: "Free guided session",
+    background: "mesh",
+    kicker: "Live wellness session",
     headingFont: "lora",
     bodyFont: "nunito",
     colors: {
-      page: "#eef7f6",
+      page: "#fdf6f3",
       surface: "#ffffff",
-      ink: "#0f2e2c",
-      muted: "#4f6f6c",
-      line: "#cfe4e1",
-      accent: "#0f766e",
+      ink: "#3b1d2a",
+      muted: "#7d5f6b",
+      line: "#f1dcd8",
+      accent: "#b4436c",
       accentInk: "#ffffff",
-      hero: "#7cc7bf",
-      heroInk: "#0f2e2c",
-      soft: "#d4eeea",
+      hero: "#e7a1ad",
+      heroInk: "#3b1d2a",
+      soft: "#fbe7e4",
     },
   },
   {
     id: "bold-block",
     name: "Bold Block",
-    description: "Loud yellow band and heavy type. Stops the scroll for sales and marketing events.",
+    description: "Loud yellow band, heavy type and a speaker with a megaphone. Stops the scroll.",
     category: "Marketing",
-    tags: ["sales", "ads", "agency", "yellow", "loud", "funnel", "ecommerce", "black"],
+    tags: ["sales", "ads", "agency", "yellow", "loud", "funnel", "ecommerce", "black", "illustration"],
     layout: "band",
-    art: "dots",
+    art: "megaphone",
     imageShape: "rounded",
     bulletStyle: "arrow",
     background: "plain",
@@ -240,7 +244,7 @@ export const WEBINAR_TEMPLATES: WebinarTemplate[] = [
       accentInk: "#ffd23f",
       hero: "#ffd23f",
       heroInk: "#111111",
-      soft: "#fff0a8",
+      soft: "#fff3b8",
     },
   },
   {
@@ -272,43 +276,42 @@ export const WEBINAR_TEMPLATES: WebinarTemplate[] = [
   },
   {
     id: "forest-retreat",
-    name: "Forest Retreat",
-    description: "Deep green night with a golden glow. Grounded, natural and a little magical.",
+    name: "Pure Balance",
+    description: "Sand, clay and botanical shapes. Natural and grounded without feeling sleepy.",
     category: "Health & wellness",
-    tags: ["nature", "holistic", "retreat", "spiritual", "green", "dark", "herbal", "sustainability"],
-    layout: "stage",
-    art: "petals",
-    imageShape: "arch",
-    bulletStyle: "dash",
-    background: "glow",
-    kicker: "An evening session",
+    tags: ["nature", "holistic", "nutrition", "herbal", "skincare", "sustainability", "earthy", "plants"],
+    layout: "classic",
+    art: "botanical",
+    imageShape: "rounded",
+    bulletStyle: "check",
+    background: "paper",
+    kicker: "An evening of calm",
     headingFont: "fraunces",
     bodyFont: "manrope",
-    dark: true,
     colors: {
-      page: "#0f1f17",
-      surface: "#16291f",
-      ink: "#f1efe4",
-      muted: "#a9b5a6",
-      line: "#24402f",
-      accent: "#e9c46a",
-      accentInk: "#1a1405",
-      hero: "#2f6b4a",
-      heroInk: "#f1efe4",
-      soft: "#21402f",
+      page: "#f8f4ee",
+      surface: "#fffdf9",
+      ink: "#2b2420",
+      muted: "#6f6359",
+      line: "#e7ddd0",
+      accent: "#b5652b",
+      accentInk: "#ffffff",
+      hero: "#7a5c43",
+      heroInk: "#fffdf9",
+      soft: "#efe4d6",
     },
   },
   {
     id: "lavender-studio",
     name: "Lavender Studio",
-    description: "Lilac, violet and soft shapes. For designers, artists and creative courses.",
+    description: "Lilac, violet and painterly shapes. For designers, artists and creative courses.",
     category: "Creative",
-    tags: ["design", "art", "photography", "content creator", "purple", "playful", "brand"],
+    tags: ["design", "art", "photography", "content creator", "purple", "playful", "brand", "paint"],
     layout: "split",
-    art: "blobs",
+    art: "creative",
     imageShape: "blob",
     bulletStyle: "check",
-    background: "dots",
+    background: "gradient",
     kicker: "Live creative class",
     headingFont: "sora",
     bodyFont: "sora",
@@ -322,7 +325,7 @@ export const WEBINAR_TEMPLATES: WebinarTemplate[] = [
       accentInk: "#ffffff",
       hero: "#f472b6",
       heroInk: "#1e1433",
-      soft: "#ddd0ff",
+      soft: "#e4d8ff",
     },
   },
   {
@@ -354,57 +357,56 @@ export const WEBINAR_TEMPLATES: WebinarTemplate[] = [
   },
   {
     id: "estate-luxe",
-    name: "Estate Luxe",
-    description: "Charcoal and champagne with elegant serif type. For property and premium services.",
+    name: "Open House",
+    description: "Slate and brass with a modern home and its key. Clean and aspirational for property.",
     category: "Real estate",
-    tags: ["property", "luxury", "realtor", "mortgage", "interior", "premium", "gold", "dark"],
-    layout: "editorial",
-    art: "rings",
-    imageShape: "arch",
-    bulletStyle: "dash",
+    tags: ["property", "realtor", "mortgage", "home buying", "investment property", "interior", "brass", "illustration"],
+    layout: "band",
+    art: "house",
+    imageShape: "rounded",
+    bulletStyle: "check",
     background: "plain",
-    kicker: "Private online event",
-    headingFont: "cormorant",
+    kicker: "Live property webinar",
+    headingFont: "playfair",
     bodyFont: "manrope",
-    dark: true,
     colors: {
-      page: "#161514",
-      surface: "#1f1d1b",
-      ink: "#f3ede2",
-      muted: "#b4aa9a",
-      line: "#3a3530",
-      accent: "#d4b483",
-      accentInk: "#161514",
-      hero: "#8a7350",
-      heroInk: "#f3ede2",
-      soft: "#2a2622",
+      page: "#f7f5f0",
+      surface: "#ffffff",
+      ink: "#1d2327",
+      muted: "#5d6670",
+      line: "#e3ded4",
+      accent: "#b08446",
+      accentInk: "#ffffff",
+      hero: "#23303b",
+      heroInk: "#f7f5f0",
+      soft: "#e2eaef",
     },
   },
   {
     id: "classroom-bright",
-    name: "Classroom Bright",
-    description: "Sky blue with an orange spark. Friendly for courses, tutoring and schools.",
+    name: "Bright Class",
+    description: "Sunflower and royal blue with a teacher at the board. Friendly, clear and focused.",
     category: "Education",
-    tags: ["course", "teacher", "school", "learning", "kids", "parents", "blue", "orange", "friendly"],
-    layout: "spotlight",
-    art: "dots",
-    imageShape: "circle",
+    tags: ["course", "teacher", "school", "learning", "tutoring", "parents", "students", "blue", "yellow", "illustration"],
+    layout: "split",
+    art: "teacher",
+    imageShape: "rounded",
     bulletStyle: "number",
-    background: "dots",
+    background: "gradient",
     kicker: "Free online class",
     headingFont: "nunito",
     bodyFont: "nunito",
     colors: {
-      page: "#eaf6ff",
+      page: "#fffaf0",
       surface: "#ffffff",
-      ink: "#0c2a43",
-      muted: "#4a6680",
-      line: "#cfe6f7",
-      accent: "#f97316",
+      ink: "#1f2a44",
+      muted: "#5b6680",
+      line: "#f0e4c8",
+      accent: "#2f5bd3",
       accentInk: "#ffffff",
-      hero: "#38bdf8",
-      heroInk: "#0c2a43",
-      soft: "#d4ecfb",
+      hero: "#f5b82e",
+      heroInk: "#1f2a44",
+      soft: "#fdeec9",
     },
   },
   {
@@ -439,12 +441,12 @@ export const WEBINAR_TEMPLATES: WebinarTemplate[] = [
   {
     id: "terracotta-talk",
     name: "Terracotta Talk",
-    description: "Earthy clay and cream with a soft arc. Good for founders telling their story.",
+    description: "Earthy clay and cream with a founder presenting their growth. Tells a story.",
     category: "Business",
-    tags: ["founder", "small business", "story", "earthy", "clay", "brown", "handmade"],
+    tags: ["founder", "small business", "story", "earthy", "clay", "brown", "presenting", "chart", "illustration"],
     layout: "split",
-    art: "arcs",
-    imageShape: "circle",
+    art: "presenter",
+    imageShape: "rounded",
     bulletStyle: "number",
     background: "paper",
     kicker: "Live founder session",
@@ -460,35 +462,34 @@ export const WEBINAR_TEMPLATES: WebinarTemplate[] = [
       accentInk: "#ffffff",
       hero: "#d98c5f",
       heroInk: "#2a1d15",
-      soft: "#efd9c3",
+      soft: "#f0dcc6",
     },
   },
   {
     id: "neon-growth",
-    name: "Neon Growth",
-    description: "Violet night with a pink-to-blue glow. Built for growth, ads and creator economy.",
+    name: "Spotlight",
+    description: "A speaker on stage between red curtains. For masterclasses and big-name sessions.",
     category: "Marketing",
-    tags: ["growth", "social media", "instagram", "tiktok", "creator", "gradient", "purple", "dark"],
-    layout: "spotlight",
-    art: "rings",
-    imageShape: "circle",
+    tags: ["masterclass", "keynote", "speaker", "event", "stage", "influencer", "red", "illustration"],
+    layout: "stage",
+    art: "stage",
+    imageShape: "rounded",
     bulletStyle: "check",
-    background: "glow",
-    kicker: "Live strategy session",
+    background: "mesh",
+    kicker: "Live masterclass",
     headingFont: "sora",
     bodyFont: "inter",
-    dark: true,
     colors: {
-      page: "#120b26",
-      surface: "#1b1236",
-      ink: "#f4f0ff",
-      muted: "#a99fca",
-      line: "#2d2152",
-      accent: "#ec4899",
+      page: "#fff7f3",
+      surface: "#ffffff",
+      ink: "#1c1412",
+      muted: "#6f5d57",
+      line: "#f3ddd3",
+      accent: "#e11d48",
       accentInk: "#ffffff",
-      hero: "#38bdf8",
-      heroInk: "#120b26",
-      soft: "#2b1d55",
+      hero: "#2a1714",
+      heroInk: "#fff7f3",
+      soft: "#ffe2d6",
     },
   },
 ];

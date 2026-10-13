@@ -78,7 +78,6 @@ function formatWhen(date: Date | null, withDay = true): string | null {
 const SHAPES: Record<WebinarTemplate["imageShape"], string> = {
   circle: "aspect-square rounded-full",
   rounded: "aspect-square rounded-[28px]",
-  arch: "aspect-[4/5] rounded-t-full rounded-b-[28px]",
   square: "aspect-[4/5] rounded-none",
   blob: "aspect-square [border-radius:42%_58%_63%_37%/41%_44%_56%_59%]",
 };
@@ -86,8 +85,11 @@ const SHAPES: Record<WebinarTemplate["imageShape"], string> = {
 function backgroundStyle(t: WebinarTemplate): CSSProperties {
   const c = t.colors;
   switch (t.background) {
-    case "dots":
-      return { backgroundImage: `radial-gradient(${c.line} 1.2px, transparent 1.2px)`, backgroundSize: "20px 20px" };
+    case "mesh":
+      // Soft colour washes, no pattern: reads premium without visual noise.
+      return {
+        backgroundImage: `radial-gradient(760px 460px at 0% 0%, ${c.soft}, transparent 70%), radial-gradient(640px 420px at 100% 6%, ${c.accent}1f, transparent 70%), radial-gradient(700px 420px at 60% 100%, ${c.soft}b3, transparent 70%)`,
+      };
     case "grid":
       return {
         backgroundImage: `linear-gradient(${c.line} 1px, transparent 1px), linear-gradient(90deg, ${c.line} 1px, transparent 1px)`,
@@ -229,8 +231,13 @@ export function RegistrationPage({ webinar, mode, onRegister }: Props) {
   // ── Pieces ───────────────────────────────────────────────────────────────
 
   const kickerPill = (
-    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--w-line)] bg-[var(--w-surface)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--w-muted)]">
-      {phase === "live" ? <span className="size-1.5 animate-pulse rounded-full bg-red-500" /> : <span className="size-1.5 rounded-full bg-[var(--w-accent)]" />}
+    <span
+      className={`inline-flex items-center rounded-full border px-3.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+        phase === "live"
+          ? "border-red-600 bg-red-600 text-white"
+          : "border-[var(--w-line)] bg-[var(--w-surface)] text-[var(--w-muted)]"
+      }`}
+    >
       {phase === "live" ? "Live now" : t.kicker}
     </span>
   );
@@ -309,11 +316,7 @@ export function RegistrationPage({ webinar, mode, onRegister }: Props) {
         </>
       ) : phase === "live" ? (
         <div className="inline-flex flex-col items-center">
-          <span className="inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-white">
-            <span className="relative flex size-2">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-white/80" />
-              <span className="relative inline-flex size-2 rounded-full bg-white" />
-            </span>
+          <span className="inline-flex items-center rounded-full bg-red-600 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-white">
             Happening now
           </span>
           <p className="mt-3 max-w-xs text-sm leading-6 text-[var(--w-muted)]">
@@ -482,7 +485,7 @@ export function RegistrationPage({ webinar, mode, onRegister }: Props) {
           <div className="reg-rise [animation-delay:80ms]">
             {formCard(
               <div className="mb-6">
-                {media("mx-auto w-full max-w-[220px]")}
+                {media("mx-auto w-full max-w-[280px]")}
                 <div className="mt-5">{sessionPanel()}</div>
               </div>,
             )}
@@ -495,7 +498,7 @@ export function RegistrationPage({ webinar, mode, onRegister }: Props) {
       body = (
         <div className="mx-auto max-w-5xl px-5 pb-16 pt-10 text-center sm:px-8 sm:pt-16">
           <div className="reg-rise flex flex-col items-center">
-            {media("w-28 sm:w-32")}
+            {media("w-full max-w-[560px] !aspect-[16/9]")}
             <div className="mt-6">{kickerPill}</div>
             <div className="mt-5">{headline("xl")}</div>
             {presenterLine ? <div className="mt-4">{presenterLine}</div> : null}
@@ -535,9 +538,9 @@ export function RegistrationPage({ webinar, mode, onRegister }: Props) {
 
     case "spotlight":
       body = (
-        <div className="mx-auto max-w-xl px-5 pb-16 pt-24 sm:pt-28">
-          <div className="reg-rise relative rounded-[28px] border border-[var(--w-line)] bg-[var(--w-surface)] px-5 pb-7 pt-20 text-center shadow-[0_30px_80px_-45px_rgba(0,0,0,0.5)] sm:px-9">
-            <div className="absolute left-1/2 top-0 w-32 -translate-x-1/2 -translate-y-1/2 sm:w-36">{media("w-full ring-8 ring-[var(--w-page)]")}</div>
+        <div className="mx-auto max-w-xl px-5 pb-16 pt-32 sm:pt-36">
+          <div className="reg-rise relative rounded-[28px] border border-[var(--w-line)] bg-[var(--w-surface)] px-5 pb-7 pt-28 text-center shadow-[0_30px_80px_-45px_rgba(0,0,0,0.5)] sm:px-9 sm:pt-32">
+            <div className="absolute left-1/2 top-0 w-44 -translate-x-1/2 -translate-y-1/2 sm:w-52">{media("w-full ring-8 ring-[var(--w-page)]")}</div>
             {kickerPill}
             <div className="mt-5">{headline("md")}</div>
             {presenterLine ? <div className="mt-4">{presenterLine}</div> : null}
@@ -556,11 +559,11 @@ export function RegistrationPage({ webinar, mode, onRegister }: Props) {
             <div className="mx-auto grid max-w-6xl items-center gap-8 px-5 pb-28 pt-10 sm:px-8 sm:pt-14 md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
               <div className="reg-rise">
                 <p className="text-[11px] font-bold uppercase tracking-[0.24em] opacity-80">
-                  {phase === "live" ? "● Live now" : t.kicker}
+                  {phase === "live" ? "Live now" : t.kicker}
                 </p>
                 <div className="mt-4">{headline("lg", "left", true)}</div>
               </div>
-              <div className="reg-rise hidden md:block [animation-delay:80ms]">{media("ml-auto w-full max-w-[260px]")}</div>
+              <div className="reg-rise hidden md:block [animation-delay:80ms]">{media("ml-auto w-full max-w-[300px]")}</div>
             </div>
           </div>
           <div className="mx-auto -mt-20 grid max-w-6xl items-start gap-8 px-5 pb-16 sm:px-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-12">
@@ -580,10 +583,10 @@ export function RegistrationPage({ webinar, mode, onRegister }: Props) {
       body = (
         <>
           <div className="bg-[var(--w-hero)] px-5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--w-hero-ink)]">
-            {phase === "live" ? "● Live now" : t.kicker}
+            {phase === "live" ? "Live now" : t.kicker}
             {webinar.presenter_name ? (
               <span className="font-normal normal-case tracking-normal opacity-75">
-                {" "}· presented by {webinar.presenter_name}
+                {" "}— presented by {webinar.presenter_name}
                 {webinar.presenter_title ? `, ${webinar.presenter_title}` : ""}
               </span>
             ) : null}

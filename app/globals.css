@@ -295,3 +295,25 @@
 @media (prefers-reduced-motion: reduce) {
   .reg-rise { animation: none; }
 }
+
+/* Template illustrations: slow, small, never blinking. */
+@keyframes wt-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.wt-float { animation: wt-float 6s ease-in-out infinite; }
+.wt-float-slow { animation-duration: 8s; animation-delay: -2s; }
+@keyframes wt-sway {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+.wt-sway { animation: wt-sway 7s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes wt-draw {
+  from { stroke-dashoffset: 320; }
+  to { stroke-dashoffset: 0; }
+}
+.wt-draw { stroke-dasharray: 320; animation: wt-draw 1.8s ease-out 0.3s both; }
+@media (prefers-reduced-motion: reduce) {
+  .wt-float, .wt-sway, .wt-draw { animation: none; }
+  .wt-draw { stroke-dasharray: none; }
+}

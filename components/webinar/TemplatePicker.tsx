@@ -14,7 +14,6 @@ import { TemplateArt } from "@/components/webinar/TemplateArt";
 const THUMB_SHAPES: Record<WebinarTemplate["imageShape"], string> = {
   circle: "rounded-full aspect-square",
   rounded: "rounded-lg aspect-square",
-  arch: "rounded-t-full rounded-b-md aspect-[4/5]",
   square: "aspect-[4/5]",
   blob: "aspect-square [border-radius:42%_58%_63%_37%/41%_44%_56%_59%]",
 };
@@ -24,7 +23,7 @@ export function TemplateThumbnail({ template: t }: { template: WebinarTemplate }
   const c = t.colors;
   const art = (cls: string) => (
     <div className={`overflow-hidden ${THUMB_SHAPES[t.imageShape]} ${cls}`}>
-      <TemplateArt art={t.art} colors={c} className="size-full" />
+      <TemplateArt art={t.art} colors={c} className="size-full" still />
     </div>
   );
   const title = (
@@ -56,14 +55,14 @@ export function TemplateThumbnail({ template: t }: { template: WebinarTemplate }
       inner = (
         <div className="grid h-full grid-cols-[1.2fr_0.8fr] gap-2 p-2.5">
           <div className="space-y-1.5 pt-1">{title}{lines(3)}</div>
-          <div className="space-y-1.5">{art("mx-auto w-12")}{card}</div>
+          <div className="space-y-1.5">{art("mx-auto w-20")}{card}</div>
         </div>
       );
       break;
     case "stage":
       inner = (
         <div className="flex h-full flex-col items-center gap-1.5 p-2.5 text-center">
-          {art("w-10")}
+          {art("w-28 !aspect-[16/9]")}
           {title}
           <div className="flex gap-1">
             {[0, 1, 2, 3].map((i) => (
@@ -87,7 +86,7 @@ export function TemplateThumbnail({ template: t }: { template: WebinarTemplate }
                 </div>
               ))}
             </div>
-            <div className="space-y-1">{art("w-11")}{card}</div>
+            <div className="space-y-1">{art("w-16")}{card}</div>
           </div>
         </div>
       );
@@ -95,8 +94,8 @@ export function TemplateThumbnail({ template: t }: { template: WebinarTemplate }
     case "spotlight":
       inner = (
         <div className="flex h-full items-end justify-center p-2.5 pt-5">
-          <div className="relative w-3/4 rounded-lg px-2 pb-2 pt-5 text-center" style={{ background: c.surface, border: `1px solid ${c.line}` }}>
-            <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">{art("w-10")}</div>
+          <div className="relative w-3/4 rounded-lg px-2 pb-2 pt-9 text-center" style={{ background: c.surface, border: `1px solid ${c.line}` }}>
+            <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">{art("w-14")}</div>
             {title}
             <div className="mt-1.5">{card}</div>
           </div>
@@ -113,7 +112,7 @@ export function TemplateThumbnail({ template: t }: { template: WebinarTemplate }
             >
               Grow your audience live
             </div>
-            {art("w-11 shrink-0")}
+            {art("w-16 shrink-0")}
           </div>
           <div className="-mt-3 grid grid-cols-2 gap-2 px-2.5">
             <div className="pt-4">{lines(3)}</div>
@@ -128,7 +127,7 @@ export function TemplateThumbnail({ template: t }: { template: WebinarTemplate }
           <div className="h-2" style={{ background: c.hero }} />
           <div className="px-2.5 pt-2 text-center">{title}</div>
           <div className="grid flex-1 grid-cols-2 gap-2 p-2.5 pt-1.5">
-            <div className="flex flex-col items-center gap-1">{art("w-14")}</div>
+            <div className="flex flex-col items-center gap-1">{art("w-[4.5rem]")}</div>
             <div className="space-y-1.5">{lines(2)}{card}</div>
           </div>
         </div>
