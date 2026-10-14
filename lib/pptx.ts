@@ -41,6 +41,37 @@ function countFit(base: number, count: number, comfy: number, min = 0.7) {
 
 const longest = (xs: string[]) => xs.reduce((m, s) => Math.max(m, s.length), 0);
 
+/**
+ * The real pixel size of each embedded picture, keyed by its data URL.
+ *
+ * pptxgenjs decides how to crop or letterbox a picture from the size given as
+ * `w`/`h` compared with the frame in `sizing`. Passing the frame as both made
+ * them identical, so "contain" and "cover" did nothing and every picture was
+ * stretched to fill its frame (a monitor drawn twice as wide as it is). A
+ * picture whose size cannot be read is simply left out and falls back to the
+ * old fill behaviour.
+ */
+async function measureImages(sources: (string | null | undefined)[]): Promise<Map<string, { w: number; h: number }>> {
+  const sizes = new Map<string, { w: number; h: number }>();
+  if (typeof Image === "undefined") return sizes;
+  const unique = [...new Set(sources.filter((src): src is string => typeof src === "string" && src.startsWith("data:")))];
+  await Promise.all(
+    unique.map(
+      (src) =>
+        new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            if (img.naturalWidth > 0 && img.naturalHeight > 0) sizes.set(src, { w: img.naturalWidth, h: img.naturalHeight });
+            resolve();
+          };
+          img.onerror = () => resolve();
+          img.src = src;
+        }),
+    ),
+  );
+  return sizes;
+}
+
 /** Vertical rhythm, in cqw, matching SlideView's RHYTHM. */
 const RHYTHM = 1.8;
 
@@ -91,6 +122,30 @@ export async function exportPptx(opts: {
    * matching the CSS box model used on screen.
    */
   const BOX = { margin: 0, wrap: true, fit: "shrink" } as const;
+
+  const imageSizes = await measureImages([...opts.slides.map((slide) => slide.image), opts.image, opts.logo]);
+  /**
+   * Places a picture in a frame without distorting it. `contain` shows all of
+   * it, `cover` fills the frame and crops the overflow, both centred like
+   * object-fit on screen. The picture's own proportions go in w/h and the
+   * frame in `sizing`, which is what makes pptxgenjs do the fitting.
+   */
+  const fitImage = (
+    slide: { addImage: (o: Record<string, unknown>) => unknown },
+    data: string,
+    frame: { x: number; y: number; w: number; h: number },
+    type: "contain" | "cover",
+  ) => {
+    const size = imageSizes.get(data);
+    slide.addImage({
+      data,
+      x: frame.x,
+      y: frame.y,
+      w: frame.w,
+      h: size ? (frame.w * size.h) / size.w : frame.h,
+      sizing: { type, w: frame.w, h: frame.h },
+    });
+  };
 
   for (const s of opts.slides) {
     const slide = pptx.addSlide();
@@ -496,14 +551,7 @@ export async function exportPptx(opts: {
       }
       if (slideImage) {
         try {
-          slide.addImage({
-            data: slideImage,
-            x,
-            y,
-            w,
-            h,
-            sizing: { type: isCutout ? "contain" : "cover", w, h },
-          });
+          fitImage(slide, slideImage, { x, y, w, h }, isCutout ? "contain" : "cover");
         } catch {
           /* ignore unsupported image data */
         }
@@ -624,14 +672,7 @@ export async function exportPptx(opts: {
       // to come after the photo and its scrim or it ends up underneath.
       if (bleedPhoto && slideImage) {
         try {
-          slide.addImage({
-            data: slideImage,
-            x: 0,
-            y: 0,
-            w: dim.w,
-            h: dim.h,
-            sizing: { type: "cover", w: dim.w, h: dim.h },
-          });
+          fitImage(slide, slideImage, { x: 0, y: 0, w: dim.w, h: dim.h }, "cover");
         } catch {
           /* ignore unsupported image data */
         }
@@ -732,14 +773,7 @@ export async function exportPptx(opts: {
 
     if (opts.logo) {
       try {
-        slide.addImage({
-          data: opts.logo,
-          x: dim.w - pad - 1.1,
-          y: footerY - 0.04,
-          w: 1.1,
-          h: 0.3,
-          sizing: { type: "contain", w: 1.1, h: 0.3 },
-        });
+        fitImage(slide, opts.logo, { x: dim.w - pad - 1.1, y: footerY - 0.04, w: 1.1, h: 0.3 }, "contain");
       } catch {
         /* ignore */
       }
