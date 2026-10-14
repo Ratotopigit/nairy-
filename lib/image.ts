@@ -22,7 +22,8 @@ function toCanvas(img: HTMLImageElement, max = 1024) {
 
 /**
  * Removes a flat background (white/near-uniform corners) via a tolerance
- * flood fill from the image edges. Good enough for logos and product cutouts.
+ * flood fill from the image edges. Only runs when the person asks for it (the
+ * deck's "Remove photo background" button); uploads never call it.
  */
 export async function removeBackground(src: string, tolerance = 34): Promise<string> {
   try {
@@ -159,7 +160,6 @@ export type PreparedImage = {
   mimeType: string;
   fileName: string;
   previewUrl: string;
-  backgroundRemoved: boolean;
 };
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -179,17 +179,18 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number)
 
 export async function prepareImageForStorage(
   file: File,
-  options: { logo?: boolean; cutout?: boolean; max?: number } = {},
+  options: { cutout?: boolean; max?: number } = {},
 ): Promise<PreparedImage> {
   /**
    * Anything with an alpha channel has to survive as PNG. WEBP would keep the
    * alpha but PowerPoint's support for it is unreliable, and a lossy pass on a
    * cutout's feathered edge is exactly where the artefacts show.
+   *
+   * Logos do not come through here at all: they are stored exactly as chosen.
+   * Nothing in this function changes what is in the picture.
    */
-  const keepsAlpha = Boolean(options.logo || options.cutout);
-  const originalUrl = await readFileAsDataUrl(file);
-  const cleanedUrl = options.logo ? await removeBackground(originalUrl, 46) : originalUrl;
-  const img = await loadImage(cleanedUrl);
+  const keepsAlpha = Boolean(options.cutout);
+  const img = await loadImage(await readFileAsDataUrl(file));
   const max = options.max ?? (keepsAlpha ? 1200 : 1800);
   const { canvas } = toCanvas(img, max);
   const mimeType = keepsAlpha ? "image/png" : "image/webp";
@@ -202,7 +203,6 @@ export async function prepareImageForStorage(
     mimeType,
     fileName: `${baseName}.${keepsAlpha ? "png" : "webp"}`,
     previewUrl: URL.createObjectURL(blob),
-    backgroundRemoved: Boolean(options.logo && blob.size <= file.size * 1.2),
   };
 }
 

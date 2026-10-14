@@ -5,13 +5,13 @@ import {
   ArrowRight,
   BadgeCheck,
   CloudUpload,
-  Eraser,
   FileText,
   Link2,
   Loader2,
   Package,
   Palette,
   Plus,
+  Shield,
   Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -39,7 +39,6 @@ type Asset = {
   asset_type: "logo" | "photo" | "reference" | "document" | "video";
   asset_role?: AssetRole | null;
   palette?: ExtractedPalette | null;
-  background_removed_path?: string | null;
   signedUrl?: string;
 };
 
@@ -65,8 +64,8 @@ const ROLE_OPTIONS: Array<{
     title: "Logo",
     badge: "PNG / SVG / JPG",
     heading: "Upload Logo",
-    cardDescription: "PNG/SVG. White backgrounds are cleaned when possible.",
-    description: "Use SVG or transparent PNG when you have it. JPG/WebP logos are cleaned.",
+    cardDescription: "PNG/SVG. Saved exactly as you upload it.",
+    description: "Use SVG or transparent PNG when you have it. Your logo is saved as is, with no changes.",
     accept: "image/png,image/jpeg,image/webp,image/svg+xml",
   },
   {
@@ -266,12 +265,15 @@ export default function UploadsManager() {
         ]);
         try {
           const isImage = file.type.startsWith("image/") && file.type !== "image/svg+xml";
-          const prepared = isImage ? await prepareImageForStorage(file, { logo: targetRole === "logo" }) : null;
+          // A logo goes up exactly as it was chosen: no background removal and
+          // no re-encoding. Other pictures are resized and re-encoded first.
+          const prepared = isImage && targetRole !== "logo" ? await prepareImageForStorage(file) : null;
           const blob = prepared?.blob ?? file;
           const fileName = prepared?.fileName ?? safeName(file.name);
           const mimeType = prepared?.mimeType ?? (file.type || "application/octet-stream");
           const path = `${user.uid}/${targetRole}/${crypto.randomUUID()}-${fileName}`;
-          const palette = prepared?.previewUrl ? await extractPalette(prepared.previewUrl) : null;
+          const paletteSource = prepared?.previewUrl ?? (isImage ? localPreview : undefined);
+          const palette = paletteSource ? await extractPalette(paletteSource) : null;
 
           const fileRef = ref(storage, path);
           await uploadBytes(fileRef, blob, { contentType: mimeType });
@@ -286,7 +288,6 @@ export default function UploadsManager() {
               asset_type: typeFor(targetRole, file),
               asset_role: targetRole,
               palette,
-              background_removed_path: targetRole === "logo" && prepared?.backgroundRemoved ? path : null,
               created_at: new Date().toISOString(),
             });
           } catch (rowError) {
@@ -723,8 +724,8 @@ export default function UploadsManager() {
               <span>Image palettes are saved so Webinar Content can reuse brand colors.</span>
             </div>
             <div className="flex gap-3">
-              <Eraser className="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>Logo cleanup removes solid/white backgrounds automatically.</span>
+              <Shield className="mt-0.5 size-4 shrink-0 text-primary" />
+              <span>Logos are saved exactly as you upload them, with no background removal.</span>
             </div>
             <div className="flex gap-3">
               <Package className="mt-0.5 size-4 shrink-0 text-primary" />
