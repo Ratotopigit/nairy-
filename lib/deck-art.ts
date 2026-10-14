@@ -9,6 +9,9 @@
  *   fetch  — that URL -> a base64 data URL, so an exported .pptx carries the
  *            bytes rather than a link that rots or fails offline.
  *
+ * Neither result is kept as a link on the slide: lib/deck-images.ts copies the
+ * picture into the user's own Storage and the slide stores that URL.
+ *
  * Both go through n8n rather than the browser because the Pixabay key has to
  * stay server-side, and because cdn.pixabay.com sends no CORS headers — a
  * direct fetch would taint the canvas and give pptxgenjs nothing to embed.
@@ -17,6 +20,7 @@ import type { ImageKind, Slide } from "./deck";
 import { fitForSlide } from "./image";
 import { readN8nJson } from "./n8n-response";
 import { auth } from "./firebase/config";
+import { isStorageUrl } from "./storage-upload";
 import { n8nWebhookUrl } from "@/lib/n8n-url";
 
 const ART_TIMEOUT_MS = 30_000;
@@ -82,6 +86,23 @@ export async function fetchArtAsDataUrl(url: string): Promise<string | null> {
 }
 
 /**
+ * Reads one of our own Storage pictures straight from the browser. Unlike the
+ * stock CDN, Firebase Storage answers with CORS headers, so no round trip
+ * through n8n is needed.
+ */
+async function fetchStorageAsDataUrl(url: string): Promise<string | null> {
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  return new Promise<string | null>((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
  * Inlines every remote slide image ahead of a pptx export.
  *
  * pptxgenjs can take a remote `path:`, but that leaves a link in the file and
@@ -112,7 +133,7 @@ export async function resolveArtForExport(slides: Slide[]): Promise<Slide[]> {
   const urls = [...remote];
   const settled = await Promise.all(
     urls.map(async (url) => {
-      const dataUrl = await fetchArtAsDataUrl(url).catch(() => null);
+      const dataUrl = await (isStorageUrl(url) ? fetchStorageAsDataUrl(url) : fetchArtAsDataUrl(url)).catch(() => null);
       if (!dataUrl) return null;
       return fitForSlide(dataUrl, { cutout: kindFor.get(url) === "cutout" });
     }),

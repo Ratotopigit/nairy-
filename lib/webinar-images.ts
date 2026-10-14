@@ -1,14 +1,14 @@
 /**
  * Images for registration pages: upload, find, suggest.
  *
- * An image is stored as a small data URL right on the webinar document in
- * Firestore (image_url, portrait_url, logo_url) and rendered from there. There
- * is no separate file store to configure, wait on or get stuck on, and the
- * public page gets its pictures in the same read as the rest of the page.
- *   - every image is resized and re-encoded in the browser to a fixed size
- *     budget (a Firestore document is limited to 1 MiB, and a phone photo is
- *     often 6 MB), which also drops the photo's hidden EXIF data (camera, GPS
- *     location) before it reaches a public page;
+ * Every picture a page shows is a real file in the host's own Firebase Storage
+ * (`<uid>/webinars/<id>/…`); the webinar document keeps only its download URL
+ * (image_url, portrait_url, logo_url). Pictures are not links to someone else's
+ * site and are not packed into the Firestore document.
+ *   - every image is resized and re-encoded in the browser first (a phone photo
+ *     is often 6 MB; the page needs well under 1 MB), which also drops the
+ *     photo's hidden EXIF data (camera, GPS location) before it reaches a
+ *     public page;
  *   - a stock photo picked from search is downloaded once through n8n and
  *     stored the same way, because Pixabay's terms don't allow permanent
  *     hot-linking of their image URLs, and a copy never rots.
@@ -21,25 +21,27 @@
 import { auth } from "@/lib/firebase/config";
 import { readN8nJson } from "@/lib/n8n-response";
 import { n8nWebhookUrl } from "@/lib/n8n-url";
+import { ImageError, uploadBlob, userPath } from "@/lib/storage-upload";
 import { CATEGORY_PHOTO_TERMS, type TemplateCategory } from "@/lib/webinar-templates";
+
+export { ImageError };
 
 export type ImageKind = "hero" | "portrait" | "logo";
 
 /**
- * `budget` is the encoded size in bytes. Base64 adds a third, and a webinar
- * document holds all three images plus its text under Firestore's 1 MiB limit:
- * 300 + 140 + 60 KB of image becomes about 670 KB of base64.
+ * `budget` is the encoded size in bytes the picture is squeezed under. Storage
+ * has no per-document limit like Firestore's 1 MiB, so these are sized for how
+ * the page shows each picture (a full-bleed hero on a large screen needs the
+ * most), and storage.rules caps any one file at 5 MB.
  */
 export const IMAGE_RULES: Record<ImageKind, { maxSide: number; budget: number; label: string; allowAlpha: boolean }> = {
-  hero: { maxSide: 1600, budget: 300_000, label: "photo", allowAlpha: false },
-  portrait: { maxSide: 1000, budget: 140_000, label: "portrait", allowAlpha: false },
-  logo: { maxSide: 640, budget: 60_000, label: "logo", allowAlpha: true },
+  hero: { maxSide: 2000, budget: 900_000, label: "photo", allowAlpha: false },
+  portrait: { maxSide: 1200, budget: 400_000, label: "portrait", allowAlpha: false },
+  logo: { maxSide: 800, budget: 250_000, label: "logo", allowAlpha: true },
 };
 
 const MAX_INPUT_BYTES = 12 * 1024 * 1024;
 const RASTER = /^image\/(png|jpe?g|webp|gif|avif|heic|heif)$/i;
-
-export class ImageError extends Error {}
 
 /**
  * Decodes, scales down (never up) and re-encodes. JPEG/WebP for photos; PNG
@@ -109,18 +111,44 @@ export async function prepareImage(file: File, kind: ImageKind): Promise<{ blob:
   throw new ImageError("That image is too detailed to store. Please try a simpler or smaller one.");
 }
 
-/** Turns the prepared image into a data URL, ready to save on the webinar. */
-export async function storeImage(_webinarId: string, _kind: ImageKind, prepared: { blob: Blob; ext: string; type: string }): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => (typeof reader.result === "string" ? resolve(reader.result) : reject(new ImageError("The image couldn't be read.")));
-    reader.onerror = () => reject(new ImageError("The image couldn't be read."));
-    reader.readAsDataURL(prepared.blob);
-  });
+/**
+ * Uploads an already-prepared image to `<uid>/<folder>/` and returns its
+ * download URL. `folder` is `webinars/<id>` here; slide images use `decks/<id>`.
+ */
+export async function storeImage(folder: string, kind: ImageKind, prepared: { blob: Blob; ext: string; type: string }): Promise<string> {
+  return uploadBlob(userPath(folder, `${kind}-${Date.now()}.${prepared.ext}`), prepared.blob, prepared.type);
 }
 
 export async function uploadWebinarImage(webinarId: string, file: File, kind: ImageKind): Promise<string> {
-  return storeImage(webinarId, kind, await prepareImage(file, kind));
+  return storeImage(`webinars/${webinarId}`, kind, await prepareImage(file, kind));
+}
+
+const FIELD_FOR_KIND = { hero: "image_url", portrait: "portrait_url", logo: "logo_url" } as const;
+
+/**
+ * Webinars saved before images moved to Storage hold their pictures as data
+ * URLs inside the Firestore document. Uploads each one and returns the new
+ * download URLs, keyed by webinar field, for the editor to save. A picture that
+ * fails to move is left as it was, so nothing is ever lost.
+ */
+export async function moveInlineImagesToStorage(
+  webinarId: string,
+  urls: { image_url: string; portrait_url: string; logo_url: string },
+): Promise<Partial<typeof urls>> {
+  const moved: Partial<typeof urls> = {};
+  for (const kind of ["hero", "portrait", "logo"] as const) {
+    const field = FIELD_FOR_KIND[kind];
+    const current = urls[field];
+    if (!current.startsWith("data:image/")) continue;
+    try {
+      const blob = await (await fetch(current)).blob();
+      const ext = blob.type === "image/png" ? "png" : blob.type === "image/jpeg" ? "jpg" : "webp";
+      moved[field] = await storeImage(`webinars/${webinarId}`, kind, { blob, ext, type: blob.type });
+    } catch (error) {
+      console.warn(`could not move ${field} to storage:`, error);
+    }
+  }
+  return moved;
 }
 
 // ── Finding photos ────────────────────────────────────────────────────────
@@ -188,9 +216,9 @@ export async function searchPhotos(query: string, _orientation: "horizontal" | "
 }
 
 /**
- * Copies a chosen stock photo onto the webinar (as a data URL) and returns it.
- * The bytes travel through n8n (the CDN sends no CORS headers), are resized
- * like any upload, and are then stored under the host's own folder.
+ * Copies a chosen stock photo into the host's own storage and returns its
+ * download URL. The bytes travel through n8n (the CDN sends no CORS headers)
+ * and are resized like any upload.
  */
 export async function importPhoto(webinarId: string, photo: StockPhoto, kind: ImageKind = "hero"): Promise<string> {
   const data = await post<{ found?: boolean; data_url?: string }>({ mode: "fetch", url: photo.url }, 60_000);

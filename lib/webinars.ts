@@ -26,8 +26,9 @@ import {
   Timestamp,
   where,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
+import { auth, db } from "@/lib/firebase/config";
 import { n8nWebhookUrl } from "@/lib/n8n-url";
+import { deleteFolder } from "@/lib/storage-upload";
 import { isHex } from "@/lib/color";
 import type { CalendarEvent } from "@/lib/calendar";
 import { DEFAULT_TEMPLATE_ID, isFontPairId } from "@/lib/webinar-templates";
@@ -286,12 +287,17 @@ export async function saveWebinar(webinar: Webinar, hostName = ""): Promise<void
 }
 
 /**
- * Deletes the webinar document. Registrant documents are a subcollection and
- * are NOT removed by this: Firestore has no client-side cascade. They become
- * unreachable from the app, which is acceptable at this scale.
+ * Deletes the webinar document and its pictures in Storage. Registrant
+ * documents are a subcollection and are NOT removed by this: Firestore has no
+ * client-side cascade. They become unreachable from the app, which is
+ * acceptable at this scale.
  */
 export async function deleteWebinar(webinarId: string): Promise<void> {
   await deleteDoc(doc(db, "webinars", webinarId));
+  // After the document, so a failure above never leaves a live page with its
+  // pictures gone. Best effort: an orphaned file costs almost nothing.
+  const uid = auth.currentUser?.uid;
+  if (uid) await deleteFolder(`${uid}/webinars/${webinarId}`);
 }
 
 // ── Session timing ────────────────────────────────────────────────────────

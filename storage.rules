@@ -1,17 +1,92 @@
 rules_version = '2';
 
+// Firebase Storage rules.
+//
+// Every file lives under the uid of the account that owns it, so one rule
+// shape covers the lot: only the owner can list, read, replace or delete.
+//
+//   {uid}/{role}/…                workspace assets (the Webinar Upload page):
+//                                 logo, brand_photo, product, background,
+//                                 document, reference
+//   {uid}/webinars/{id}/…         registration-page logo, photo and portrait
+//   {uid}/decks/{projectId}/…     slide images copied in from search or uploaded
+//   user_avatars/{uid}/…          profile picture
+//
+// Visitors never need a rule to see a picture. The app saves each file's
+// download URL (it carries a secret token) on the webinar or slide that uses
+// it, so a published page loads its images through that URL, while an
+// unpublished webinar's images stay unguessable.
+//
+// Browser uploads must name their content type; a file without one fails the
+// type checks below and is refused.
+
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // User-scoped workspace assets
-    match /{userId}/{allPaths=**} {
-      // Allow read/delete if the authenticated user owns the directory
-      allow read, delete: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow create/update with file size limit (50MB) and valid content types
-      allow create, update: if request.auth != null 
-        && request.auth.uid == userId
-        && request.resource.size < 50 * 1024 * 1024;
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function sizeUnder(megabytes) {
+      return request.resource.size < megabytes * 1024 * 1024;
+    }
+
+    // Pictures the pages render. SVG and HTML are refused on purpose: the app
+    // re-encodes every upload to one of these three formats.
+    function isPhoto() {
+      return request.resource.contentType.matches('image/(png|jpeg|webp)');
+    }
+
+    function isWorkspaceRole(role) {
+      return role in ['logo', 'brand_photo', 'product', 'background', 'document', 'reference'];
+    }
+
+    // What the Webinar Upload page accepts: pictures (SVG logos included),
+    // PDF, PowerPoint and plain text. A file the browser cannot name arrives
+    // as application/octet-stream.
+    function isWorkspaceFile() {
+      return request.resource.contentType.matches('image/(png|jpeg|webp|svg[+]xml)')
+        || request.resource.contentType.matches('application/pdf.*')
+        || request.resource.contentType.matches('text/plain.*')
+        || request.resource.contentType == 'application/octet-stream'
+        || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    }
+
+    // Registration page images (logo, photo, portrait).
+    match /{userId}/webinars/{allPaths=**} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isPhoto() && sizeUnder(5);
+    }
+
+    // Slide images.
+    match /{userId}/decks/{allPaths=**} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isPhoto() && sizeUnder(5);
+    }
+
+    // Workspace assets. The role folder is checked, so a signed-in user cannot
+    // write arbitrary folders of their own.
+    match /{userId}/{role}/{allPaths=**} {
+      allow read, delete: if isOwner(userId) && isWorkspaceRole(role);
+      allow create, update: if isOwner(userId) && isWorkspaceRole(role)
+        && isWorkspaceFile() && sizeUnder(50);
+    }
+
+    // Profile pictures. The app resizes them first; the 10 MB cap is a backstop.
+    match /user_avatars/{userId}/{allPaths=**} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.contentType.matches('image/(png|jpeg|webp|gif)')
+        && sizeUnder(10);
+    }
+
+    // Everything else is closed.
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

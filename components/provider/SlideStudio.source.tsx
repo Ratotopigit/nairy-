@@ -47,6 +47,8 @@ import { extractPalette, removeBackground } from "@/lib/image";
 import { exportPptx } from "@/lib/pptx";
 import { isSessionUuid } from "@/lib/chat-history";
 import { resolveArtForExport } from "@/lib/deck-art";
+import { needsStoring, storeSlideImage, uploadSlideFile } from "@/lib/deck-images";
+import { ImageError } from "@/lib/storage-upload";
 import { auth } from "@/lib/firebase/config";
 import { loadStudioContext } from "@/lib/workspace-context";
 import { saveWorkspaceMemory } from "@/lib/workspace-memory";
@@ -420,6 +422,38 @@ export default function Builder() {
     }, 500);
     return () => window.clearTimeout(timeout);
   }, [blueprintSessionId, description, fontSetId, messages, motion, paletteId, projectId, purpose, ratio, slideCount, slides, styleId]);
+
+  // Slide pictures are copied into the user's own Firebase Storage: a link to
+  // another site (what the deck workflow returns) or an inline copy (older
+  // decks) is uploaded once and the slide keeps the short Storage URL instead.
+  // At most three copies run at once; each one that lands changes `slides`,
+  // which runs this again and starts the next. A picture that fails stays as
+  // it was and is not retried until the page is reloaded.
+  const storingRef = useRef(new Set<string>());
+  const storeFailedRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!projectId || loadingProjectRef.current || !auth.currentUser) return;
+    const seen = new Set<string>();
+    for (const slide of slides) {
+      const src = slide.image;
+      if (!needsStoring(src) || seen.has(src) || storingRef.current.has(src) || storeFailedRef.current.has(src)) continue;
+      seen.add(src);
+      if (storingRef.current.size >= 3) break;
+      storingRef.current.add(src);
+      void storeSlideImage(projectId, src, { kind: slide.imageKind })
+        .then((url) => {
+          storingRef.current.delete(src);
+          setSlides((prev) => prev.map((s) => (s.image === src ? { ...s, image: url } : s)));
+        })
+        .catch((e) => {
+          console.warn("Could not copy a slide image into storage:", e);
+          storingRef.current.delete(src);
+          storeFailedRef.current.add(src);
+          // Nothing in `slides` changed, so nudge the effect to start the next one.
+          setSlides((prev) => [...prev]);
+        });
+    }
+  }, [slides, projectId]);
 
   // Keep the project id in the URL so a reload, a bookmark or a shared link
   // lands back on this deck instead of an empty studio.
@@ -834,11 +868,21 @@ export default function Builder() {
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0];
-          if (!file || !selected) return;
-          const reader = new FileReader();
-          reader.onload = () => patch(selected.id, { image: String(reader.result), useImage: true });
-          reader.readAsDataURL(file);
           event.target.value = "";
+          if (!file || !selected) return;
+          const slideId = selected.id;
+          setStatus({ text: "Uploading image…", tone: "working" });
+          uploadSlideFile(projectId, file)
+            .then((url) => {
+              patch(slideId, { image: url, useImage: true });
+              setStatus(null);
+            })
+            .catch((e) => {
+              setStatus({
+                text: e instanceof ImageError ? e.message : "The image couldn't be uploaded. Please try again.",
+                tone: "error",
+              });
+            });
         }}
       />
       <h1 className="sr-only">PowerPoint presentation builder</h1>

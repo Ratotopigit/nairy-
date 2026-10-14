@@ -102,6 +102,28 @@ export async function fitForSlide(
   }
 }
 
+/**
+ * Re-encodes any picture as a file that is safe to store and to put in a .pptx:
+ * a JPEG (flattened onto white), or a PNG when `keepAlpha` is set and the PNG
+ * is not too heavy. Also caps the long edge and drops hidden EXIF data.
+ */
+export async function imageToBlob(
+  src: string,
+  options: { keepAlpha?: boolean; max?: number } = {},
+): Promise<Blob> {
+  const img = await loadImage(src);
+  const { canvas, ctx } = toCanvas(img, options.max ?? 1600);
+  if (options.keepAlpha) {
+    const png = await canvasToBlob(canvas, "image/png");
+    if (png.size <= 2_500_000) return png;
+  }
+  // Transparent pixels would turn black in a JPEG, so paint white behind them.
+  ctx.globalCompositeOperation = "destination-over";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  return canvasToBlob(canvas, "image/jpeg", 0.88);
+}
+
 type RGB = [number, number, number];
 
 const hex = ([r, g, b]: RGB) =>

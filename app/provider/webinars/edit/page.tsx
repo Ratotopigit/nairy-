@@ -10,6 +10,7 @@ import { BrandPanel, ContentPanel, ImagesPanel, LayoutPanel } from "@/components
 import { ImagePicker } from "@/components/webinar/editor/ImagePicker";
 import { PreviewPane, type Device } from "@/components/webinar/editor/PreviewPane";
 import { getTemplate } from "@/lib/webinar-templates";
+import { moveInlineImagesToStorage } from "@/lib/webinar-images";
 import { hasPlaceholderContent, previewWebinar } from "@/lib/webinar-preview";
 import {
   getPrivate,
@@ -87,6 +88,25 @@ function Editor() {
       setWebinar(found);
       setStoredStatus(found.status);
       setLoadState("ready");
+      // Pictures saved before Storage was in use sit inside the document as
+      // data URLs. Move them into Storage now; the autosave then saves the
+      // short download URLs. Each field is only replaced if it still holds the
+      // old value, so an edit made meanwhile is never overwritten.
+      if ([found.image_url, found.portrait_url, found.logo_url].some((u) => u.startsWith("data:image/"))) {
+        void moveInlineImagesToStorage(found.id, found).then((moved) => {
+          if (!Object.keys(moved).length) return;
+          setWebinar((current) =>
+            current
+              ? {
+                  ...current,
+                  image_url: moved.image_url && current.image_url === found.image_url ? moved.image_url : current.image_url,
+                  portrait_url: moved.portrait_url && current.portrait_url === found.portrait_url ? moved.portrait_url : current.portrait_url,
+                  logo_url: moved.logo_url && current.logo_url === found.logo_url ? moved.logo_url : current.logo_url,
+                }
+              : current,
+          );
+        });
+      }
       try {
         const saved = await getPrivate(found.id);
         setJoinUrl(saved.join_url);
