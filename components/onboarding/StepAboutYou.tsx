@@ -62,7 +62,7 @@ export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
               onChange={(e) => onChange({ firstName: e.target.value })}
               placeholder="Shrawan"
               autoFocus
-              className="w-full rounded-2xl border border-border bg-card px-4 py-2.5 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground transition-all hover:border-border-strong focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+              className="w-full rounded-2xl border border-border bg-card px-4 py-2.5 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground transition-all hover:border-border-strong focus:border-[#3478F6] focus:ring-1 focus:ring-[#3478F6] focus:outline-none"
             />
           </div>
           <div>
@@ -76,7 +76,7 @@ export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
               value={data.lastName}
               onChange={(e) => onChange({ lastName: e.target.value })}
               placeholder="Karki"
-              className="w-full rounded-2xl border border-border bg-card px-4 py-2.5 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground transition-all hover:border-border-strong focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+              className="w-full rounded-2xl border border-border bg-card px-4 py-2.5 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground transition-all hover:border-border-strong focus:border-[#3478F6] focus:ring-1 focus:ring-[#3478F6] focus:outline-none"
             />
           </div>
         </div>
@@ -101,9 +101,9 @@ export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
                 key={role}
                 type="button"
                 onClick={() => onChange({ role })}
-                className={`group relative flex items-center justify-between rounded-2xl border px-3.5 py-3 text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                className={`group relative flex items-center justify-between rounded-2xl border px-3.5 py-3 text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3478F6] focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                   isSelected
-                    ? "border-primary bg-primary/5 text-primary ring-1 ring-primary"
+                    ? "border-[#3478F6] bg-[#DBEAFE]/30 text-[#1D4F91] ring-1 ring-[#3478F6]"
                     : "border-border bg-card text-foreground hover:border-border-strong hover:bg-muted"
                 }`}
               >
@@ -111,7 +111,7 @@ export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
                   <Icon
                     className={`size-4 shrink-0 transition-colors ${
                       isSelected
-                        ? "text-primary"
+                        ? "text-[#3478F6]"
                         : "text-muted-foreground group-hover:text-foreground"
                     }`}
                   />
@@ -124,7 +124,7 @@ export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
                   <motion.div
                     initial={{ scale: 0.6, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[#3478F6] text-white"
                   >
                     <Check className="size-2.5 stroke-[3]" />
                   </motion.div>
@@ -152,7 +152,7 @@ export function StepAboutYou({ data, onChange }: StepAboutYouProps) {
               value={data.customRole || ""}
               onChange={(e) => onChange({ customRole: e.target.value })}
               placeholder="e.g., Fractional CMO, Community Builder"
-              className="w-full sm:w-1/2 rounded-2xl border border-border bg-card px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground transition-all hover:border-border-strong focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+              className="w-full sm:w-1/2 rounded-2xl border border-border bg-card px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground transition-all hover:border-border-strong focus:border-[#3478F6] focus:ring-1 focus:ring-[#3478F6] focus:outline-none"
             />
           </motion.div>
         )}

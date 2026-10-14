@@ -285,7 +285,7 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@company.com"
-                    className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                    className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-[#3478F6] focus:outline-none focus:ring-2 focus:ring-[#3478F6]/20"
                   />
                 </div>
               </div>
@@ -309,7 +309,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-11 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                    className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-11 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-[#3478F6] focus:outline-none focus:ring-2 focus:ring-[#3478F6]/20"
                   />
                   <button
                     type="button"
@@ -333,7 +333,7 @@ export default function LoginPage() {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="size-4 rounded border-input accent-[color:var(--primary)]"
+                    className="size-4 rounded border-input accent-[#3478F6]"
                   />
                   <span>Remember me</span>
                 </label>
@@ -352,10 +352,10 @@ export default function LoginPage() {
                 whileTap={{ scale: 0.99 }}
                 type="submit"
                 disabled={isLoading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:opacity-70"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#3478F6] px-4 py-3.5 text-sm font-semibold text-white transition-all hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3478F6] focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:opacity-70"
               >
                 {isLoading ? (
-                  <span className="size-5 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+                  <span className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 ) : (
                   <>
                     <span>Sign in</span>

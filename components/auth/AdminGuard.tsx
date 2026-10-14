@@ -92,8 +92,8 @@ export default function AdminGuard({ children }: AdminGuardProps) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#faf8f3] text-center p-4">
         <div className="flex flex-col items-center max-w-sm space-y-3">
-          <div className="size-6 animate-spin rounded-full border-2 border-[#1f4d3d]/20 border-t-[#1f4d3d]" />
-          <p className="text-xs text-[#526a61] font-medium tracking-tight">
+          <div className="size-6 animate-spin rounded-full border-2 border-[#3478F6]/20 border-t-[#3478F6]" />
+          <p className="text-xs text-[#4B6B94] font-medium tracking-tight">
             Connecting to workspace server...
           </p>
         </div>

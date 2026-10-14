@@ -33,10 +33,10 @@ const config: Config = {
         "clay-foreground": "var(--clay-foreground)",
         ochre: "var(--ochre)",
         brand: {
-          light: "#F4F1E8",
-          lightSurface: "#FFFEFB",
-          accent: "#1F4D3D",
-          accentHover: "#173C31",
+          light: "#F0F6FF",
+          lightSurface: "#FFFFFF",
+          accent: "#3478F6",
+          accentHover: "#2563EB",
         },
       },
       fontFamily: {

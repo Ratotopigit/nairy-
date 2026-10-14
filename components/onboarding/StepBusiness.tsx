@@ -37,7 +37,7 @@ export function StepBusiness({ data, onChange }: StepBusinessProps) {
             onChange={(e) => onChange({ businessName: e.target.value })}
             placeholder="e.g., Summit Growth Partners, Acme Labs"
             autoFocus
-            className="w-full rounded-2xl border border-border bg-card py-3 pl-11 pr-4 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground transition-all hover:border-border-strong focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+            className="w-full rounded-2xl border border-border bg-card py-3 pl-11 pr-4 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground transition-all hover:border-border-strong focus:border-[#3478F6] focus:ring-1 focus:ring-[#3478F6] focus:outline-none"
           />
         </div>
       </div>

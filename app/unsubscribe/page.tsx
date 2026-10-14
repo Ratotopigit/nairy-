@@ -41,7 +41,7 @@ function Unsubscribe() {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#68736f]">Webinar Stack</p>
         {state === "done" ? (
           <>
-            <div className="mx-auto mt-5 grid size-11 place-items-center rounded-full bg-[#1f4d3d] text-white">
+            <div className="mx-auto mt-5 grid size-11 place-items-center rounded-full bg-[#3478F6] text-white">
               <Check className="size-5" />
             </div>
             <h1 className="mt-4 text-xl font-semibold">You&apos;re unsubscribed</h1>
@@ -68,7 +68,7 @@ function Unsubscribe() {
               type="button"
               onClick={() => void confirm()}
               disabled={state === "working"}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f4d3d] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16392d] disabled:opacity-70"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#3478F6] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#2563EB] disabled:opacity-70"
             >
               {state === "working" ? <Loader2 className="size-4 animate-spin" /> : null}
               Unsubscribe

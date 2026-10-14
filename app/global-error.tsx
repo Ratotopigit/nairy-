@@ -27,10 +27,10 @@ export default function GlobalError({ reset }: { reset: () => void }) {
               type="button"
               onClick={reset}
               style={{
-                background: "#1f4d3d",
+                background: "#3478F6",
                 border: 0,
                 borderRadius: 999,
-                color: "#fffefb",
+                color: "#ffffff",
                 cursor: "pointer",
                 fontSize: 14,
                 fontWeight: 600,
