@@ -46,7 +46,7 @@ import {
 import { extractPalette, removeBackground } from "@/lib/image";
 import { exportPptx } from "@/lib/pptx";
 import { isSessionUuid } from "@/lib/chat-history";
-import { resolveArtForExport } from "@/lib/deck-art";
+import { countUnembeddedArt, resolveArtForExport } from "@/lib/deck-art";
 import { needsStoring, storeSlideImage, uploadSlideFile } from "@/lib/deck-images";
 import { ImageError } from "@/lib/storage-upload";
 import { auth } from "@/lib/firebase/config";
@@ -773,7 +773,15 @@ export default function Builder() {
         logo,
         fileName: `${(slides[0]?.title || description.split(/[.\n]/)[0] || "presentation").slice(0, 40).trim()}.pptx`,
       });
-      setStatus({ text: `Downloaded .pptx — ${slides.length} slides`, tone: "success" });
+      const missing = countUnembeddedArt(exportSlides);
+      setStatus(
+        missing
+          ? {
+              text: `Downloaded .pptx — ${slides.length} slides, but ${missing} ${missing === 1 ? "picture" : "pictures"} could not be included. Check your connection and download again.`,
+              tone: "error",
+            }
+          : { text: `Downloaded .pptx — ${slides.length} slides`, tone: "success" },
+      );
     } catch (error) {
       // The blanket message hid the actual cause for a long time; say what
       // broke so the next report is diagnosable.

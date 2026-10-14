@@ -85,21 +85,37 @@ export async function fetchArtAsDataUrl(url: string): Promise<string | null> {
   return data?.found && data.data_url ? data.data_url : null;
 }
 
-/**
- * Reads one of our own Storage pictures straight from the browser. Unlike the
- * stock CDN, Firebase Storage answers with CORS headers, so no round trip
- * through n8n is needed.
- */
-async function fetchStorageAsDataUrl(url: string): Promise<string | null> {
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const blob = await res.blob();
-  return new Promise<string | null>((resolve) => {
+function blobToDataUrl(blob: Blob): Promise<string | null> {
+  return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
     reader.onerror = () => resolve(null);
     reader.readAsDataURL(blob);
   });
+}
+
+/**
+ * Reads one of our own Storage pictures as a data URL.
+ *
+ * A browser can show a Storage picture but cannot read its bytes: download
+ * links carry no CORS headers unless the bucket was configured for it, so a
+ * plain fetch() fails and the .pptx lost its photos without a word. Order:
+ *   1. /api/storage-image, our own function, which reads it server-side;
+ *   2. the link directly, which works once the bucket has CORS set (and in
+ *      local development, where that function does not run).
+ */
+async function fetchStorageAsDataUrl(url: string): Promise<string | null> {
+  for (const endpoint of [`/api/storage-image?u=${encodeURIComponent(url)}`, url]) {
+    try {
+      const res = await fetch(endpoint);
+      if (!res.ok) continue;
+      const dataUrl = await blobToDataUrl(await res.blob());
+      if (dataUrl) return dataUrl;
+    } catch {
+      // Try the next way.
+    }
+  }
+  return null;
 }
 
 /**
@@ -133,7 +149,8 @@ export async function resolveArtForExport(slides: Slide[]): Promise<Slide[]> {
   const urls = [...remote];
   const settled = await Promise.all(
     urls.map(async (url) => {
-      const dataUrl = await (isStorageUrl(url) ? fetchStorageAsDataUrl(url) : fetchArtAsDataUrl(url)).catch(() => null);
+      const viaStorage = isStorageUrl(url) ? await fetchStorageAsDataUrl(url) : null;
+      const dataUrl = viaStorage ?? (await fetchArtAsDataUrl(url).catch(() => null));
       if (!dataUrl) return null;
       return fitForSlide(dataUrl, { cutout: kindFor.get(url) === "cutout" });
     }),
@@ -151,4 +168,13 @@ export async function resolveArtForExport(slides: Slide[]): Promise<Slide[]> {
     const dataUrl = src ? inlined.get(src) : undefined;
     return dataUrl ? { ...slide, image: dataUrl } : slide;
   });
+}
+
+/**
+ * How many slides still point at a picture that is not embedded after
+ * resolveArtForExport. pptx.ts leaves those slides without their picture, so
+ * the studio uses this to say so instead of reporting a clean download.
+ */
+export function countUnembeddedArt(slides: Slide[]): number {
+  return slides.filter((slide) => slide.useImage && slide.image && !slide.image.startsWith("data:")).length;
 }
