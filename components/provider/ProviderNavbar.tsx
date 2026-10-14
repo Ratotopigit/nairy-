@@ -83,7 +83,7 @@ export default function ProviderNavbar() {
               >
                 {item.label}
                 <span
-                  className={`pointer-events-none absolute bottom-0 left-0 h-[2.5px] rounded-full bg-[#3478F6] transition-[width] duration-[400ms] ease-in-out ${
+                  className={`pointer-events-none absolute bottom-0 left-0 h-[2.5px] rounded-full bg-[#1f4d3d] transition-[width] duration-[400ms] ease-in-out ${
                     active ? "w-full" : "w-0 group-hover:w-full"
                   }`}
                 />
@@ -127,7 +127,7 @@ export default function ProviderNavbar() {
                     prefetch={true}
                     className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm transition-all duration-150 ${
                       active
-                        ? "bg-[#3478F6] text-white font-medium shadow-xs"
+                        ? "bg-[#1f4d3d] text-white font-medium shadow-xs"
                         : "text-muted-foreground hover:bg-card hover:text-foreground"
                     }`}
                   >

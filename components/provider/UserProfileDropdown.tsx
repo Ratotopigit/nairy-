@@ -619,7 +619,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
         aria-label="User profile settings"
         aria-haspopup="true"
         aria-expanded={isOpen}
-        className="group flex items-center gap-1.5 sm:gap-3 py-1 px-1.5 sm:px-2 rounded-xl transition-colors duration-150 hover:bg-[#DBEAFE]/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3478F6] cursor-pointer select-none shrink-0"
+        className="group flex items-center gap-1.5 sm:gap-3 py-1 px-1.5 sm:px-2 rounded-xl transition-colors duration-150 hover:bg-black/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nav-ink)] cursor-pointer select-none shrink-0"
       >
         {/* 1. Profile Picture / Initials of both names */}
         <div className="relative flex size-[34px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#9333ea] text-white shadow-xs">
@@ -704,7 +704,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                 type="button"
                 role="menuitem"
                 onClick={openPhotoModal}
-                className="group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-[var(--nav-ink)] transition-colors hover:bg-[#DBEAFE]/40 hover:text-[#1D4F91] cursor-pointer"
+                className="group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-[var(--nav-ink)] transition-colors hover:bg-[var(--nav-bg)] hover:text-black cursor-pointer"
               >
                 <div className="grid size-7 place-items-center rounded-lg border border-[var(--nav-border)] bg-[var(--nav-surface)] text-[var(--nav-muted)] transition-colors group-hover:border-[var(--nav-border-strong)] group-hover:text-[var(--nav-ink)]">
                   <Camera className="size-3.5" />
@@ -722,7 +722,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                 type="button"
                 role="menuitem"
                 onClick={openUsernameModal}
-                className="group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-[var(--nav-ink)] transition-colors hover:bg-[#DBEAFE]/40 hover:text-[#1D4F91] cursor-pointer"
+                className="group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-[var(--nav-ink)] transition-colors hover:bg-[var(--nav-bg)] hover:text-black cursor-pointer"
               >
                 <div className="grid size-7 place-items-center rounded-lg border border-[var(--nav-border)] bg-[var(--nav-surface)] text-[var(--nav-muted)] transition-colors group-hover:border-[var(--nav-border-strong)] group-hover:text-[var(--nav-ink)]">
                   <Edit3 className="size-3.5" />
@@ -741,7 +741,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                 href="/provider/billing"
                 role="menuitem"
                 onClick={() => setIsOpen(false)}
-                className="group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-[var(--nav-ink)] transition-colors hover:bg-[#DBEAFE]/40 hover:text-[#1D4F91] cursor-pointer"
+                className="group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-[var(--nav-ink)] transition-colors hover:bg-[var(--nav-bg)] hover:text-black cursor-pointer"
               >
                 <div className="grid size-7 place-items-center rounded-lg border border-[var(--nav-border)] bg-[var(--nav-surface)] text-[var(--nav-muted)] transition-colors group-hover:border-[var(--nav-border-strong)] group-hover:text-[var(--nav-ink)]">
                   <CreditCard className="size-3.5" />
@@ -863,7 +863,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                             placeholder="e.g. John"
                             autoFocus
                             maxLength={30}
-                            className="w-full rounded-xl border border-border-strong bg-card px-3.5 py-2.5 text-sm font-medium text-foreground outline-none transition focus:border-[#3478F6] focus:ring-2 focus:ring-[#3478F6]/20"
+                            className="w-full rounded-xl border border-border-strong bg-card px-3.5 py-2.5 text-sm font-medium text-foreground outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
                           />
                         </div>
 
@@ -884,7 +884,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                             }}
                             placeholder="e.g. Doe"
                             maxLength={30}
-                            className="w-full rounded-xl border border-border-strong bg-card px-3.5 py-2.5 text-sm font-medium text-foreground outline-none transition focus:border-[#3478F6] focus:ring-2 focus:ring-[#3478F6]/20"
+                            className="w-full rounded-xl border border-border-strong bg-card px-3.5 py-2.5 text-sm font-medium text-foreground outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
                           />
                         </div>
                       </div>
@@ -900,7 +900,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                       )}
 
                       {usernameSuccess && (
-                        <p className="flex items-center gap-1.5 text-xs text-[#3478F6] bg-[#DBEAFE] border border-[#3478F6]/30 rounded-xl px-3 py-2">
+                        <p className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 border border-primary rounded-xl px-3 py-2">
                           <Check className="size-3.5" /> Username updated successfully!
                         </p>
                       )}
@@ -917,7 +917,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                         <button
                           type="submit"
                           disabled={usernameSaving || !editFirstName.trim()}
-                          className="flex items-center gap-1.5 rounded-xl bg-[#3478F6] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2563EB] disabled:opacity-50 cursor-pointer"
+                          className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
                         >
                           {usernameSaving ? (
                             <>
@@ -1030,7 +1030,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                             type="button"
                             disabled={photoSaving || photoUrl === googleAccountPhoto}
                             onClick={handleUseGooglePhoto}
-                            className="shrink-0 rounded-xl bg-[#3478F6] text-white hover:bg-[#2563EB] text-xs font-semibold px-3 py-1.5 transition disabled:opacity-40 cursor-pointer"
+                            className="shrink-0 rounded-xl bg-primary text-primary-foreground hover:opacity-90 text-xs font-semibold px-3 py-1.5 transition disabled:opacity-40 cursor-pointer"
                           >
                             {photoUrl === googleAccountPhoto ? "Active" : "Use this"}
                           </button>
@@ -1048,7 +1048,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                         />
                         <div
                           onClick={() => fileInputRef.current?.click()}
-                          className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border-strong bg-background/40 p-5 text-center transition hover:border-[#3478F6] hover:bg-[#DBEAFE]/20"
+                          className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border-strong bg-background/40 p-5 text-center transition hover:border-foreground hover:bg-background"
                         >
                           <UploadCloud className="size-6 text-muted-foreground mb-1" />
                           <span className="text-xs font-semibold text-foreground">
@@ -1094,7 +1094,7 @@ export default function UserProfileDropdown({ className = "" }: UserProfileDropd
                             type="button"
                             disabled={photoSaving || (!selectedPhotoFile && !photoPreview)}
                             onClick={handleSavePhoto}
-                            className="flex items-center gap-1.5 rounded-xl bg-[#3478F6] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2563EB] disabled:opacity-50 cursor-pointer"
+                            className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
                           >
                             {photoSaving ? (
                               <>

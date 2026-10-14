@@ -38,13 +38,13 @@ function statusChip(webinar: Webinar, phase: SessionPhase): { label: string; cla
     case "live":
       return { label: "Live now", className: "bg-red-50 text-red-700" };
     case "upcoming":
-      return { label: "Upcoming", className: "bg-[#DBEAFE] text-[#1D4F91]" };
+      return { label: "Upcoming", className: "bg-emerald-50 text-emerald-700" };
     case "ended":
       return { label: "Ended", className: "bg-amber-50 text-amber-800" };
     case "closed":
       return { label: "Finished", className: "bg-secondary text-muted-foreground" };
     default:
-      return { label: "Published", className: "bg-[#DBEAFE] text-[#1D4F91]" };
+      return { label: "Published", className: "bg-emerald-50 text-emerald-700" };
   }
 }
 

@@ -770,7 +770,7 @@ ${result.risk_reversal}${
     return (
       <div className="grid min-h-[60vh] place-items-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-6 animate-spin text-[#3478F6]" />
+          <Loader2 className="size-6 animate-spin text-[#1f4d3d]" />
           <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
             Checking Strategy Workspace...
           </p>
@@ -828,7 +828,7 @@ ${result.risk_reversal}${
           viewBox="0 0 200 280"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="text-[#3478F6]"
+          className="text-[#1f4d3d]"
         >
           <path
             d="M200 280C170 240 140 200 155 140C165 110 145 70 115 50C140 80 135 125 115 155C95 185 130 240 200 280Z"
@@ -849,7 +849,7 @@ ${result.risk_reversal}${
         className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between border-b border-border/60 pb-5"
       >
         <div>
-          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-[#3478F6]">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1f4d3d]">
             <span>OFFER STRATEGY</span>
           </div>
 
@@ -866,7 +866,7 @@ ${result.risk_reversal}${
           {!result && (
             <div className="mt-3 flex items-center gap-5 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5 text-muted-foreground">
-                <MessageSquare className="size-3.5 text-[#3478F6]" /> Awaiting chat conversation import
+                <MessageSquare className="size-3.5 text-[#1f4d3d]" /> Awaiting chat conversation import
               </span>
             </div>
           )}
@@ -880,7 +880,7 @@ ${result.risk_reversal}${
                 <button
                   type="button"
                   onClick={() => void handleSaveWorkspace()}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#3478F6] bg-[#3478F6] px-3 py-1.5 text-xs font-medium text-white shadow-xs transition-all hover:bg-[#2563EB]"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#1f4d3d] bg-[#1f4d3d] px-3 py-1.5 text-xs font-medium text-white shadow-xs transition-all hover:bg-[#173c31]"
                   title="Save edited changes"
                 >
                   <Save className="size-3.5" /> Save changes
@@ -945,7 +945,7 @@ ${result.risk_reversal}${
                   href="/provider/webinar-chat"
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-foreground hover:bg-secondary/60"
                 >
-                  <MessageSquare className="size-3.5 text-[#3478F6]" /> Open Webinar Chat
+                  <MessageSquare className="size-3.5 text-[#1f4d3d]" /> Open Webinar Chat
                 </Link>
                 {result && (
                   <button
@@ -974,7 +974,7 @@ ${result.risk_reversal}${
 
       {/* Save Success Alert */}
       {saveSuccess && (
-        <div className="mb-4 flex items-center gap-2 rounded-xl border border-[#3478F6]/20 bg-[#DBEAFE]/50 px-4 py-2.5 text-xs font-medium text-[#1D4F91] animate-in fade-in">
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-[#1f4d3d]/20 bg-[#1f4d3d]/10 px-4 py-2.5 text-xs font-medium text-[#1f4d3d] animate-in fade-in">
           <Check className="size-4" /> Strategy changes saved successfully!
         </div>
       )}
@@ -992,7 +992,7 @@ ${result.risk_reversal}${
               className="inline-flex items-center gap-2 rounded-xl border border-[#ddd7ca] bg-[#fffefb] px-3.5 py-2.5 text-xs font-medium text-[#1d2a27] hover:bg-[#faf8f4] shadow-xs transition"
               title="Show Strategy Inputs"
             >
-              <SlidersHorizontal className="size-3.5 text-[#3478F6]" />
+              <SlidersHorizontal className="size-3.5 text-[#1f4d3d]" />
               <span>Show Strategy Inputs</span>
             </button>
           </div>
@@ -1002,7 +1002,7 @@ ${result.risk_reversal}${
               {/* Header */}
               <div className="flex items-center justify-between pb-3.5 mb-5 border-b border-[#eee8dc]">
                 <div className="flex items-center gap-2">
-                  <SlidersHorizontal className="size-3.5 text-[#3478F6]" />
+                  <SlidersHorizontal className="size-3.5 text-[#1f4d3d]" />
                   <span className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[#1d2a27]">
                     Strategy Inputs
                   </span>
@@ -1034,7 +1034,7 @@ ${result.risk_reversal}${
                     rows={3}
                     spellCheck={false}
                     placeholder="Enter your product, offer goal or primary outcome..."
-                    className="w-full resize-none rounded-xl border border-[#ddd7ca] bg-[#faf8f5] hover:bg-[#f5f0e6]/30 focus:bg-white p-3 text-xs leading-relaxed text-[#1d2a27] outline-none focus:border-[#3478F6] focus:ring-2 focus:ring-[#3478F6]/10 transition shadow-2xs placeholder:text-muted-foreground/60"
+                    className="w-full resize-none rounded-xl border border-[#ddd7ca] bg-[#faf8f5] hover:bg-[#f5f0e6]/30 focus:bg-white p-3 text-xs leading-relaxed text-[#1d2a27] outline-none focus:border-[#1f4d3d] focus:ring-2 focus:ring-[#1f4d3d]/10 transition shadow-2xs placeholder:text-muted-foreground/60"
                   />
                 </div>
 
@@ -1061,7 +1061,7 @@ ${result.risk_reversal}${
                           title={opt.full}
                           className={`py-1.5 text-xs font-medium rounded-lg transition-all text-center ${
                             isSelected
-                              ? "bg-white text-[#3478F6] font-semibold shadow-xs"
+                              ? "bg-white text-[#1f4d3d] font-semibold shadow-xs"
                               : "text-[#665e52] hover:text-[#1d2a27]"
                           }`}
                         >
@@ -1098,7 +1098,7 @@ ${result.risk_reversal}${
                         onChange={(e) => handleMinPriceChange(e.target.value)}
                         spellCheck={false}
                         placeholder="25k"
-                        className="w-full rounded-xl border border-[#ddd7ca] bg-[#faf8f5] hover:bg-[#f5f0e6]/30 focus:bg-white pl-6 pr-10 py-2 text-xs text-[#1d2a27] outline-none focus:border-[#3478F6] focus:ring-2 focus:ring-[#3478F6]/10 transition shadow-2xs font-mono"
+                        className="w-full rounded-xl border border-[#ddd7ca] bg-[#faf8f5] hover:bg-[#f5f0e6]/30 focus:bg-white pl-6 pr-10 py-2 text-xs text-[#1d2a27] outline-none focus:border-[#1f4d3d] focus:ring-2 focus:ring-[#1f4d3d]/10 transition shadow-2xs font-mono"
                       />
                       <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 font-mono">
                         Min
@@ -1114,7 +1114,7 @@ ${result.risk_reversal}${
                         onChange={(e) => handleMaxPriceChange(e.target.value)}
                         spellCheck={false}
                         placeholder="40k"
-                        className="w-full rounded-xl border border-[#ddd7ca] bg-[#faf8f5] hover:bg-[#f5f0e6]/30 focus:bg-white pl-6 pr-10 py-2 text-xs text-[#1d2a27] outline-none focus:border-[#3478F6] focus:ring-2 focus:ring-[#3478F6]/10 transition shadow-2xs font-mono"
+                        className="w-full rounded-xl border border-[#ddd7ca] bg-[#faf8f5] hover:bg-[#f5f0e6]/30 focus:bg-white pl-6 pr-10 py-2 text-xs text-[#1d2a27] outline-none focus:border-[#1f4d3d] focus:ring-2 focus:ring-[#1f4d3d]/10 transition shadow-2xs font-mono"
                       />
                       <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 font-mono">
                         Max
@@ -1131,12 +1131,12 @@ ${result.risk_reversal}${
                     type="button"
                     onClick={() => void buildOffer()}
                     disabled={saving}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#3478F6] hover:bg-[#2563EB] active:scale-[0.99] px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition-all disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f4d3d] hover:bg-[#173c31] active:scale-[0.99] px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition-all disabled:opacity-50"
                   >
                     {saving ? (
                       <Loader2 className="size-3.5 animate-spin text-white" />
                     ) : (
-                      <ArrowRight className="size-3.5 text-blue-100" />
+                      <ArrowRight className="size-3.5 text-emerald-200" />
                     )}
                     <span>{result ? "Update Strategy" : "Generate Strategy"}</span>
                   </button>
@@ -1160,7 +1160,7 @@ ${result.risk_reversal}${
             <div className="relative overflow-hidden rounded-2xl border border-[#ddd7ca] bg-[#fffefb] p-6 sm:p-8">
               <div className="absolute inset-x-0 top-0 h-1.5 bg-[#e9e4d8]">
                 <div
-                  className="h-full bg-[#3478F6] transition-all duration-700 ease-out"
+                  className="h-full bg-[#1f4d3d] transition-all duration-700 ease-out"
                   style={{
                     width: `${((stepIndex + 1) / OFFER_GENERATION_STEPS.length) * 100}%`,
                   }}
@@ -1168,7 +1168,7 @@ ${result.risk_reversal}${
               </div>
 
               <div className="mt-2 flex items-center justify-between">
-                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#3478F6]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#1f4d3d]">
                   <span>Synthesizing Strategy Workspace</span>
                 </div>
                 <span className="rounded-md bg-secondary px-2 py-0.5 font-mono text-[10px] font-medium text-muted-foreground">
@@ -1192,7 +1192,7 @@ ${result.risk_reversal}${
                       key={label}
                       className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 transition-all duration-300 ${
                         active
-                          ? "border-[#3478F6]/30 bg-[#DBEAFE]/40 text-[#1D4F91] font-medium"
+                          ? "border-[#1f4d3d]/30 bg-[#1f4d3d]/5 text-[#1f4d3d] font-medium"
                           : complete
                             ? "border-transparent text-foreground/80"
                             : "border-transparent text-muted-foreground/50"
@@ -1200,10 +1200,10 @@ ${result.risk_reversal}${
                     >
                       <span
                         className={`grid size-6 place-items-center rounded-lg text-xs ${
-                          active ? "bg-[#3478F6] text-white" : "bg-secondary"
+                          active ? "bg-[#1f4d3d] text-white" : "bg-secondary"
                         }`}
                       >
-                        {complete ? <Check className="size-3 text-[#3478F6]" /> : idx + 1}
+                        {complete ? <Check className="size-3 text-[#1f4d3d]" /> : idx + 1}
                       </span>
                       <span className="text-xs">{label}</span>
                       {active && (
@@ -1220,7 +1220,7 @@ ${result.risk_reversal}${
             /* EMPTY INITIAL STATE: KEPT COMPLETELY BLANK UNTIL CHAT IS IMPORTED */
             <div className="grid min-h-[520px] place-items-center rounded-2xl border border-dashed border-[#ddd7ca] bg-[#fffefb]/60 p-8 sm:p-12 text-center">
               <div className="max-w-lg space-y-4">
-                <div className="mx-auto grid size-12 place-items-center rounded-2xl border border-[#BFDBFE] bg-[#DBEAFE] text-[#1D4F91] shadow-xs">
+                <div className="mx-auto grid size-12 place-items-center rounded-2xl border border-[#d6e3d8] bg-[#edf3ee] text-[#1f4d3d] shadow-xs">
                   <MessageSquare className="size-6" />
                 </div>
 
@@ -1236,7 +1236,7 @@ ${result.risk_reversal}${
                 <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                   <Link
                     href="/provider/webinar-chat"
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full bg-[#3478F6] px-6 py-3 text-xs font-semibold text-white shadow-xs transition hover:bg-[#2563EB]"
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full bg-[#1f4d3d] px-6 py-3 text-xs font-semibold text-white shadow-xs transition hover:bg-[#173c31]"
                   >
                     Open Webinar Chat <ArrowRight className="size-4" />
                   </Link>
@@ -1257,19 +1257,19 @@ ${result.risk_reversal}${
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-[#263b34]">
                     <div className="space-y-1">
-                      <span className="font-semibold text-[#1D4F91]">1. Chat Discovery</span>
+                      <span className="font-semibold text-[#1f4d3d]">1. Chat Discovery</span>
                       <p className="text-[11px] text-muted-foreground">
                         Extract audience triggers, problem, and primary outcome in Webinar Chat.
                       </p>
                     </div>
                     <div className="space-y-1">
-                      <span className="font-semibold text-[#1D4F91]">2. Auto Import</span>
+                      <span className="font-semibold text-[#1f4d3d]">2. Auto Import</span>
                       <p className="text-[11px] text-muted-foreground">
                         Your answers populate the strategy inputs, pricing, and positioning angle.
                       </p>
                     </div>
                     <div className="space-y-1">
-                      <span className="font-semibold text-[#1D4F91]">3. Structured Offer</span>
+                      <span className="font-semibold text-[#1f4d3d]">3. Structured Offer</span>
                       <p className="text-[11px] text-muted-foreground">
                         An actionable delivery roadmap and risk reversal ready for slide creation.
                       </p>
@@ -1288,7 +1288,7 @@ ${result.risk_reversal}${
                 <div className="flex flex-col xl:flex-row items-start justify-between gap-6">
                   {/* Left Column: Product visual + title + Core Value Proposition (Editable) */}
                   <div className="flex items-start gap-4 min-w-0 flex-1 w-full">
-                    <div className="relative group size-16 sm:size-20 shrink-0 overflow-hidden rounded-2xl border border-[#BFDBFE] bg-gradient-to-br from-[#EFF6FF] to-[#DBEAFE] shadow-xs flex items-center justify-center">
+                    <div className="relative group size-16 sm:size-20 shrink-0 overflow-hidden rounded-2xl border border-[#d6e3d8] bg-gradient-to-br from-[#f0f5f1] to-[#e4ede5] shadow-xs flex items-center justify-center">
                       {productImage ? (
                         <img
                           src={productImage}
@@ -1297,10 +1297,10 @@ ${result.risk_reversal}${
                         />
                       ) : (
                         <div className="flex flex-col items-center justify-center text-center p-1.5">
-                          <span className="font-serif text-xl sm:text-2xl font-bold text-[#1D4F91]">
+                          <span className="font-serif text-xl sm:text-2xl font-bold text-[#1f4d3d]">
                             {getProductInitials(result.title)}
                           </span>
-                          <span className="font-mono text-[8px] uppercase tracking-wider text-[#3478F6] font-semibold">
+                          <span className="font-mono text-[8px] uppercase tracking-wider text-[#1f4d3d]/70 font-semibold">
                             OFFER
                           </span>
                         </div>
@@ -1322,7 +1322,7 @@ ${result.risk_reversal}${
 
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#3478F6]">
+                        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1f4d3d]">
                           CORE OFFER
                         </span>
                       </div>
@@ -1334,7 +1334,7 @@ ${result.risk_reversal}${
                         onChange={(e) => updateResultField("title", e.target.value)}
                         placeholder="Offer Title..."
                         spellCheck={false}
-                        className="font-serif text-2xl sm:text-[28px] font-semibold text-[#1d2a27] leading-tight w-full bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded-lg px-2 py-0.5 outline-none transition"
+                        className="font-serif text-2xl sm:text-[28px] font-semibold text-[#1d2a27] leading-tight w-full bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded-lg px-2 py-0.5 outline-none transition"
                       />
 
                       {/* Core Value Proposition & Primary Outcome */}
@@ -1362,7 +1362,7 @@ ${result.risk_reversal}${
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-0 sm:divide-x divide-[#e8dfcf] items-center text-center">
                       {/* 1. Timeline */}
                       <div className="flex flex-col items-center p-2 sm:px-1.5 sm:py-1 min-w-0 rounded-lg bg-card sm:bg-transparent border border-border/40 sm:border-none">
-                        <Calendar className="size-4 text-[#3478F6] mb-1 sm:mb-1.5 shrink-0" />
+                        <Calendar className="size-4 text-[#1f4d3d] mb-1 sm:mb-1.5 shrink-0" />
                         <input
                           type="text"
                           value={result.timeline}
@@ -1370,14 +1370,14 @@ ${result.risk_reversal}${
                           placeholder="6 weeks"
                           spellCheck={false}
                           title={result.timeline}
-                          className="text-xs font-semibold text-[#1d2a27] bg-transparent text-center border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded px-0.5 w-full outline-none transition truncate"
+                          className="text-xs font-semibold text-[#1d2a27] bg-transparent text-center border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded px-0.5 w-full outline-none transition truncate"
                         />
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mt-0.5">Timeline</span>
                       </div>
 
                       {/* 2. Delivery */}
                       <div className="flex flex-col items-center p-2 sm:px-1.5 sm:py-1 min-w-0 rounded-lg bg-card sm:bg-transparent border border-border/40 sm:border-none">
-                        <Package className="size-4 text-[#3478F6] mb-1 sm:mb-1.5 shrink-0" />
+                        <Package className="size-4 text-[#1f4d3d] mb-1 sm:mb-1.5 shrink-0" />
                         <input
                           type="text"
                           value={result.delivery_model}
@@ -1385,14 +1385,14 @@ ${result.risk_reversal}${
                           placeholder="Done-for-you"
                           spellCheck={false}
                           title={result.delivery_model}
-                          className="text-xs font-semibold text-[#1d2a27] bg-transparent text-center border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded px-0.5 w-full outline-none transition truncate"
+                          className="text-xs font-semibold text-[#1d2a27] bg-transparent text-center border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded px-0.5 w-full outline-none transition truncate"
                         />
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mt-0.5">Delivery</span>
                       </div>
 
                       {/* 3. Investment */}
                       <div className="flex flex-col items-center p-2 sm:px-1.5 sm:py-1 min-w-0 rounded-lg bg-card sm:bg-transparent border border-border/40 sm:border-none">
-                        <Coins className="size-4 text-[#3478F6] mb-1 sm:mb-1.5 shrink-0" />
+                        <Coins className="size-4 text-[#1f4d3d] mb-1 sm:mb-1.5 shrink-0" />
                         <input
                           type="text"
                           value={result.pricing}
@@ -1400,14 +1400,14 @@ ${result.risk_reversal}${
                           placeholder="$25k – $40k"
                           spellCheck={false}
                           title={result.pricing}
-                          className="text-xs font-semibold text-[#1d2a27] bg-transparent text-center border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded px-0.5 w-full outline-none transition truncate"
+                          className="text-xs font-semibold text-[#1d2a27] bg-transparent text-center border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded px-0.5 w-full outline-none transition truncate"
                         />
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mt-0.5">Investment</span>
                       </div>
 
                       {/* 4. Traffic */}
                       <div className="flex flex-col items-center p-2 sm:px-1.5 sm:py-1 min-w-0 rounded-lg bg-card sm:bg-transparent border border-border/40 sm:border-none">
-                        <Megaphone className="size-4 text-[#3478F6] mb-1 sm:mb-1.5 shrink-0" />
+                        <Megaphone className="size-4 text-[#1f4d3d] mb-1 sm:mb-1.5 shrink-0" />
                         <input
                           type="text"
                           value={getGlanceTrafficDisplay(result.traffic_strategy)}
@@ -1415,7 +1415,7 @@ ${result.risk_reversal}${
                           placeholder="Organic"
                           spellCheck={false}
                           title={result.traffic_strategy}
-                          className="text-xs font-semibold text-[#1d2a27] bg-transparent text-center border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded px-0.5 w-full outline-none transition truncate"
+                          className="text-xs font-semibold text-[#1d2a27] bg-transparent text-center border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded px-0.5 w-full outline-none transition truncate"
                         />
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mt-0.5">Traffic</span>
                       </div>
@@ -1430,7 +1430,7 @@ ${result.risk_reversal}${
                   {/* Left Column: Target Audience & Strategic Positioning */}
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <Target className="size-4 text-[#3478F6]" />
+                      <Target className="size-4 text-[#1f4d3d]" />
                       <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1d2a27]">
                         TARGET AUDIENCE & POSITIONING
                       </h3>
@@ -1471,7 +1471,7 @@ ${result.risk_reversal}${
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Check className="size-4 text-[#3478F6] stroke-[2.5]" />
+                        <Check className="size-4 text-[#1f4d3d] stroke-[2.5]" />
                         <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1d2a27]">
                           KEY VALUE DRIVERS
                         </h3>
@@ -1479,7 +1479,7 @@ ${result.risk_reversal}${
                       <button
                         type="button"
                         onClick={addKeyMessage}
-                        className="inline-flex items-center gap-1 text-[11px] text-[#3478F6] hover:underline font-medium"
+                        className="inline-flex items-center gap-1 text-[11px] text-[#1f4d3d] hover:underline font-medium"
                       >
                         <Plus className="size-3" /> Add bullet
                       </button>
@@ -1491,7 +1491,7 @@ ${result.risk_reversal}${
                           key={i}
                           className="flex items-center gap-2 group rounded-xl border border-[#e8dfcf]/60 bg-[#faf8f4]/60 px-3 py-2 hover:bg-[#faf8f4] hover:border-[#e8dfcf] transition"
                         >
-                          <Check className="size-3.5 text-[#3478F6] stroke-[2.5] shrink-0" />
+                          <Check className="size-3.5 text-[#1f4d3d] stroke-[2.5] shrink-0" />
                           <input
                             type="text"
                             value={msg}
@@ -1518,7 +1518,7 @@ ${result.risk_reversal}${
               {/* SECTION 10: THE OFFER & DELIVERY PLAN (Editable) */}
               <div id="section-delivery" className="pt-8">
                 <div className="flex items-center gap-2">
-                  <Calendar className="size-4 text-[#3478F6]" />
+                  <Calendar className="size-4 text-[#1f4d3d]" />
                   <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1d2a27]">
                     THE OFFER & DELIVERY PLAN
                   </h3>
@@ -1533,10 +1533,10 @@ ${result.risk_reversal}${
                     const StepIcon = step.icon;
                     return (
                       <div key={step.num} className="contents">
-                        <div className="group relative flex flex-col justify-between flex-1 min-w-0 rounded-xl border border-[#e8dfcf] bg-[#faf8f4] p-3.5 hover:border-[#3478F6]/50 transition-all min-h-[170px]">
+                        <div className="group relative flex flex-col justify-between flex-1 min-w-0 rounded-xl border border-[#e8dfcf] bg-[#faf8f4] p-3.5 hover:border-[#1f4d3d]/50 transition-all min-h-[170px]">
                           <div>
                             <div className="flex items-center justify-between">
-                              <div className="grid size-7 place-items-center rounded-lg bg-[#DBEAFE] text-[#1D4F91]">
+                              <div className="grid size-7 place-items-center rounded-lg bg-[#edf3ee] text-[#1f4d3d]">
                                 <StepIcon className="size-3.5" />
                               </div>
                               <span className="font-mono text-xs font-bold text-muted-foreground">{step.num}</span>
@@ -1548,7 +1548,7 @@ ${result.risk_reversal}${
                               onChange={(e) => updateScopeStep(idx, e.target.value, step.desc)}
                               placeholder={`Phase 0${idx + 1}`}
                               spellCheck={false}
-                              className="mt-3 text-xs font-semibold text-[#1d2a27] bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded px-1.5 py-0.5 outline-none transition w-full"
+                              className="mt-3 text-xs font-semibold text-[#1d2a27] bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded px-1.5 py-0.5 outline-none transition w-full"
                             />
                             {/* Editable Step Description - 4 rows so sentences never cut off */}
                             <textarea
@@ -1557,7 +1557,7 @@ ${result.risk_reversal}${
                               rows={4}
                               spellCheck={false}
                               placeholder="Step deliverables and outcomes..."
-                              className="mt-1 text-[11px] leading-relaxed text-muted-foreground w-full bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded px-1.5 py-1 outline-none resize-none transition"
+                              className="mt-1 text-[11px] leading-relaxed text-muted-foreground w-full bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded px-1.5 py-1 outline-none resize-none transition"
                             />
                           </div>
                         </div>
@@ -1582,7 +1582,7 @@ ${result.risk_reversal}${
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <Package className="size-4 text-[#3478F6]" />
+                        <Package className="size-4 text-[#1f4d3d]" />
                         <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1d2a27]">
                           INVESTMENT BREAKDOWN
                         </h3>
@@ -1597,7 +1597,7 @@ ${result.risk_reversal}${
                         onChange={(e) => updateResultField("pricing", e.target.value)}
                         placeholder="$25k – $40k"
                         spellCheck={false}
-                        className="mt-1 font-serif text-xl sm:text-2xl font-semibold text-[#1d2a27] bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded-lg px-2 py-0.5 outline-none transition w-full"
+                        className="mt-1 font-serif text-xl sm:text-2xl font-semibold text-[#1d2a27] bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded-lg px-2 py-0.5 outline-none transition w-full"
                       />
                     </div>
                     {/* Editable Anchor Context */}
@@ -1608,7 +1608,7 @@ ${result.risk_reversal}${
                         rows={2}
                         spellCheck={false}
                         placeholder="Value anchor notes..."
-                        className="text-[11px] text-muted-foreground leading-relaxed bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded-lg p-1.5 outline-none resize-none transition w-full"
+                        className="text-[11px] text-muted-foreground leading-relaxed bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded-lg p-1.5 outline-none resize-none transition w-full"
                       />
                     </div>
                   </div>
@@ -1620,7 +1620,7 @@ ${result.risk_reversal}${
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <Star className="size-4 text-[#3478F6]" />
+                        <Star className="size-4 text-[#1f4d3d]" />
                         <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1d2a27]">
                           WHY IT WORKS
                         </h3>
@@ -1632,7 +1632,7 @@ ${result.risk_reversal}${
                         rows={3}
                         spellCheck={false}
                         placeholder="Explanation of why this strategy converts and eliminates risk..."
-                        className="mt-3 text-xs leading-relaxed text-[#1d2a27] bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded-lg p-2 outline-none resize-none transition w-full"
+                        className="mt-3 text-xs leading-relaxed text-[#263b34] bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded-lg p-2 outline-none resize-none transition w-full"
                       />
                     </div>
                     <div className="mt-3 border-t border-[#e8dfcf] pt-3 flex items-center justify-between text-[11px] text-muted-foreground">
@@ -1644,7 +1644,7 @@ ${result.risk_reversal}${
                           setHasUnsavedChanges(true);
                         }}
                         spellCheck={false}
-                        className="bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded px-1 py-0.5 outline-none transition text-muted-foreground text-xs"
+                        className="bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded px-1 py-0.5 outline-none transition text-muted-foreground text-xs"
                       />
                       <input
                         type="text"
@@ -1654,7 +1654,7 @@ ${result.risk_reversal}${
                           setHasUnsavedChanges(true);
                         }}
                         spellCheck={false}
-                        className="bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#3478F6]/50 rounded px-1 py-0.5 outline-none transition text-[#3478F6] font-semibold text-right text-xs"
+                        className="bg-transparent hover:bg-[#faf8f4] focus:bg-[#faf8f4] border border-transparent hover:border-[#ddd7ca] focus:border-[#1f4d3d]/50 rounded px-1 py-0.5 outline-none transition text-[#1f4d3d] font-semibold text-right text-xs"
                       />
                     </div>
                   </div>
@@ -1664,7 +1664,7 @@ ${result.risk_reversal}${
               {/* HOW TO SELL AND GROW IT (editable) */}
               <div id="section-sell-grow" className="pt-8">
                 <div className="flex items-center gap-2">
-                  <Send className="size-4 text-[#3478F6]" />
+                  <Send className="size-4 text-[#1f4d3d]" />
                   <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1d2a27]">
                     HOW TO SELL IT AND GROW IT
                   </h3>
@@ -1687,7 +1687,7 @@ ${result.risk_reversal}${
                           <button
                             type="button"
                             onClick={() => addPlanItem(field)}
-                            className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-[#3478F6] hover:underline"
+                            className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-[#1f4d3d] hover:underline"
                           >
                             <Plus className="size-3" /> Add
                           </button>
@@ -1698,11 +1698,11 @@ ${result.risk_reversal}${
                             const label = numbered && colon > 0 && colon < 48 ? item.slice(0, colon) : "";
                             return (
                               <li key={i} className="group flex items-start gap-2 rounded-lg border border-[#e8dfcf]/60 bg-white/60 p-2.5">
-                                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-[#3478F6] text-[10px] font-bold text-white">
+                                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-[#1f4d3d] text-[10px] font-bold text-white">
                                   {numbered ? i + 1 : <Check className="size-3 stroke-[3]" />}
                                 </span>
                                 <div className="min-w-0 flex-1">
-                                  {label ? <p className="text-[11px] font-semibold uppercase tracking-wide text-[#3478F6]">{label}</p> : null}
+                                  {label ? <p className="text-[11px] font-semibold uppercase tracking-wide text-[#1f4d3d]">{label}</p> : null}
                                   <textarea
                                     value={label ? item.slice(colon + 1).trimStart() : item}
                                     onChange={(e) => updatePlanItem(field, i, label ? `${label}: ${e.target.value}` : e.target.value)}
@@ -1744,7 +1744,7 @@ ${result.risk_reversal}${
                     onClick={() => void handleSaveWorkspace()}
                     className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-medium transition ${
                       hasUnsavedChanges
-                        ? "bg-[#3478F6] text-white border-[#3478F6] shadow-xs"
+                        ? "bg-[#1f4d3d] text-white border-[#1f4d3d] shadow-xs"
                         : "border-[#ddd7ca] bg-[#fffefb] text-foreground hover:bg-secondary/50"
                     }`}
                   >
@@ -1759,7 +1759,7 @@ ${result.risk_reversal}${
                   </button>
                   <Link
                     href="/provider/webinar-content"
-                    className="inline-flex items-center gap-2 rounded-full bg-[#3478F6] px-5 py-2 text-xs font-semibold text-white hover:bg-[#2563EB] transition shadow-xs"
+                    className="inline-flex items-center gap-2 rounded-full bg-[#1f4d3d] px-5 py-2 text-xs font-semibold text-white hover:bg-[#173c31] transition shadow-xs"
                   >
                     Create webinar deck <ArrowRight className="size-3.5" />
                   </Link>

@@ -45,7 +45,7 @@ export function OnboardingProgress({
       {/* Progress Bar */}
       <div className="h-1 w-full bg-muted">
         <motion.div
-          className="h-full bg-[#3478F6]"
+          className="h-full bg-primary"
           initial={{ width: "0%" }}
           animate={{ width: `${percentage}%` }}
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}

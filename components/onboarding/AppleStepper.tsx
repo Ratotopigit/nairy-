@@ -39,11 +39,11 @@ export function AppleStepper({
                 whileTap={isClickable ? { scale: 0.95 } : undefined}
                 aria-label={`Step ${step}${stepTitles ? `: ${stepTitles[step - 1]}` : ""}`}
                 aria-current={isCurrent ? "step" : undefined}
-                className={`relative flex size-7 sm:size-8 shrink-0 items-center justify-center rounded-full text-xs transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3478F6] focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                className={`relative flex size-7 sm:size-8 shrink-0 items-center justify-center rounded-full text-xs transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                   isCurrent
-                    ? "bg-[#3478F6] text-white font-bold border-2 border-[#3478F6] scale-105"
+                    ? "bg-primary text-primary-foreground font-bold border-2 border-primary scale-105"
                     : isCompleted
-                    ? "bg-[#3478F6] text-white border-2 border-[#3478F6] font-medium cursor-pointer"
+                    ? "bg-primary text-primary-foreground border-2 border-primary font-medium cursor-pointer"
                     : "border border-border bg-card text-muted-foreground font-medium cursor-default"
                 }`}
               >
@@ -68,7 +68,7 @@ export function AppleStepper({
         <div className="mt-3 text-center">
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
             Step {currentStep} of {totalSteps} •{" "}
-            <span className="font-bold text-[#3478F6]">
+            <span className="font-bold text-primary">
               {stepTitles[currentStep - 1]}
             </span>
           </span>
@@ -78,7 +78,7 @@ export function AppleStepper({
       {/* Progress Bar Divider Line */}
       <div className="relative w-full mt-4 h-px bg-border">
         <motion.div
-          className="absolute top-0 left-0 h-[3px] -translate-y-[1px] bg-[#3478F6] rounded-full"
+          className="absolute top-0 left-0 h-[3px] -translate-y-[1px] bg-primary rounded-full"
           initial={false}
           animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}

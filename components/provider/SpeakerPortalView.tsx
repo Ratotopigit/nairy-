@@ -50,7 +50,7 @@ export default function SpeakerPortalView() {
             if (isSaved) setIsSaved(false);
           }}
           placeholder="Enter YouTube video link..."
-          className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#3478F6] focus:outline-none focus:ring-2 focus:ring-[#3478F6]/20 transition-all"
+          className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#1f4d3d] focus:outline-none focus:ring-2 focus:ring-[#1f4d3d]/20 transition-all"
         />
 
         {/* Buttons */}
@@ -60,7 +60,7 @@ export default function SpeakerPortalView() {
             onClick={handleSave}
             whileTap={{ scale: 0.96 }}
             animate={{
-              backgroundColor: isSaved ? "#2563EB" : "#3478F6",
+              backgroundColor: isSaved ? "#166534" : "#1f4d3d",
               scale: isSaved ? [1, 1.04, 1] : 1,
             }}
             transition={{ duration: 0.25 }}

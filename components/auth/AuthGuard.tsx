@@ -83,7 +83,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             className="h-10 w-auto opacity-80"
           />
           <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <div className="size-4 animate-spin rounded-full border-2 border-[#3478F6]/25 border-t-[#3478F6]" />
+            <div className="size-4 animate-spin rounded-full border-2 border-[#1f4d3d]/25 border-t-[#1f4d3d]" />
             <span>Loading workspace...</span>
           </div>
         </div>

@@ -304,13 +304,13 @@ function Editor() {
       ) : null}
 
       {published && storedStatus === "published" ? (
-        <div className="reg-rise mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[#BFDBFE] bg-[#DBEAFE]/40 px-4 py-2.5 text-sm">
-          <span className="font-medium text-[#1D4F91]">Live</span>
-          <code className="min-w-0 flex-1 truncate text-xs text-[#4B6B94]">{shareUrl}</code>
+        <div className="reg-rise mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm">
+          <span className="font-medium text-emerald-800">Live</span>
+          <code className="min-w-0 flex-1 truncate text-xs text-emerald-900/80">{shareUrl}</code>
           <button
             type="button"
             onClick={() => void copyLink()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-[#1D4F91] shadow-sm transition hover:bg-[#DBEAFE]/60"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 shadow-sm transition hover:bg-emerald-100"
           >
             <Copy className="size-3.5" />
             {copied ? "Copied" : "Copy link"}
@@ -319,7 +319,7 @@ function Editor() {
             href={shareUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-[#1D4F91] shadow-sm transition hover:bg-[#DBEAFE]/60"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 shadow-sm transition hover:bg-emerald-100"
           >
             <ExternalLink className="size-3.5" />
             Open

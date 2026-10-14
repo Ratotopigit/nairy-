@@ -45,13 +45,13 @@ export function StepChoosePlan({
               key={plan.id}
               className={`relative flex flex-col justify-between rounded-2xl border p-4 transition-all duration-200 ${
                 isPopular
-                  ? "border-[#3478F6] bg-[#DBEAFE]/20 ring-1 ring-[#3478F6]"
+                  ? "border-primary bg-primary/[0.02] ring-1 ring-primary"
                   : "border-border bg-card hover:border-border-strong"
               }`}
             >
               {isPopular && (
                 <div className="absolute -top-2.5 right-4">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[#3478F6] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-primary-foreground">
                     <Sparkles className="size-2.5" />
                     Popular
                   </span>
@@ -79,7 +79,7 @@ export function StepChoosePlan({
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{plan.note}</p>
                 {plan.badge ? (
-                  <span className="mt-2 inline-flex w-fit rounded-full bg-[#DBEAFE] px-2 py-0.5 text-[10px] font-semibold text-[#1D4F91]">
+                  <span className="mt-2 inline-flex w-fit rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                     {plan.badge}
                   </span>
                 ) : null}
@@ -90,9 +90,9 @@ export function StepChoosePlan({
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => onSelectAndSubmit(plan.id)}
-                  className={`w-full py-2.5 px-3 rounded-full font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 disabled:cursor-wait disabled:opacity-70 focus:outline-none focus:ring-1 focus:ring-[#3478F6] ${
+                  className={`w-full py-2.5 px-3 rounded-full font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 disabled:cursor-wait disabled:opacity-70 focus:outline-none focus:ring-1 focus:ring-primary ${
                     isPopular
-                      ? "bg-[#3478F6] text-white hover:bg-[#2563EB]"
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
                       : "bg-muted text-foreground border border-border hover:bg-secondary"
                   }`}
                 >
@@ -114,7 +114,7 @@ export function StepChoosePlan({
       <ul className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-3">
         {PLAN_FEATURES.map((feature) => (
           <li key={feature} className="flex items-start gap-2 text-xs text-foreground leading-snug">
-            <span className="flex size-3.5 shrink-0 items-center justify-center rounded-full bg-[#3478F6] text-white mt-0.5">
+            <span className="flex size-3.5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground mt-0.5">
               <Check className="size-2 stroke-[3]" />
             </span>
             <span>{feature}</span>

@@ -377,7 +377,7 @@ export default function OnboardingPage() {
               type="button"
               disabled={!isStepValid(currentStep)}
               onClick={handleNext}
-              className="flex shrink-0 items-center gap-2 rounded-full bg-[#3478F6] px-7 py-3 text-sm font-semibold text-white transition-all hover:bg-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3478F6] focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex shrink-0 items-center gap-2 rounded-full bg-primary px-7 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span>Continue</span>
               <ArrowRight className="size-4" />
