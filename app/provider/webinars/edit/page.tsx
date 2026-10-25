@@ -170,7 +170,7 @@ function Editor() {
 
   useEffect(() => {
     if (tab !== "registrants" || !webinar) return;
-    setRegistrants(null);
+    // No reset to null here: a revisit keeps the last list on screen while it refreshes.
     listRegistrants(webinar.id)
       .then(setRegistrants)
       .catch((e) => {

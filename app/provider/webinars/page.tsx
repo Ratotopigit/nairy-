@@ -59,6 +59,8 @@ function Webinars() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [registrantsOpened, setRegistrantsOpened] = useState(tab === "registrants");
+  if (tab === "registrants" && !registrantsOpened) setRegistrantsOpened(true);
   // Webinar pre-selected on the Registrants tab (from a card, or ?w= in the URL).
   const [focusWebinar, setFocusWebinar] = useState<string | undefined>(params.get("w") ?? undefined);
   // History = sessions that finished over a week ago (their page is hidden).
@@ -175,8 +177,9 @@ function Webinars() {
         </p>
       ) : null}
 
-      {tab === "registrants" ? (
-        <div className="mt-5">
+      {/* Stays mounted once opened, so filters and loaded rows survive a tab switch. */}
+      {registrantsOpened ? (
+        <div className="mt-5" hidden={tab !== "registrants"}>
           {webinars === null ? (
             <div className="grid h-40 place-items-center">
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -185,7 +188,8 @@ function Webinars() {
             <RegistrantsBoard key={focusWebinar ?? "all"} webinars={webinars} initialWebinarId={focusWebinar} />
           )}
         </div>
-      ) : (
+      ) : null}
+      {tab === "registrants" ? null : (
         <div className="mt-5 space-y-3">
           {webinars !== null && webinars.length > 0 ? (
             <div className="flex gap-1">

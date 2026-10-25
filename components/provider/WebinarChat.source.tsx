@@ -1510,7 +1510,7 @@ export default function PresentationChat() {
           {blueprintExpanded ? (
             <ChevronUp className="size-4 text-primary transition-transform duration-200 group-hover:-translate-y-0.5" />
           ) : (
-            <ChevronDown className="size-4 text-primary transition-transform duration-300 group-hover:translate-y-0.5 animate-bounce" />
+            <ChevronDown className="size-4 text-primary transition-transform duration-300 group-hover:translate-y-0.5" />
           )}
         </button>
 

@@ -5,7 +5,6 @@ import { ArrowUpRight, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
 import UserProfileDropdown from "./UserProfileDropdown";
 
 const navItems = [
@@ -83,7 +82,7 @@ export default function ProviderNavbar() {
               >
                 {item.label}
                 <span
-                  className={`pointer-events-none absolute bottom-0 left-0 h-[2.5px] rounded-full bg-[#1f4d3d] transition-[width] duration-[400ms] ease-in-out ${
+                  className={`pointer-events-none absolute bottom-0 left-0 h-[2.5px] rounded-full bg-[#1f4d3d] transition-[width] duration-200 ease-out motion-reduce:transition-none ${
                     active ? "w-full" : "w-0 group-hover:w-full"
                   }`}
                 />
@@ -97,8 +96,9 @@ export default function ProviderNavbar() {
         <button
           type="button"
           aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={menuOpen}
           onClick={() => setMenuOpen((open) => !open)}
-          className="grid size-9 place-items-center rounded-xl border border-border-strong bg-card text-muted-foreground md:hidden"
+          className="grid size-9 place-items-center rounded-xl border border-border-strong bg-card text-muted-foreground transition-colors hover:text-foreground active:bg-muted md:hidden"
         >
           {menuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
         </button>
@@ -125,7 +125,8 @@ export default function ProviderNavbar() {
                     key={item.href}
                     href={item.href}
                     prefetch={true}
-                    className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm transition-all duration-150 ${
+                    aria-current={active ? "page" : undefined}
+                    className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm transition-colors duration-150 ${
                       active
                         ? "bg-[#1f4d3d] text-white font-medium shadow-xs"
                         : "text-muted-foreground hover:bg-card hover:text-foreground"

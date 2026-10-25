@@ -265,18 +265,8 @@ export function useHomeContent() {
 
     const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
 
-    // 2. Direct server getDoc to pull latest database content immediately
-    getDoc(docRef)
-      .then((snapshot) => {
-        if (snapshot.exists() && !isCancelled) {
-          applyIncoming(snapshot.data() as Partial<HomeContentSettings>);
-        }
-      })
-      .catch((err) => {
-        console.warn("[useHomeContent] Direct getDoc warning:", err?.message);
-      });
-
-    // 3. Real-time subscription via onSnapshot
+    // 2. Real-time subscription. Its first snapshot is the initial read and it
+    // pushes every later change, so no separate getDoc on mount or on focus.
     const unsubscribe = onSnapshot(
       docRef,
       (snapshot) => {
@@ -326,24 +316,11 @@ export function useHomeContent() {
     };
     window.addEventListener("storage", handleStorage);
 
-    // 7. Auto-refresh when user refocuses the tab
-    const handleFocus = () => {
-      getDoc(docRef)
-        .then((snapshot) => {
-          if (snapshot.exists() && !isCancelled) {
-            applyIncoming(snapshot.data() as Partial<HomeContentSettings>);
-          }
-        })
-        .catch(() => {});
-    };
-    window.addEventListener("focus", handleFocus);
-
     return () => {
       isCancelled = true;
       unsubscribe();
       window.removeEventListener(CUSTOM_EVENT_NAME, handleCustom);
       window.removeEventListener("storage", handleStorage);
-      window.removeEventListener("focus", handleFocus);
       if (broadcastChannel) {
         broadcastChannel.close();
       }
