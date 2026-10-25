@@ -20,6 +20,12 @@ export interface PlanInfo {
   unit: string;
   /** How often a subscription renews ("every month"); absent for one-time plans. */
   renews?: string;
+  /** Billing page: the per-month figure shown large ("$99"). */
+  perMonth: string;
+  /** Billing page: what is actually charged and how often ("Billed $1,188 annually"). */
+  billedAs: string;
+  /** Billing page: button for customers who don't qualify for the $1 week. */
+  fullPriceCta: string;
   note: string;
   badge?: string;
   popular?: boolean;
@@ -34,6 +40,9 @@ export const PLAN_CATALOG: PlanInfo[] = [
     price: "$199",
     unit: "/mo",
     renews: "every month",
+    perMonth: "$199",
+    billedAs: "Billed $199 monthly",
+    fullPriceCta: "Subscribe for $199/month",
     note: "Billed monthly",
     cta: "Start monthly",
   },
@@ -45,6 +54,9 @@ export const PLAN_CATALOG: PlanInfo[] = [
     price: "$1,188",
     unit: "/yr",
     renews: "every year",
+    perMonth: "$99",
+    billedAs: "Billed $1,188 annually",
+    fullPriceCta: "Subscribe for $1,188/year",
     note: "Billed once a year, $99 a month",
     badge: "Save 50%",
     popular: true,
@@ -58,6 +70,9 @@ export const PLAN_CATALOG: PlanInfo[] = [
     price: "$1,896",
     unit: "/2 yrs",
     renews: "every 2 years",
+    perMonth: "$79",
+    billedAs: "Billed $1,896 every two years",
+    fullPriceCta: "Subscribe for $1,896/2 years",
     note: "Billed once every two years, $79 a month",
     badge: "Save 60%",
     cta: "Start two years",
@@ -84,6 +99,9 @@ export const INTRO_DAYS = 7;
 export function introTerms(plan: PlanInfo): string {
   return plan.renews ? `${INTRO_PRICE} for your first ${INTRO_DAYS} days, then ${plan.price} ${plan.renews} until you cancel.` : "";
 }
+
+/** The published Terms of Service (promo site), linked from the checkout confirmation. */
+export const TERMS_URL = "https://info.webinarstackai.com/terms";
 
 /** What the consent checkbox says, next to the plan cards. */
 export const CONSENT_LABEL =

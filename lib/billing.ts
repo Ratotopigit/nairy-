@@ -131,6 +131,22 @@ export function createCheckoutUrl(plan: CheckoutPlan, acceptTerms: boolean): Pro
   return requestStripeUrl("/api/billing/checkout", { plan, accept_terms: acceptTerms }, "Couldn't start checkout. Try again.");
 }
 
+/**
+ * Does the signed-in user qualify for the $1 / 7-day introductory offer? Same
+ * rule as checkout. null when it can't be checked (the buttons then stay neutral).
+ */
+export async function fetchIntroEligibility(): Promise<boolean | null> {
+  try {
+    const token = await getFirebaseAuthToken();
+    if (!token) return null;
+    const res = await fetch("/api/billing/eligibility", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+    const data = (await res.json().catch(() => null)) as { intro?: unknown } | null;
+    return res.ok && typeof data?.intro === "boolean" ? data.intro : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Asks the server for a Stripe Customer Portal link (cancel, card, invoices). */
 export function createPortalUrl(): Promise<string> {
   return requestStripeUrl("/api/billing/portal", {}, "Couldn't open billing management. Try again.");
