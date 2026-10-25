@@ -5,12 +5,17 @@
  * (STRIPE_SECRET_KEY, ...) come only from the function's environment. This
  * file exports no onRequest handler, so Pages does not turn it into a route.
  */
+import { hasAccess } from "./_entitlement.js";
 
-/** The three plans. Prices are looked up server-side; the browser only names a plan. */
+/**
+ * The plans on sale, all subscriptions. Price ids come from the environment;
+ * the browser only names a plan. Lifetime is no longer sold, but accounts that
+ * bought it keep it (hasPaidAccess, the webhook and n8n still handle it).
+ */
 export const PLANS = {
-  monthly: { priceVar: "STRIPE_PRICE_MONTHLY", mode: "subscription" },
-  annual: { priceVar: "STRIPE_PRICE_ANNUAL", mode: "subscription" },
-  lifetime: { priceVar: "STRIPE_PRICE_LIFETIME", mode: "payment" },
+  monthly: { priceVar: "STRIPE_PRICE_MONTHLY" },
+  annual: { priceVar: "STRIPE_PRICE_ANNUAL" },
+  two_year: { priceVar: "STRIPE_PRICE_TWO_YEAR" },
 };
 
 export function json(body, status = 200) {
@@ -53,17 +58,13 @@ export async function verifyIdToken(request, env) {
   return { uid: user.localId, email: typeof user.email === "string" ? user.email : "" };
 }
 
-/** Milliseconds from a Firestore REST value (timestamp, ISO string or integer), else null. */
-function restMillis(value) {
-  if (!value) return null;
-  if (value.integerValue !== undefined) {
-    // Unix seconds (Stripe's own format) or milliseconds.
-    const n = Number(value.integerValue);
-    if (!Number.isFinite(n)) return null;
-    return n < 1e11 ? n * 1000 : n;
+/** Plain values from Firestore REST fields (strings, booleans, timestamps as ISO, integers as numbers). */
+export function restPlain(fields = {}) {
+  const out = {};
+  for (const [k, v] of Object.entries(fields)) {
+    out[k] = v.stringValue ?? v.booleanValue ?? v.timestampValue ?? (v.integerValue !== undefined ? Number(v.integerValue) : undefined);
   }
-  const ms = Date.parse(value.timestampValue ?? value.stringValue ?? "");
-  return Number.isFinite(ms) ? ms : null;
+  return out;
 }
 
 /** The caller's raw ID token (verifyIdToken has already checked it). */
@@ -93,19 +94,14 @@ export async function readBillingFields(idToken, uid, env) {
 }
 
 /**
- * Does this account already have paid access? Mirrors isPaid() in
- * lib/billing.ts. Fails open (returns false) when the read does not work, e.g.
+ * Does this account already have paid access? Same rule as everywhere else
+ * (_entitlement.js). Fails open (returns false) when the read does not work, e.g.
  * the rules are not deployed yet: a duplicate purchase can be refunded, a
  * blocked sale cannot be recovered.
  */
 export async function hasPaidAccess(idToken, uid, env) {
   const fields = await readBillingFields(idToken, uid, env);
-  if (!fields) return false;
-  const plan = fields.plan?.stringValue;
-  const status = fields.status?.stringValue;
-  if (plan === "lifetime") return true;
-  const end = restMillis(fields.current_period_end);
-  return ["active", "trialing", "past_due"].includes(status) && end !== null && end > Date.now();
+  return fields ? hasAccess(restPlain(fields)) : false;
 }
 
 /** GET from the Stripe REST API. Throws on any non-2xx, so callers fail loudly. */

@@ -20,7 +20,8 @@ pages_build_output_dir = "out"
 #
 # Stripe: the price ids and APP_URL below are public identifiers read by the
 # billing functions (functions/api/billing/*). The Stripe secret key, the
-# webhook signing secret and N8N_BILLING_SECRET are set ONLY as encrypted
+# webhook signing secret, FIREBASE_SERVICE_ACCOUNT (the webhook's Firestore
+# writer) and the legacy N8N_BILLING_SECRET are set ONLY as encrypted
 # variables on the Cloudflare Pages project, never in this file.
 [vars]
 NEXT_PUBLIC_FIREBASE_API_KEY = "AIzaSyDEc-zNxEGcYEpKFKuSgZUllsCTQ1xSCdg"
@@ -30,13 +31,19 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = "nirey-f2faf.firebasestorage.app"
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = "84398638524"
 NEXT_PUBLIC_FIREBASE_APP_ID = "1:84398638524:web:73049a61ee5baedc5097b9"
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID = "G-FEFS6JDC96"
+# Production Firebase project. Billing in Stripe TEST mode (staging) refuses to
+# write to it, so staging can never change production billing records.
+PRODUCTION_FIREBASE_PROJECT_ID = "nirey-f2faf"
 NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL = "https://explosionmarketing.app.n8n.cloud/webhook"
 # Stripe publishable key (public by design). Its presence switches the Pay
 # buttons on (lib/billing.ts); remove this line to switch them back off.
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_live_51SctZ8Rv2NBwIUcLGQkyRvgmMVSmLTkTpSiHIVTclcsP5nXhXrwL7ryKcsutjK7q08YHcvIvXhMMf3jn6XZ1SOce00bnlnZEhe"
-# Live Stripe prices: $22/month, $99/year, $222 one-time (see lib/plans.ts).
-STRIPE_PRICE_MONTHLY = "price_1UQ8kGRv2NBwIUcLEOZtxOWa"
-STRIPE_PRICE_ANNUAL = "price_1UQ8lVRv2NBwIUcLhRReXmPx"
-STRIPE_PRICE_LIFETIME = "price_1UQ8mKRv2NBwIUcLMek3ZDRc"
+# Live Stripe prices (see lib/plans.ts for what customers are shown):
+# $199 every month, $1,188 every year, $1,896 every 2 years, all after a
+# one-time $1 introductory week (STRIPE_PRICE_INTRO, a one-time price).
+STRIPE_PRICE_MONTHLY = "price_1UUPYNRv2NBwIUcLpBPcz6I8"
+STRIPE_PRICE_ANNUAL = "price_1UUPZ7Rv2NBwIUcLv6JMeqil"
+STRIPE_PRICE_TWO_YEAR = "price_1UUPZvRv2NBwIUcLlgbblQnR"
+STRIPE_PRICE_INTRO = "price_1UUPcvRv2NBwIUcLBQ7YL9Kw"
 # Where Stripe sends people back. Never taken from the request.
 APP_URL = "https://webinarstackai.com"

@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Check, Sparkles } from "lucide-react";
 import { OnboardingData, SubscriptionTier } from "@/lib/onboarding";
 import { billingEnabled } from "@/lib/billing";
-import { PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES } from "@/lib/plans";
+import { CONSENT_LABEL, PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES, introTerms } from "@/lib/plans";
 
 /**
  * Last onboarding step. Shows exactly the plans and prices of the Billing page
@@ -23,6 +23,8 @@ export function StepChoosePlan({
   isSubmitting,
   onSelectAndSubmit,
 }: StepChoosePlanProps) {
+  // Paying needs an explicit yes to the recurring terms; "Decide later" does not.
+  const [agreed, setAgreed] = useState(false);
   return (
     <div className="space-y-5">
       {/* Step Heading */}
@@ -44,7 +46,7 @@ export function StepChoosePlan({
             <div
               key={plan.id}
               className={`relative flex flex-col justify-between rounded-2xl border p-4 transition-all duration-200 ${
-                isPopular
+                isSelected || isPopular
                   ? "border-primary bg-primary/[0.02] ring-1 ring-primary"
                   : "border-border bg-card hover:border-border-strong"
               }`}
@@ -78,6 +80,9 @@ export function StepChoosePlan({
                   ) : null}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{plan.note}</p>
+                {billingEnabled && plan.renews ? (
+                  <p className="mt-1 text-xs font-medium text-foreground">New here? {introTerms(plan)}</p>
+                ) : null}
                 {plan.badge ? (
                   <span className="mt-2 inline-flex w-fit rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                     {plan.badge}
@@ -88,9 +93,9 @@ export function StepChoosePlan({
               <div className="mt-4 pt-3 border-t border-border">
                 <button
                   type="button"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (billingEnabled && !agreed)}
                   onClick={() => onSelectAndSubmit(plan.id)}
-                  className={`w-full py-2.5 px-3 rounded-full font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 disabled:cursor-wait disabled:opacity-70 focus:outline-none focus:ring-1 focus:ring-primary ${
+                  className={`w-full py-2.5 px-3 rounded-full font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-70 focus:outline-none focus:ring-1 focus:ring-primary ${
                     isPopular
                       ? "bg-primary text-primary-foreground hover:bg-primary/90"
                       : "bg-muted text-foreground border border-border hover:bg-secondary"
@@ -129,6 +134,17 @@ export function StepChoosePlan({
             : "Card payments are coming soon. Nothing is charged yet."}
         </p>
         {billingEnabled ? <p className="max-w-md text-xs font-medium text-foreground">{PAYMENT_TERMS}</p> : null}
+        {billingEnabled ? (
+          <label className="flex max-w-md cursor-pointer items-start gap-2 text-left text-xs text-foreground">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 size-4 shrink-0 accent-primary"
+            />
+            <span>{CONSENT_LABEL}</span>
+          </label>
+        ) : null}
         <button
           type="button"
           disabled={isSubmitting}

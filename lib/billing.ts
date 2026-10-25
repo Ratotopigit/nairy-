@@ -5,6 +5,8 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { auth, db, getFirebaseAuthToken } from "./firebase/config";
 import type { PlanId } from "./plans";
+// The same access rule the webhook and checkout use (paid periods, 3-day grace after a failed renewal).
+import { hasAccess, toMs } from "@/functions/api/billing/_entitlement.js";
 
 /**
  * Billing state. `billing/{uid}` is written only by the server after Stripe
@@ -14,52 +16,39 @@ import type { PlanId } from "./plans";
  */
 
 export type CheckoutPlan = PlanId;
-export type BillingPlan = "none" | CheckoutPlan;
+/** "lifetime" is no longer sold; accounts that bought it keep it. */
+export type BillingPlan = "none" | CheckoutPlan | "lifetime";
 
 export interface BillingRecord {
   plan: BillingPlan;
   status: string;
   currentPeriodEnd: number | null;
+  /** When paid access ends (grace policy applied by the server); null on records from before it existed. */
+  accessUntil: number | null;
   /** The subscription stops at currentPeriodEnd instead of renewing. */
   cancelAtPeriodEnd: boolean;
   /** Set once the user has paid through Stripe: they have a billing portal to open. */
   hasStripeCustomer: boolean;
 }
 
-const PAID_STATUSES = ["active", "trialing", "past_due"];
-
-/** Firestore Timestamp, ISO string or number (seconds or ms) to ms, else null. */
-function toMillis(value: unknown): number | null {
-  if (value && typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") {
-    return value.toMillis() as number;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) return value < 1e11 ? value * 1000 : value;
-  if (typeof value === "string") {
-    const ms = Date.parse(value);
-    return Number.isFinite(ms) ? ms : null;
-  }
-  return null;
-}
 
 function parseRecord(data: Record<string, unknown> | undefined): BillingRecord {
   const plan = data?.plan;
   return {
-    plan: plan === "monthly" || plan === "annual" || plan === "lifetime" ? plan : "none",
+    plan: plan === "monthly" || plan === "annual" || plan === "two_year" || plan === "lifetime" ? plan : "none",
     status: typeof data?.status === "string" ? data.status : "",
-    currentPeriodEnd: toMillis(data?.current_period_end),
+    currentPeriodEnd: toMs(data?.current_period_end),
+    accessUntil: toMs(data?.access_until),
     cancelAtPeriodEnd: data?.cancel_at_period_end === true,
     hasStripeCustomer: typeof data?.stripe_customer_id === "string" && data.stripe_customer_id.startsWith("cus_"),
   };
 }
 
-/** paid = lifetime, or an active-ish subscription that has not run out. */
+/** Paid access now, by the shared rule (functions/api/billing/_entitlement.js). */
 export function isPaid(record: BillingRecord, now: number = Date.now()): boolean {
-  if (record.plan === "lifetime") return true;
-  return (
-    (record.plan === "monthly" || record.plan === "annual") &&
-    PAID_STATUSES.includes(record.status) &&
-    record.currentPeriodEnd !== null &&
-    record.currentPeriodEnd > now
+  return hasAccess(
+    { plan: record.plan, status: record.status, access_until: record.accessUntil, current_period_end: record.currentPeriodEnd },
+    now,
   );
 }
 
@@ -72,7 +61,7 @@ export interface EntitlementState {
   error: boolean;
 }
 
-const NONE: BillingRecord = { plan: "none", status: "", currentPeriodEnd: null, cancelAtPeriodEnd: false, hasStripeCustomer: false };
+const NONE: BillingRecord = { plan: "none", status: "", currentPeriodEnd: null, accessUntil: null, cancelAtPeriodEnd: false, hasStripeCustomer: false };
 
 /** Live view of the signed-in user's plan. Updates the moment the server records a payment. */
 export function useEntitlement(): EntitlementState {
@@ -134,9 +123,12 @@ async function requestStripeUrl(path: string, body: unknown, fallbackError: stri
   throw new Error(typeof data?.error === "string" ? data.error : fallbackError);
 }
 
-/** Asks the server for a Stripe Checkout page for this plan and returns its URL. */
-export function createCheckoutUrl(plan: CheckoutPlan): Promise<string> {
-  return requestStripeUrl("/api/billing/checkout", { plan }, "Couldn't start checkout. Try again.");
+/**
+ * Asks the server for a Stripe Checkout page for this plan and returns its URL.
+ * `acceptTerms` is the user's tick on the payment-terms box; the server refuses without it.
+ */
+export function createCheckoutUrl(plan: CheckoutPlan, acceptTerms: boolean): Promise<string> {
+  return requestStripeUrl("/api/billing/checkout", { plan, accept_terms: acceptTerms }, "Couldn't start checkout. Try again.");
 }
 
 /** Asks the server for a Stripe Customer Portal link (cancel, card, invoices). */

@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { onAuthStateChanged, updateProfile, type User } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/lib/firebase/config";
 import { billingEnabled, createCheckoutUrl } from "@/lib/billing";
+import { clearPendingPlan, pendingPlan } from "@/lib/plans";
 import {
   INITIAL_ONBOARDING_DATA,
   OnboardingData,
@@ -85,6 +86,10 @@ export default function OnboardingPage() {
           lastName: parts.slice(1).join(" ") || "",
         }));
       }
+
+      // A plan picked on the promo site before signing up is preselected.
+      const picked = pendingPlan();
+      if (picked) setFormData((prev) => ({ ...prev, selectedPlan: picked }));
 
       setIsCheckingSession(false);
     }
@@ -252,8 +257,11 @@ export default function OnboardingPage() {
       }
       // Straight to Stripe for the plan they picked. If checkout can't start,
       // onboarding is still done: the Billing page has the same plans to retry.
+      // StepChoosePlan only enables the paid buttons once the terms box is ticked.
       try {
-        window.location.assign(await createCheckoutUrl(selectedPlan));
+        const url = await createCheckoutUrl(selectedPlan, true);
+        clearPendingPlan();
+        window.location.assign(url);
       } catch {
         router.replace("/provider/billing");
       }

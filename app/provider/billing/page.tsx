@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, Building2, Check, CreditCard, Crown, Gift } from "lucide-react";
 import { useEffect, useState, type ComponentType } from "react";
 import { billingEnabled, billingTestMode, createCheckoutUrl, createPortalUrl, useEntitlement, type CheckoutPlan } from "@/lib/billing";
-import { PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES } from "@/lib/plans";
+import { CONSENT_LABEL, PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES, clearPendingPlan, introTerms, pendingPlan } from "@/lib/plans";
 
 /**
  * Billing. Three ways to pay for the same product. Checkout is hosted by
@@ -16,14 +16,14 @@ import { PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES } from "@/lib/plans";
 
 const GREEN = "#1a4a3a";
 
-const ICONS: Record<CheckoutPlan, ComponentType<{ className?: string }>> = { monthly: Gift, annual: Crown, lifetime: Building2 };
+const ICONS: Record<CheckoutPlan, ComponentType<{ className?: string }>> = { monthly: Gift, annual: Crown, two_year: Building2 };
 
 // Prices live in lib/plans.ts, shared with the first-login plan step.
 const PLANS = PLAN_CATALOG.map((plan) => ({ ...plan, Icon: ICONS[plan.id] }));
 
 const CONFIRM_TIMEOUT_MS = 45_000;
 
-const PLAN_LABEL: Record<CheckoutPlan, string> = { monthly: "Monthly", annual: "Annual", lifetime: "Lifetime" };
+const PLAN_LABEL: Record<CheckoutPlan, string> = { monthly: "Monthly", annual: "Annual", two_year: "Two-year" };
 
 function formatDate(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
@@ -38,8 +38,12 @@ export default function BillingPage() {
   // straight away, and a remount must not lose track of the payment.
   const [returned, setReturned] = useState<"success" | "cancelled" | null>(null);
   const [gaveUpWaiting, setGaveUpWaiting] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  // The plan picked before signing in (promo site link), highlighted until they pay.
+  const [picked, setPicked] = useState<CheckoutPlan | null>(null);
 
   useEffect(() => {
+    setPicked(pendingPlan());
     const status = new URLSearchParams(window.location.search).get("status");
     if (status === "success" || status === "cancelled") {
       setReturned(status);
@@ -58,7 +62,9 @@ export default function BillingPage() {
     setError("");
     setPending(plan);
     try {
-      window.location.assign(await createCheckoutUrl(plan));
+      const url = await createCheckoutUrl(plan, agreed);
+      clearPendingPlan();
+      window.location.assign(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't start checkout. Try again.");
       setPending(null);
@@ -86,6 +92,11 @@ export default function BillingPage() {
     const name = PLAN_LABEL[currentPlan];
     if (record.status === "past_due") {
       subtitle = `Your last payment for the ${name} plan didn't go through. Update your card under Manage billing to keep access.`;
+    } else if (record.status === "trialing" && !record.cancelAtPeriodEnd) {
+      const info = PLAN_CATALOG.find((p) => p.id === currentPlan);
+      subtitle = `You're on the ${name} plan, in your introductory week.${
+        endDate && info ? ` From ${endDate} you'll be charged ${info.price} ${info.renews ?? ""} until you cancel.` : ""
+      }`;
     } else if (record.cancelAtPeriodEnd) {
       subtitle = `Your ${name} plan is cancelled and ends${endDate ? ` on ${endDate}` : " at the end of the paid period"}.`;
     } else {
@@ -147,15 +158,16 @@ export default function BillingPage() {
         <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-3 lg:gap-5">
           {PLANS.map((plan) => {
             const isCurrent = currentPlan === plan.id;
-            const locked = !billingEnabled || paid || pending !== null || loading;
+            const locked = !billingEnabled || paid || pending !== null || loading || !agreed;
+            const highlight = plan.popular || (!currentPlan && picked === plan.id);
             const label = !billingEnabled ? plan.cta : isCurrent ? "Your plan" : pending === plan.id ? "Opening checkout…" : plan.cta;
             return (
               <div
                 key={plan.id}
                 className={`relative flex flex-col rounded-3xl bg-white p-5 transition-transform duration-200 hover:-translate-y-0.5 ${
-                  plan.popular ? "border-2 shadow-[0_24px_50px_-28px_rgba(26,74,58,0.55)] lg:-my-2" : "border border-white shadow-[0_18px_40px_-34px_rgba(26,74,58,0.5)]"
+                  highlight ? "border-2 shadow-[0_24px_50px_-28px_rgba(26,74,58,0.55)] lg:-my-2" : "border border-white shadow-[0_18px_40px_-34px_rgba(26,74,58,0.5)]"
                 }`}
-                style={plan.popular ? { borderColor: GREEN } : undefined}
+                style={highlight ? { borderColor: GREEN } : undefined}
               >
                 {plan.popular ? (
                   <span
@@ -184,6 +196,9 @@ export default function BillingPage() {
                   {plan.unit ? <span className="font-serif text-lg font-bold">{plan.unit}</span> : null}
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">{plan.note}</p>
+                {billingEnabled && plan.renews && !currentPlan ? (
+                  <p className="mt-1 text-xs font-medium text-[#1d2a27]">New here? {introTerms(plan)}</p>
+                ) : null}
                 {plan.badge ? (
                   <span className="mt-2 inline-flex w-fit rounded-full bg-[#dff0df] px-2.5 py-0.5 text-[11px] font-semibold" style={{ color: GREEN }}>
                     {plan.badge}
@@ -216,6 +231,8 @@ export default function BillingPage() {
                   <p className="mt-1.5 text-center text-[11px] text-muted-foreground">Coming soon</p>
                 ) : paid && !isCurrent ? (
                   <p className="mt-1.5 text-center text-[11px] text-muted-foreground">Changing plans isn&apos;t available yet</p>
+                ) : !paid && !agreed ? (
+                  <p className="mt-1.5 text-center text-[11px] text-muted-foreground">Tick the payment terms below to continue</p>
                 ) : null}
               </div>
             );
@@ -239,6 +256,18 @@ export default function BillingPage() {
                   : "You'll add and manage your card here. Until then, nothing is charged and nothing is locked."}
               </p>
               {billingEnabled ? <p className="mt-1.5 text-sm font-medium text-[#1d2a27]">{PAYMENT_TERMS}</p> : null}
+              {billingEnabled && !paid ? (
+                <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-sm text-[#1d2a27]">
+                  <input
+                    type="checkbox"
+                    checked={agreed}
+                    onChange={(e) => setAgreed(e.target.checked)}
+                    className="mt-0.5 size-4 shrink-0"
+                    style={{ accentColor: GREEN }}
+                  />
+                  <span>{CONSENT_LABEL}</span>
+                </label>
+              ) : null}
             </div>
           </div>
         </div>

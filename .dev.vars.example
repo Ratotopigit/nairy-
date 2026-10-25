@@ -3,10 +3,16 @@
 STRIPE_SECRET_KEY=sk_test_xxx
 # From the Stripe webhook endpoint (or `stripe listen` locally).
 STRIPE_WEBHOOK_SECRET=whsec_xxx
-# Same value as the n8n "Billing Webhook Secret" Header Auth credential.
+# Firebase service account JSON key (one line), role "Cloud Datastore User" only.
+# With it the webhook writes billing/{uid} itself; without it, it falls back to n8n.
+FIREBASE_SERVICE_ACCOUNT={"client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----
+..."}
+# Legacy n8n path only: same value as the n8n "Billing Webhook Secret" credential.
 N8N_BILLING_SECRET=xxx
 STRIPE_PRICE_MONTHLY=price_xxx
 STRIPE_PRICE_ANNUAL=price_xxx
-STRIPE_PRICE_LIFETIME=price_xxx
+STRIPE_PRICE_TWO_YEAR=price_xxx
+# One-time $1 price: the introductory charge for a first subscription (7-day trial).
+STRIPE_PRICE_INTRO=price_xxx
 # Where Stripe sends people back. Production: https://webinarstackai.com
 APP_URL=http://localhost:8788

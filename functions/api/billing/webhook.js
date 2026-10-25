@@ -7,16 +7,22 @@
  *    trusts the event's snapshot: it fetches the subscription / payment from
  *    Stripe and records how things stand NOW. Events can arrive late, twice or
  *    out of order; this way a replay or a stale event cannot undo a newer one.
- * 3. Hands the update to the n8n "billing-event" workflow (shared-secret
- *    header), which holds the Firestore service account and writes billing/{uid}.
+ * 3. Records the update in Firestore billing/{uid} itself (_store.js) when
+ *    FIREBASE_SERVICE_ACCOUNT is set. Without it, it hands the update to the
+ *    n8n "billing-event" workflow as before (shared-secret header). Each event
+ *    takes exactly one of the two paths, never both.
  *
  * Any failure returns a non-2xx, so Stripe retries (with backoff, for days).
  *
  * Required environment: STRIPE_WEBHOOK_SECRET (whsec_...), STRIPE_SECRET_KEY
- * and N8N_BILLING_SECRET (encrypted variables on Cloudflare Pages); the
- * STRIPE_PRICE_* ids and NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL come from wrangler.toml.
+ * and FIREBASE_SERVICE_ACCOUNT (or, for the n8n path, N8N_BILLING_SECRET), all
+ * encrypted variables on Cloudflare Pages; the STRIPE_PRICE_* ids,
+ * NEXT_PUBLIC_FIREBASE_PROJECT_ID and NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL come
+ * from wrangler.toml.
  */
 import { json, stripeGet } from "./_shared.js";
+import { recordBillingUpdate } from "./_store.js";
+import { accessUntil } from "./_entitlement.js";
 
 /** How old a signed event may be before it is treated as a replay. */
 const TOLERANCE_SECONDS = 300;
@@ -68,6 +74,15 @@ function periodEndIso(sub) {
   return seconds ? new Date(seconds * 1000).toISOString() : "";
 }
 
+/** Start of the current period (ms), from the subscription or (API 2025-03-31+) its items. */
+function periodStartMs(sub) {
+  let seconds = typeof sub.current_period_start === "number" ? sub.current_period_start : 0;
+  for (const item of sub.items?.data ?? []) {
+    if (typeof item.current_period_start === "number") seconds = Math.max(seconds, item.current_period_start);
+  }
+  return seconds * 1000;
+}
+
 /**
  * The plan comes from the price actually on the subscription, so a switch made
  * in the Customer Portal is picked up. The checkout metadata only says what was
@@ -77,9 +92,11 @@ function subscriptionPlan(sub, env) {
   const price = sub.items?.data?.[0]?.price;
   if (price?.id && price.id === env.STRIPE_PRICE_MONTHLY) return "monthly";
   if (price?.id && price.id === env.STRIPE_PRICE_ANNUAL) return "annual";
+  if (price?.id && price.id === env.STRIPE_PRICE_TWO_YEAR) return "two_year";
   const fromMeta = sub.metadata?.plan;
-  if (fromMeta === "monthly" || fromMeta === "annual") return fromMeta;
-  return price?.recurring?.interval === "year" ? "annual" : "monthly";
+  if (fromMeta === "monthly" || fromMeta === "annual" || fromMeta === "two_year") return fromMeta;
+  if (price?.recurring?.interval !== "year") return "monthly";
+  return (price.recurring.interval_count || 1) >= 2 ? "two_year" : "annual";
 }
 
 async function subscriptionUpdate(subscriptionId, env) {
@@ -92,6 +109,8 @@ async function subscriptionUpdate(subscriptionId, env) {
     plan: subscriptionPlan(sub, env),
     status: String(sub.status || ""),
     current_period_end: periodEndIso(sub),
+    // When paid access ends under the grace policy (_entitlement.js); "" for none.
+    access_until: accessUntil(String(sub.status || ""), periodStartMs(sub), Date.parse(periodEndIso(sub)) || 0),
     // Newer API versions (and the Customer Portal) schedule the end with
     // cancel_at instead of cancel_at_period_end. Either one means "won't renew".
     cancel_at_period_end: sub.cancel_at_period_end === true || (typeof sub.cancel_at === "number" && sub.cancel_at > 0),
@@ -154,8 +173,18 @@ export async function toBillingUpdate(event, env) {
 
 export async function onRequestPost({ request, env }) {
   const n8nBase = typeof env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL === "string" ? env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL.replace(/\/+$/, "") : "";
-  if (!env.STRIPE_WEBHOOK_SECRET || !env.STRIPE_SECRET_KEY || !env.N8N_BILLING_SECRET || !n8nBase) {
-    console.error("billing/webhook: not configured (need STRIPE_WEBHOOK_SECRET, STRIPE_SECRET_KEY, N8N_BILLING_SECRET)");
+  const emulator = /^(127\.0\.0\.1|localhost):\d+$/.test(env.FIRESTORE_EMULATOR_HOST || "");
+  const direct = Boolean((env.FIREBASE_SERVICE_ACCOUNT || emulator) && env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
+  if (!env.STRIPE_WEBHOOK_SECRET || !env.STRIPE_SECRET_KEY || (!direct && (!env.N8N_BILLING_SECRET || !n8nBase))) {
+    console.error("billing/webhook: not configured (need STRIPE_WEBHOOK_SECRET, STRIPE_SECRET_KEY, FIREBASE_SERVICE_ACCOUNT)");
+    return json({ error: "Not configured." }, 503);
+  }
+  // Test-mode billing (staging) must never reach production records: not through
+  // n8n, which writes the production project, and not by a direct write to it.
+  const live = /^(sk|rk)_live_/.test(env.STRIPE_SECRET_KEY);
+  const project = env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (!live && (!direct || !env.PRODUCTION_FIREBASE_PROJECT_ID || project === env.PRODUCTION_FIREBASE_PROJECT_ID)) {
+    console.error("billing/webhook: test-mode key refused here (needs FIREBASE_SERVICE_ACCOUNT of a non-production project and PRODUCTION_FIREBASE_PROJECT_ID)");
     return json({ error: "Not configured." }, 503);
   }
 
@@ -171,6 +200,11 @@ export async function onRequestPost({ request, env }) {
   } catch {
     return json({ error: "Invalid payload." }, 400);
   }
+  // A test event never changes live data and a live event never changes test data.
+  if (Boolean(event.livemode) !== live) {
+    console.error("billing/webhook: ignored", event.livemode ? "live" : "test", "event", event.id, "on a", live ? "live" : "test", "deployment");
+    return json({ received: true, ignored: "mode mismatch" });
+  }
 
   let update;
   try {
@@ -181,6 +215,17 @@ export async function onRequestPost({ request, env }) {
   }
   if (!update) return json({ received: true });
 
+  if (direct) {
+    try {
+      await recordBillingUpdate(update, String(event.id || "").slice(0, 255), env);
+    } catch (err) {
+      console.error("billing/webhook: Firestore write failed for", event.type, event.id, err?.message);
+      return json({ error: "Could not record." }, 502);
+    }
+    return json({ received: true });
+  }
+
+  // shortcut: legacy n8n path, used only until FIREBASE_SERVICE_ACCOUNT is set; delete it after the cutover.
   let res;
   try {
     res = await fetch(`${n8nBase}/billing-event`, {

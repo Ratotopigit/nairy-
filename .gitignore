@@ -36,3 +36,7 @@ firebase-debug.log
 
 # Cloudflare Pages Functions local secrets (wrangler pages dev)
 .dev.vars
+
+# local wrangler / emulator state
+.wrangler/
+firestore-debug.log

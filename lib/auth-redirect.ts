@@ -29,8 +29,12 @@ export function loginUrlFor(path: string): string {
 /** Workspace (or the page they came for), or onboarding if unfinished. */
 export async function destinationFor(uid: string): Promise<string> {
   const { checkUserOnboardingStatus } = await import("@/lib/onboarding");
+  const { pendingPlan } = await import("@/lib/plans");
   const completed = await checkUserOnboardingStatus(uid);
-  return completed ? safeNextPath() ?? "/provider" : "/onboarding";
+  if (!completed) return "/onboarding";
+  // A plan picked on the promo site before signing in goes straight to Billing.
+  const plan = pendingPlan();
+  return safeNextPath() ?? (plan ? `/provider/billing?plan=${plan}` : "/provider");
 }
 
 /**
@@ -53,6 +57,8 @@ export function useRedirectIfSignedIn(): boolean {
     // Read after mount: the page is statically pre-rendered, so reading
     // storage during render would not match the server HTML.
     if (localDataOwner()) setChecking(true);
+    // Both login and signup run this hook, so a ?plan= link survives either.
+    void import("@/lib/plans").then(({ rememberPlanFromUrl }) => rememberPlanFromUrl());
 
     void (async () => {
       const [{ onAuthStateChanged }, { auth, isFirebaseConfigured }] = await Promise.all([
