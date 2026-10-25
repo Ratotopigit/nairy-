@@ -20,8 +20,6 @@ export interface PlanInfo {
   unit: string;
   /** How often a subscription renews ("every month"); absent for one-time plans. */
   renews?: string;
-  /** Billing page: the per-month figure shown large ("$99"). */
-  perMonth: string;
   /** Billing page: what is actually charged and how often ("Billed $1,188 annually"). */
   billedAs: string;
   /** Billing page: button for customers who don't qualify for the $1 week. */
@@ -40,7 +38,6 @@ export const PLAN_CATALOG: PlanInfo[] = [
     price: "$199",
     unit: "/mo",
     renews: "every month",
-    perMonth: "$199",
     billedAs: "Billed $199 monthly",
     fullPriceCta: "Subscribe for $199/month",
     note: "Billed monthly",
@@ -54,10 +51,9 @@ export const PLAN_CATALOG: PlanInfo[] = [
     price: "$1,188",
     unit: "/yr",
     renews: "every year",
-    perMonth: "$99",
     billedAs: "Billed $1,188 annually",
     fullPriceCta: "Subscribe for $1,188/year",
-    note: "Billed once a year, $99 a month",
+    note: "Billed once a year",
     badge: "Save 50%",
     popular: true,
     cta: "Start annually",
@@ -70,10 +66,9 @@ export const PLAN_CATALOG: PlanInfo[] = [
     price: "$1,896",
     unit: "/2 yrs",
     renews: "every 2 years",
-    perMonth: "$79",
     billedAs: "Billed $1,896 every two years",
     fullPriceCta: "Subscribe for $1,896/2 years",
-    note: "Billed once every two years, $79 a month",
+    note: "Billed once every two years",
     badge: "Save 60%",
     cta: "Start two years",
   },

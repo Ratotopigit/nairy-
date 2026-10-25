@@ -26,8 +26,8 @@ const CONFIRM_TIMEOUT_MS = 45_000;
 
 const PLAN_LABEL: Record<CheckoutPlan, string> = { monthly: "Monthly", annual: "Annual", two_year: "Two-year" };
 
-/** The monthly price, struck through next to the cheaper per-month figures. */
-const MONTHLY_PRICE = PLAN_CATALOG.find((p) => p.id === "monthly")?.price ?? "";
+/** Shown after each plan's full price. */
+const UNIT: Record<CheckoutPlan, string> = { monthly: "/month", annual: "/year", two_year: "/2 years" };
 
 function formatDate(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
@@ -284,9 +284,8 @@ export default function BillingPage() {
                 ) : null}
 
                 <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1" style={{ color: GREEN }}>
-                  {plan.id !== "monthly" ? <span className="text-base font-medium text-muted-foreground line-through">{MONTHLY_PRICE}</span> : null}
-                  <span className={`font-serif font-bold tracking-[-0.03em] ${trial ? "text-3xl" : "text-4xl"}`}>{plan.perMonth}</span>
-                  <span className="font-serif text-base font-bold">/month</span>
+                  <span className={`font-serif font-bold tracking-[-0.03em] ${trial ? "text-3xl" : "text-4xl"}`}>{plan.price}</span>
+                  <span className="font-serif text-base font-bold">{UNIT[plan.id]}</span>
                   {plan.badge ? (
                     <span className="ml-1 inline-flex self-center rounded-full bg-[#dff0df] px-2.5 py-0.5 text-[11px] font-semibold" style={{ color: GREEN }}>
                       {plan.badge}
