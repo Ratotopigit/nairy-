@@ -8,7 +8,7 @@ import { auth } from "@/lib/firebase/config";
 import { TemplatePicker } from "@/components/webinar/TemplatePicker";
 import { BrandPanel, ContentPanel, ImagesPanel, LayoutPanel, TextPanel } from "@/components/webinar/editor/EditorPanels";
 import { ImagePicker } from "@/components/webinar/editor/ImagePicker";
-import { PreviewPane, type Device } from "@/components/webinar/editor/PreviewPane";
+import { PreviewPane, type Device, type Screen } from "@/components/webinar/editor/PreviewPane";
 import { getTemplate } from "@/lib/webinar-templates";
 import { moveInlineImagesToStorage } from "@/lib/webinar-images";
 import { hasPlaceholderContent, previewWebinar } from "@/lib/webinar-preview";
@@ -59,6 +59,7 @@ function Editor() {
   const [tab, setTab] = useState<"page" | "registrants">(params.get("tab") === "registrants" ? "registrants" : "page");
   const [panel, setPanel] = useState<PanelId>("content");
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
+  const [screen, setScreen] = useState<Screen>("form");
   const [device, setDevice] = useState<Device>("desktop");
   const [registrants, setRegistrants] = useState<Registrant[] | null>(null);
   const [copied, setCopied] = useState(false);
@@ -432,6 +433,8 @@ function Editor() {
                 webinar={shown}
                 device={device}
                 onDevice={setDevice}
+                screen={screen}
+                onScreen={setScreen}
                 publicUrl={published && storedStatus === "published" ? shareUrl : null}
                 notice={sample ? "Showing sample text for this kind of business until you write your own headline." : undefined}
               />
@@ -451,6 +454,9 @@ function Editor() {
             }}
             onPickThanks={(id) => {
               update("thank_you_template", id);
+              // It only shows after sign-up, so jump the preview to it.
+              setScreen("thanks");
+              setMobileView("preview");
               setPickerOpen(false);
             }}
           />

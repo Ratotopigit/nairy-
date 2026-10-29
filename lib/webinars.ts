@@ -24,6 +24,7 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
@@ -281,7 +282,10 @@ export async function createWebinar(ownerId: string, input: { name: string; note
 export async function saveWebinar(webinar: Webinar, hostName = ""): Promise<void> {
   const { id, ...rest } = webinar;
   const end = sessionEnd(webinar);
-  await setDoc(
+  // updateDoc, not setDoc(merge): a merge keeps old keys inside maps, so a text
+  // field the host reset (page_copy) would come back on the next load. The
+  // webinar always exists by the time it is edited (createWebinar adds it).
+  await updateDoc(
     doc(db, "webinars", id),
     {
       ...rest,
@@ -291,7 +295,6 @@ export async function saveWebinar(webinar: Webinar, hostName = ""): Promise<void
       closes_at: end ? Timestamp.fromDate(end) : null,
       updated_at: new Date().toISOString(),
     },
-    { merge: true },
   );
 }
 

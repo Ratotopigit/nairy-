@@ -6,6 +6,7 @@ import { RegistrationPage } from "@/components/webinar/RegistrationPage";
 import type { Webinar } from "@/lib/webinars";
 
 export type Device = "desktop" | "mobile";
+export type Screen = "form" | "thanks";
 
 const WIDTH: Record<Device, number> = { desktop: 1280, mobile: 390 };
 
@@ -54,11 +55,20 @@ type Props = {
   webinar: Webinar;
   device: Device;
   onDevice: (d: Device) => void;
+  /** Which screen to show: the sign-up page, or what people see right after registering. */
+  screen: Screen;
+  onScreen: (s: Screen) => void;
   publicUrl: string | null;
   notice?: ReactNode;
 };
 
-export function PreviewPane({ webinar, device, onDevice, publicUrl, notice }: Props) {
+export function PreviewPane({ webinar, device, onDevice, screen, onScreen, publicUrl, notice }: Props) {
+  const scroller = useRef<HTMLDivElement>(null);
+  // A new screen starts at its top.
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: 0 });
+  }, [screen]);
+  const page = <RegistrationPage webinar={webinar} mode="preview" startDone={screen === "thanks"} onDoneChange={(done) => onScreen(done ? "thanks" : "form")} />;
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       <div className="flex items-center gap-2 border-b border-border bg-secondary/60 px-3 py-2">
@@ -84,7 +94,26 @@ export function PreviewPane({ webinar, device, onDevice, publicUrl, notice }: Pr
             </button>
           ))}
         </div>
-        <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Live preview. Registering here doesn&apos;t save anything.</span>
+        <div role="tablist" aria-label="Preview screen" className="flex rounded-lg border border-border bg-background p-0.5">
+          {(
+            [
+              ["form", "Sign-up page"],
+              ["thanks", "Thank-you page"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={screen === key}
+              onClick={() => onScreen(key)}
+              className={`rounded-md px-2.5 py-1 text-xs transition-colors ${screen === key ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Registering here doesn&apos;t save anything.</span>
         {publicUrl ? (
           <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-foreground underline-offset-2 hover:underline">
             Open live page <ExternalLink className="size-3" />
@@ -92,17 +121,13 @@ export function PreviewPane({ webinar, device, onDevice, publicUrl, notice }: Pr
         ) : null}
       </div>
       {notice ? <div className="border-b border-border bg-amber-50/70 px-3 py-2 text-xs text-amber-900">{notice}</div> : null}
-      <div className={`max-h-[calc(100vh-200px)] overflow-y-auto overflow-x-hidden ${device === "mobile" ? "bg-secondary/70 p-4" : "bg-secondary/40"}`}>
+      <div ref={scroller} className={`max-h-[calc(100vh-200px)] overflow-y-auto overflow-x-hidden ${device === "mobile" ? "bg-secondary/70 p-4" : "bg-secondary/40"}`}>
         {device === "mobile" ? (
           <div className="mx-auto w-[390px] max-w-full overflow-hidden rounded-[28px] border-[6px] border-foreground/85 bg-background shadow-lg">
-            <ScaledFrame width={WIDTH.mobile}>
-              <RegistrationPage webinar={webinar} mode="preview" />
-            </ScaledFrame>
+            <ScaledFrame width={WIDTH.mobile}>{page}</ScaledFrame>
           </div>
         ) : (
-          <ScaledFrame width={WIDTH.desktop}>
-            <RegistrationPage webinar={webinar} mode="preview" />
-          </ScaledFrame>
+          <ScaledFrame width={WIDTH.desktop}>{page}</ScaledFrame>
         )}
       </div>
     </div>

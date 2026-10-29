@@ -47,6 +47,8 @@ type Props = {
   frozen?: boolean;
   /** Start on the thank-you screen (the thank-you template's gallery thumbnail). */
   startDone?: boolean;
+  /** Told whenever the page switches between the sign-up and thank-you screens, so a preview can keep its switch in step. */
+  onDoneChange?: (done: boolean) => void;
 };
 
 /**
@@ -110,8 +112,18 @@ const LAYOUTS = {
   training: TrainingLayout,
 } as const;
 
-export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false, startDone = false }: Props) {
-  const t = getTemplate(w.template_id);
+export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false, startDone = false, onDoneChange }: Props) {
+  // Signed up. A preview can flip screens from outside (its Sign-up / Thank-you switch).
+  const [done, setDone] = useState(startDone);
+  useEffect(() => {
+    setDone(startDone);
+  }, [startDone]);
+  useEffect(() => {
+    onDoneChange?.(done);
+  }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The full thank-you page has its own look (whatever the sign-up template was); the host's colour overrides still apply.
+  const showThanks = done && w.thank_you_template === "training";
+  const t = getTemplate(showThanks ? "training-midnight" : w.template_id);
   const palette = useMemo(
     () => resolvePalette(t, w),
     // Only the colour fields matter; the rest of the webinar changing must not recompute.
@@ -136,7 +148,6 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false,
   const [emailError, setEmailError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(startDone);
   const [joinUrl, setJoinUrl] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -322,7 +333,7 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false,
   }
 
   // The full thank-you page replaces the whole page once someone has registered.
-  const Layout = done && w.thank_you_template === "training" ? TrainingThanksPage : LAYOUTS[t.layout];
+  const Layout = showThanks ? TrainingThanksPage : LAYOUTS[t.layout];
   const open = phase !== "ended";
 
   return (
