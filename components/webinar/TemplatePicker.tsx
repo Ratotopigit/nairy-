@@ -9,6 +9,7 @@ import {
   LAYOUT_LABELS,
   searchTemplates,
   TEMPLATE_CATEGORIES,
+  THANK_YOU_TEMPLATES,
   templatesInCategory,
   type TemplateCategory,
   type WebinarTemplate,
@@ -21,12 +22,14 @@ type Props = {
   webinar: Webinar;
   onClose: () => void;
   onPick: (templateId: string) => void;
+  /** A full thank-you page, used after sign-up with any registration template. */
+  onPickThanks: (id: "training") => void;
 };
 
 const MOST_LIKED = "Most liked";
 type Tab = TemplateCategory | "All" | typeof MOST_LIKED;
 
-export function TemplatePicker({ open, webinar, onClose, onPick }: Props) {
+export function TemplatePicker({ open, webinar, onClose, onPick, onPickThanks }: Props) {
   const current = getTemplate(webinar.template_id);
   const [category, setCategory] = useState<Tab>(MOST_LIKED);
   const [text, setText] = useState("");
@@ -57,6 +60,12 @@ export function TemplatePicker({ open, webinar, onClose, onPick }: Props) {
             : templatesInCategory(category),
     [text, category],
   );
+
+  const thanks = useMemo(() => {
+    if (category !== MOST_LIKED) return [];
+    const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+    return THANK_YOU_TEMPLATES.filter((tt) => words.every((w) => `${tt.name} ${tt.description} thank you page training`.toLowerCase().includes(w)));
+  }, [text, category]);
 
   if (!open) return null;
 
@@ -112,7 +121,7 @@ export function TemplatePicker({ open, webinar, onClose, onPick }: Props) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
-          {results.length === 0 ? (
+          {results.length + thanks.length === 0 ? (
             <p className="py-20 text-center text-sm text-muted-foreground">No templates match that. Try another word.</p>
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -153,6 +162,43 @@ export function TemplatePicker({ open, webinar, onClose, onPick }: Props) {
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{t.description}</p>
                       {category === "All" || category === MOST_LIKED || text.trim() ?<p className="mt-1 text-[11px] text-muted-foreground">{t.category}</p> : null}
+                    </div>
+                  </div>
+                );
+              })}
+              {thanks.map((tt) => {
+                const selected = webinar.thank_you_template === tt.id;
+                return (
+                  <div
+                    key={`thanks-${tt.id}`}
+                    className={`group relative overflow-hidden rounded-2xl border bg-card text-left transition hover:-translate-y-0.5 hover:shadow-lg focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-foreground ${
+                      selected ? "border-foreground ring-2 ring-foreground" : "border-border"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onPickThanks(tt.id)}
+                      aria-pressed={selected}
+                      aria-label={`Use the ${tt.name} after sign-up`}
+                      className="absolute inset-0 z-10 cursor-pointer rounded-2xl focus:outline-none"
+                    />
+                    <div className="relative border-b border-border">
+                      <LiveThumb webinar={{ ...previewWebinar(webinar, "Marketing", "training-midnight"), thank_you_template: tt.id }} thanks />
+                      {selected ? (
+                        <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-foreground px-2.5 py-1 text-[11px] font-semibold text-background">
+                          <Check className="size-3" /> In use
+                        </span>
+                      ) : null}
+                      <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-background px-2.5 py-1 text-[11px] font-semibold text-foreground shadow-sm">
+                        <Heart className="size-3 fill-current" /> {MOST_LIKED}
+                      </span>
+                    </div>
+                    <div className="px-4 py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-sm font-semibold">{tt.name}</p>
+                        <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">Thank-you page</span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{tt.description}</p>
                     </div>
                   </div>
                 );

@@ -32,6 +32,7 @@ import { deleteFolder } from "@/lib/storage-upload";
 import { isHex } from "@/lib/color";
 import type { CalendarEvent } from "@/lib/calendar";
 import { DEFAULT_TEMPLATE_ID, isFontPairId } from "@/lib/webinar-templates";
+import { cleanCopy, type CopyKey } from "@/lib/training-copy";
 
 export type WebinarStatus = "draft" | "published";
 
@@ -87,6 +88,10 @@ export type Webinar = {
    */
   public_path: string;
   thank_you_message: string;
+  /** "training" = the full thank-you page after sign-up; "" = the small confirmation card. */
+  thank_you_template: "" | "training";
+  /** Host-written text for the Training templates (lib/training-copy.ts). Missing key = default, "" = hidden. */
+  page_copy: Partial<Record<CopyKey, string>>;
   /**
    * The owner's IANA timezone, captured from their browser on save. Used to
    * send each owner's morning registration summary at THEIR 7am.
@@ -170,6 +175,8 @@ export function emptyWebinar(ownerId: string): Omit<Webinar, "id"> {
     font_pair: "",
     public_path: "",
     thank_you_message: "You're in. We'll see you at the session.",
+    thank_you_template: "",
+    page_copy: {},
     owner_timezone: browserTimezone(),
     created_at: now,
     updated_at: now,
@@ -225,6 +232,8 @@ function toWebinar(id: string, data: Record<string, unknown>): Webinar {
     font_pair: typeof data.font_pair === "string" && isFontPairId(data.font_pair) ? data.font_pair : "",
     public_path: str("public_path"),
     thank_you_message: str("thank_you_message"),
+    thank_you_template: data.thank_you_template === "training" ? "training" : "",
+    page_copy: cleanCopy(data.page_copy),
     owner_timezone: str("owner_timezone"),
     created_at: str("created_at"),
     updated_at: str("updated_at"),

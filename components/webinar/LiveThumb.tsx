@@ -11,6 +11,8 @@ type Props = {
   /** Visible height as a fraction of width. */
   ratio?: number;
   className?: string;
+  /** Show the thank-you screen instead of the sign-up page. */
+  thanks?: boolean;
 };
 
 /**
@@ -18,7 +20,7 @@ type Props = {
  * would see at laptop width, shrunk to a card. Rendered only once it scrolls
  * into view, with a frozen clock, so a gallery of dozens stays light.
  */
-export function LiveThumb({ webinar, width = 1280, ratio = 0.64, className = "" }: Props) {
+export function LiveThumb({ webinar, width = 1280, ratio = 0.64, className = "", thanks = false }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
   const [visible, setVisible] = useState(false);
@@ -59,7 +61,7 @@ export function LiveThumb({ webinar, width = 1280, ratio = 0.64, className = "" 
           // React 18 has no boolean `inert`; this keeps the miniature out of the tab order and screen readers.
           ref={(el) => el?.setAttribute("inert", "")}
         >
-          <RegistrationPage webinar={webinar} mode="preview" frozen />
+          <RegistrationPage webinar={webinar} mode="preview" frozen startDone={thanks} />
         </div>
       ) : null}
     </div>

@@ -28,6 +28,7 @@ import {
   PosterLayout,
   SplitLayout,
   TrainingLayout,
+  TrainingThanksPage,
 } from "@/components/webinar/page-layouts";
 import { BrandMark, Headline, PageProvider, type FormState, type PageState } from "@/components/webinar/page-parts";
 import { FONT_PAIRS } from "@/lib/webinar-fonts";
@@ -44,6 +45,8 @@ type Props = {
   onRegister?: (name: string, email: string) => Promise<RegistrationResult | void>;
   /** Gallery thumbnail: the clock is frozen so a grid of pages doesn't tick every second. */
   frozen?: boolean;
+  /** Start on the thank-you screen (the thank-you template's gallery thumbnail). */
+  startDone?: boolean;
 };
 
 /**
@@ -107,7 +110,7 @@ const LAYOUTS = {
   training: TrainingLayout,
 } as const;
 
-export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false }: Props) {
+export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false, startDone = false }: Props) {
   const t = getTemplate(w.template_id);
   const palette = useMemo(
     () => resolvePalette(t, w),
@@ -133,7 +136,7 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false 
   const [emailError, setEmailError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(startDone);
   const [joinUrl, setJoinUrl] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -318,7 +321,8 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false 
     );
   }
 
-  const Layout = LAYOUTS[t.layout];
+  // The full thank-you page replaces the whole page once someone has registered.
+  const Layout = done && w.thank_you_template === "training" ? TrainingThanksPage : LAYOUTS[t.layout];
   const open = phase !== "ended";
 
   return (

@@ -659,12 +659,23 @@ function buildTemplates(): WebinarTemplate[] {
   return out;
 }
 
+/** A full thank-you page a host can pair with ANY registration template. */
+export type ThankYouTemplate = { id: "training"; name: string; description: string };
+
+export const THANK_YOU_TEMPLATES: ThankYouTemplate[] = [
+  {
+    id: "training",
+    name: "Midnight Thank-You Page",
+    description: "A full page after sign-up: seat confirmed, what you'll learn, calendar and join link, and an optional bonus offer.",
+  },
+];
+
 /** Hand-made templates, shown first and under "Most liked" in the picker. */
 const FEATURED_TEMPLATES: WebinarTemplate[] = [
   {
     id: "training-midnight",
-    name: "Midnight Training",
-    description: "A dark sales-training hero with a gold button, a long-form page and a full thank-you page after sign-up.",
+    name: "Midnight Training Page",
+    description: "A dark sales-training page: gold button, host, long-form story, outcomes, testimonial and a sign-up card. Every line is editable.",
     category: "Marketing",
     tags: ["sales", "training", "funnel", "on-demand", "course", "coaching", "agency", "most liked", "popular", "dark", "navy", "gold", "indigo"],
     layout: "training",

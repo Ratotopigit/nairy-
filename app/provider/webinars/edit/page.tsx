@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Copy, Download, ExternalLink, Loader2, PencilLine, RotateCcw } from "lucide-react";
 import { auth } from "@/lib/firebase/config";
 import { TemplatePicker } from "@/components/webinar/TemplatePicker";
-import { BrandPanel, ContentPanel, ImagesPanel, LayoutPanel } from "@/components/webinar/editor/EditorPanels";
+import { BrandPanel, ContentPanel, ImagesPanel, LayoutPanel, TextPanel } from "@/components/webinar/editor/EditorPanels";
 import { ImagePicker } from "@/components/webinar/editor/ImagePicker";
 import { PreviewPane, type Device } from "@/components/webinar/editor/PreviewPane";
 import { getTemplate } from "@/lib/webinar-templates";
@@ -35,10 +35,11 @@ function hostName(): string {
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error";
-type PanelId = "content" | "brand" | "images" | "layout";
+type PanelId = "content" | "text" | "brand" | "images" | "layout";
 
 const PANELS: { id: PanelId; label: string }[] = [
   { id: "content", label: "Content" },
+  { id: "text", label: "Page text" },
   { id: "brand", label: "Brand" },
   { id: "images", label: "Images" },
   { id: "layout", label: "Layout" },
@@ -212,6 +213,10 @@ function Editor() {
 
   const published = webinar.status === "published";
   const template = getTemplate(webinar.template_id);
+  // The Training templates have many more editable lines; their own tab holds them.
+  const usesText = template.layout === "training" || webinar.thank_you_template === "training";
+  const panels = PANELS.filter((p) => p.id !== "text" || usesText);
+  const activePanel = panels.some((p) => p.id === panel) ? panel : "content";
   const phase = sessionPhase(webinar);
   // What the link will be after the next save, so it updates as they type.
   const shareUrl = registrationUrl({ id: webinar.id, public_path: publicPath(webinar, hostName()) });
@@ -378,15 +383,15 @@ function Editor() {
           {/* Editing panels */}
           <div className={`min-w-0 ${mobileView === "preview" ? "hidden lg:block" : ""}`}>
             <div role="tablist" aria-label="Editor sections" className="sticky top-0 z-10 -mx-1 mb-5 flex gap-1 rounded-xl border border-border bg-background/95 p-1 backdrop-blur">
-              {PANELS.map((p) => (
+              {panels.map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   role="tab"
-                  aria-selected={panel === p.id}
+                  aria-selected={activePanel === p.id}
                   onClick={() => setPanel(p.id)}
                   className={`flex-1 rounded-lg px-2 py-2 text-sm transition-colors ${
-                    panel === p.id ? "bg-foreground font-medium text-background" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    activePanel === p.id ? "bg-foreground font-medium text-background" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   }`}
                 >
                   {p.label}
@@ -394,7 +399,7 @@ function Editor() {
               ))}
             </div>
 
-            {panel === "content" ? (
+            {activePanel === "content" ? (
               <ContentPanel
                 {...panelProps}
                 joinUrl={joinUrl}
@@ -406,8 +411,9 @@ function Editor() {
                 timezone={timezone}
               />
             ) : null}
-            {panel === "brand" ? <BrandPanel {...panelProps} onError={setNotice} /> : null}
-            {panel === "images" ? (
+            {activePanel === "text" ? <TextPanel {...panelProps} /> : null}
+            {activePanel === "brand" ? <BrandPanel {...panelProps} onError={setNotice} /> : null}
+            {activePanel === "images" ? (
               <ImagesPanel
                 {...panelProps}
                 onFind={() => setPhotoMode("search")}
@@ -416,7 +422,7 @@ function Editor() {
                 onError={setNotice}
               />
             ) : null}
-            {panel === "layout" ? <LayoutPanel {...panelProps} onBrowse={() => setPickerOpen(true)} /> : null}
+            {activePanel === "layout" ? <LayoutPanel {...panelProps} onBrowse={() => setPickerOpen(true)} /> : null}
           </div>
 
           {/* Live preview: the exact component visitors get. */}
@@ -439,6 +445,12 @@ function Editor() {
             onPick={(templateId) => {
               // Content, brand, colours, fonts and images all stay; only the design changes.
               update("template_id", templateId);
+              // The Training page comes with its matching thank-you page; change it under Layout.
+              if (getTemplate(templateId).layout === "training" && !webinar.thank_you_template) update("thank_you_template", "training");
+              setPickerOpen(false);
+            }}
+            onPickThanks={(id) => {
+              update("thank_you_template", id);
               setPickerOpen(false);
             }}
           />

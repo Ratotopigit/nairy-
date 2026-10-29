@@ -6,8 +6,8 @@
  * alignment, where the form sits and how they recompose on a phone.
  * Spacing, sizing and breakpoints live in registration.css.
  */
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { ArrowRight, CalendarCheck, Check, CirclePlay, Clock, Copy, Lightbulb, Mail, Rocket, Sparkles, Target, TrendingUp, Users, Zap } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { ArrowRight, CalendarCheck, Check, CirclePlay, Clock, Copy, Gift, Lightbulb, Mail, Rocket, ShieldCheck, Sparkles, Star, Target, TrendingUp, Users, Zap } from "lucide-react";
 import {
   Bio,
   BrandMark,
@@ -30,6 +30,7 @@ import {
 } from "@/components/webinar/page-parts";
 import { ensureContrast, mix } from "@/lib/color";
 import { splitHeadline } from "@/lib/headline";
+import { copyLines, copyOf, safeUrl, type CopyKey } from "@/lib/training-copy";
 import { seedWithOverrides } from "@/lib/webinar-templates";
 import { calendarEvent } from "@/lib/webinars";
 
@@ -464,7 +465,7 @@ export function CardLayout() {
   );
 }
 
-// ── 12. Sales training (with its own full thank-you page) ─────────────────
+// ── 12. Sales training (long-form page + its own full thank-you page) ─────
 
 const NIGHT = "#0b0920";
 
@@ -477,6 +478,13 @@ function useNightVars(): CSSProperties {
   return { "--t-top": top, "--t-night": night, "--t-hl": ensureContrast(mix(seed.accent, "#ffffff", 0.25), [top, night], 4.5) } as CSSProperties;
 }
 
+/** The host's text for one field (their own, else the default; "" = hidden). */
+function useCopy() {
+  const { w } = usePage();
+  return (key: CopyKey) => copyOf(w.page_copy, key);
+}
+
+/** The tail of a headline set in the highlight colour. */
 function Highlighted({ text }: { text: string }) {
   const [lead, tail] = splitHeadline(text);
   return (
@@ -502,36 +510,101 @@ function JumpButton() {
   );
 }
 
-export function TrainingLayout() {
-  const { form, brandName } = usePage();
-  const vars = useNightVars();
-  const top = useRef<HTMLDivElement>(null);
-  // The thank-you page replaces the whole page, so start it from the top.
-  useEffect(() => {
-    if (form.done) top.current?.scrollIntoView({ block: "start" });
-  }, [form.done]);
+function Testimonial() {
+  const c = useCopy();
+  if (!c("testimonial_quote")) return null;
   return (
-    <div ref={top} className="wp-t" style={vars}>
-      {form.done ? <TrainingThanks /> : <TrainingRegister />}
-      {brandName ? (
-        <div className="wp-t-foot">
-          <Footer />
-        </div>
-      ) : null}
+    <figure className="wp-t-review">
+      <span className="wp-t-stars" role="img" aria-label="5 out of 5 stars">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <Star key={i} fill="currentColor" aria-hidden="true" />
+        ))}
+      </span>
+      <blockquote>{c("testimonial_quote")}</blockquote>
+      {c("testimonial_by") ? <figcaption>{c("testimonial_by")}</figcaption> : null}
+    </figure>
+  );
+}
+
+function TrainingFooter() {
+  const { brandName } = usePage();
+  const c = useCopy();
+  const privacy = safeUrl(c("privacy_url"));
+  const terms = safeUrl(c("terms_url"));
+  if (!c("disclaimer") && !privacy && !terms && !brandName) return null;
+  return (
+    <footer className="wp-t-foot">
+      <div className="wp-t-foot-in">
+        {c("disclaimer") ? <p className="wp-t-disc">{c("disclaimer")}</p> : null}
+        {privacy || terms ? (
+          <p className="wp-t-links">
+            {privacy ? (
+              <a href={privacy} target="_blank" rel="noopener noreferrer">
+                Privacy Policy
+              </a>
+            ) : null}
+            {terms ? (
+              <a href={terms} target="_blank" rel="noopener noreferrer">
+                Terms of Service
+              </a>
+            ) : null}
+          </p>
+        ) : null}
+        {brandName ? <p className="wp-t-copy">© {new Date().getFullYear()} {brandName}. All rights reserved.</p> : null}
+      </div>
+    </footer>
+  );
+}
+
+function TrainingShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="wp-t" style={useNightVars()}>
+      {children}
+      <TrainingFooter />
+    </div>
+  );
+}
+
+export function TrainingLayout() {
+  return (
+    <TrainingShell>
+      <TrainingRegister />
+    </TrainingShell>
+  );
+}
+
+/** The full thank-you page. Shown after sign-up when the host chose it, with any registration template. */
+export function TrainingThanksPage() {
+  const { mode } = usePage();
+  const top = useRef<HTMLDivElement>(null);
+  // A real visitor lands at the top of the new page. (Previews and gallery thumbnails must not scroll the dashboard.)
+  useEffect(() => {
+    if (mode === "live") top.current?.scrollIntoView({ block: "start" });
+  }, [mode]);
+  return (
+    <div ref={top}>
+      <TrainingShell>
+        <TrainingThanks />
+      </TrainingShell>
     </div>
   );
 }
 
 function TrainingRegister() {
   const { w, phase, hostName, outcomes } = usePage();
+  const c = useCopy();
   const open = phase !== "ended";
   const minutes = w.duration_minutes;
+  const trust = copyLines(c("trust_items"));
+  const story = copyLines(c("story_body"));
+  const foryou = copyLines(c("foryou_items"));
   return (
     <>
       <section className="wp-t-hero">
         {w.image_url ? <Media className="wp-t-photo" src={w.image_url} focusX={w.image_focus_x} focusY={w.image_focus_y} priority /> : null}
         <div className="wp-wrap wp-t-hero-in">
           <BrandMark />
+          {c("audience") ? <p className="wp-t-aud">{c("audience")}</p> : null}
           <Kicker />
           <h1 className="wp-h1">
             <Highlighted text={w.title || "Your webinar title"} />
@@ -543,16 +616,19 @@ function TrainingRegister() {
               <WhenLine short />
             </span>
             {minutes ? (
-              <span>
-                <Clock aria-hidden="true" />
-                {minutes}-minute training
-              </span>
+              <>
+                <i aria-hidden="true" />
+                <span>
+                  <Clock aria-hidden="true" />
+                  {minutes}-minute training
+                </span>
+              </>
             ) : null}
           </p>
           {open ? (
             <div className="wp-t-cta">
               <JumpButton />
-              <p className="wp-t-note">Free. Takes 20 seconds to register.</p>
+              {c("cta_note") ? <p className="wp-t-note">{c("cta_note")}</p> : null}
             </div>
           ) : null}
           {w.social_proof.trim() ? (
@@ -561,8 +637,22 @@ function TrainingRegister() {
               {w.social_proof}
             </p>
           ) : null}
+          {c("fine_print") ? <p className="wp-t-note">{c("fine_print")}</p> : null}
+          {trust.length || c("trust_label") ? (
+            <div className="wp-t-trust">
+              {c("trust_label") ? <p>{c("trust_label")}</p> : null}
+              {trust.length ? (
+                <ul>
+                  {trust.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </section>
+
       <section className="wp-t-body">
         <div className="wp-t-col">
           {hostName ? (
@@ -581,9 +671,37 @@ function TrainingRegister() {
               <Bio />
             </div>
           ) : null}
+
+          {c("story_title") || story.length ? (
+            <div className="wp-t-story">
+              {c("story_title") ? (
+                <h2 className="wp-t-h2">
+                  <Highlighted text={c("story_title")} />
+                </h2>
+              ) : null}
+              {story.map((line, i) => {
+                const bold = line.match(/^\*\*(.+)\*\*$/);
+                return bold ? (
+                  <p key={i} className="wp-t-strong">
+                    {bold[1]}
+                  </p>
+                ) : (
+                  <p key={i}>{line}</p>
+                )}
+              )}
+            </div>
+          ) : null}
+
+          {c("bonus_text") ? (
+            <div className="wp-t-bonus">
+              {c("bonus_title") ? <strong>{c("bonus_title")}: </strong> : null}
+              {c("bonus_text")}
+            </div>
+          ) : null}
+
           {outcomes.length ? (
             <div className="wp-t-learn">
-              <p className="wp-label">What you&apos;ll walk away with</p>
+              {c("learn_title") ? <p className="wp-label">{c("learn_title")}</p> : null}
               <ul>
                 {outcomes.map((item, i) => (
                   <li key={i}>
@@ -596,6 +714,21 @@ function TrainingRegister() {
               </ul>
             </div>
           ) : null}
+
+          {foryou.length || c("foryou_close") ? (
+            <div className="wp-t-foryou">
+              {c("foryou_title") ? <p className="wp-label">{c("foryou_title")}</p> : null}
+              {foryou.length ? (
+                <ul>
+                  {foryou.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {c("foryou_close") ? <p className="wp-t-mark">{c("foryou_close")}</p> : null}
+            </div>
+          ) : null}
+
           <div className="wp-t-card">
             <p className="wp-t-card-bar">{phase === "live" ? "Happening now" : "Free registration"}</p>
             <div className="wp-t-card-in">
@@ -607,22 +740,24 @@ function TrainingRegister() {
                 <p className="wp-t-card-sub">
                   <WhenLine />
                 </p>
+                {c("access_sub") ? <p className="wp-t-card-sub">{c("access_sub")}</p> : null}
               </div>
               <RegisterPanel bare compact title={null} />
             </div>
           </div>
+
+          <Testimonial />
         </div>
       </section>
+
       {open ? (
         <section className="wp-t-final">
           <div className="wp-t-col wp-t-center">
             <Kicker />
-            <h2 className="wp-t-h2">Save your free seat today</h2>
-            <p className="wp-t-lead">
-              <WhenLine />
-            </p>
+            {c("final_title") ? <h2 className="wp-t-h2">{c("final_title")}</h2> : null}
+            {c("final_text") ? <p className="wp-t-lead">{c("final_text")}</p> : null}
             <JumpButton />
-            <p className="wp-t-note">Free. We never spam. Unsubscribe any time.</p>
+            {c("final_note") ? <p className="wp-t-note">{c("final_note")}</p> : null}
           </div>
         </section>
       ) : null}
@@ -634,40 +769,51 @@ const TILE_ICONS = [TrendingUp, Users, Rocket, Target, Lightbulb];
 
 function TrainingThanks() {
   const { w, phase, when, joinUrl, mode, form, outcomes } = usePage();
+  const c = useCopy();
   const event = calendarEvent(w, joinUrl);
   const seeYou = phase === "live" ? "Join us now." : when ? `See you on ${when.weekday}.` : "See you there.";
+  const tiles = copyLines(c("tile_texts"));
+  const points = copyLines(c("offer_points"));
+  const offerUrl = safeUrl(c("offer_url"));
+  const learnTitle = c("learn2_title") || w.title || "Your webinar title";
   return (
     <>
       <section className="wp-t-hero">
         <div className="wp-wrap wp-t-hero-in">
           <BrandMark />
-          <Kicker>
-            <Sparkles aria-hidden="true" />
-            Your seat is locked in
-          </Kicker>
+          {c("thanks_label") ? (
+            <Kicker>
+              <Sparkles aria-hidden="true" />
+              {c("thanks_label")}
+            </Kicker>
+          ) : null}
           <h1 className="wp-h1">
-            You&apos;re registered. <em className="wp-t-hl">{seeYou}</em>
+            {c("thanks_title")} <em className="wp-t-hl">{c("thanks_highlight") || seeYou}</em>
           </h1>
           <p className="wp-sub">
-            Check your email for your webinar details.
+            {c("thanks_text")}
             {w.thank_you_message.trim() ? ` ${w.thank_you_message.trim()}` : ""}
           </p>
-          <p className="wp-t-chips">
-            <span>
-              <CalendarCheck aria-hidden="true" />
-              Your seat is confirmed
-            </span>
-          </p>
+          {c("thanks_chip") ? (
+            <p className="wp-t-chips">
+              <span>
+                <CalendarCheck aria-hidden="true" />
+                {c("thanks_chip")}
+              </span>
+            </p>
+          ) : null}
         </div>
       </section>
+
       <section className="wp-t-body">
         <div className="wp-t-col">
           {outcomes.length ? (
             <div className="wp-t-center">
-              <p className="wp-label">On this training you&apos;ll learn</p>
+              {c("learn2_label") ? <p className="wp-label">{c("learn2_label")}</p> : null}
               <h2 className="wp-t-h2">
-                <Highlighted text={w.title || "Your webinar title"} />
+                <Highlighted text={learnTitle} />
               </h2>
+              {c("learn2_text") ? <p className="wp-t-lead">{c("learn2_text")}</p> : null}
               <div className="wp-t-cards">
                 {outcomes.map((item, i) => {
                   const Icon = TILE_ICONS[i % TILE_ICONS.length];
@@ -677,22 +823,25 @@ function TrainingThanks() {
                         <Icon />
                       </span>
                       <p>{item}</p>
+                      {tiles[i] ? <p className="wp-t-tile-text">{tiles[i]}</p> : null}
                     </div>
                   );
                 })}
               </div>
             </div>
           ) : null}
+
           <div className="wp-t-center">
-            <p className="wp-label">Before you go, do these 2 things</p>
-            <h2 className="wp-t-h2">Lock in your spot.</h2>
+            {c("steps_label") ? <p className="wp-label">{c("steps_label")}</p> : null}
+            {c("steps_title") ? <h2 className="wp-t-h2">{c("steps_title")}</h2> : null}
           </div>
+
           <div className="wp-t-step">
             <span className="wp-t-num" aria-hidden="true">
               1
             </span>
-            <h3>Add the training to your calendar</h3>
-            <p>So you don&apos;t miss it. Your link to join is in your email{joinUrl ? " and right here" : ""}.</p>
+            {c("step1_title") ? <h3>{c("step1_title")}</h3> : null}
+            {c("step1_text") ? <p>{c("step1_text")}</p> : null}
             <div className="wp-t-card">
               <p className="wp-t-card-bar">Your countdown, calendar &amp; link to join</p>
               <div className="wp-t-card-in">
@@ -702,23 +851,72 @@ function TrainingThanks() {
               </div>
             </div>
           </div>
+
           <div className="wp-t-step">
-            <span className="wp-t-num" aria-hidden="true">
+            <span className="wp-t-num" data-gold="" aria-hidden="true">
               2
             </span>
-            <div className="wp-t-night">
-              <Kicker>
-                <Mail aria-hidden="true" />
-                Check your inbox
-              </Kicker>
-              <h3>Your confirmation is on its way</h3>
-              <p>
-                We sent your details to <strong>{form.email.trim() || "your email"}</strong>. Not there in a couple of minutes? Check your spam or
-                promotions folder and mark it as safe, so the reminder reaches you too.
-              </p>
-            </div>
+            {c("offer_title") ? (
+              <div className="wp-t-night wp-t-offer">
+                {c("offer_label") ? (
+                  <Kicker>
+                    <Gift aria-hidden="true" />
+                    {c("offer_label")}
+                  </Kicker>
+                ) : null}
+                <h3>
+                  <Highlighted text={c("offer_title")} />
+                </h3>
+                {c("offer_text") ? <p>{c("offer_text")}</p> : null}
+                {c("offer_old") || c("offer_new") ? (
+                  <p className="wp-t-compare">
+                    {c("offer_old") ? <s>{c("offer_old")}</s> : null}
+                    {c("offer_old") && c("offer_new") ? <ArrowRight aria-hidden="true" /> : null}
+                    {c("offer_new") ? <b>{c("offer_new")}</b> : null}
+                  </p>
+                ) : null}
+                {points.length ? (
+                  <ul className="wp-t-points">
+                    {points.map((item, i) => (
+                      <li key={i}>
+                        <span className="wp-t-tick" aria-hidden="true">
+                          <Check />
+                        </span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {offerUrl ? (
+                  <a className="wp-btn wp-t-big" href={offerUrl} target="_blank" rel="noopener noreferrer">
+                    {c("offer_button") || "Claim my offer"}
+                    <ArrowRight aria-hidden="true" />
+                  </a>
+                ) : null}
+                {c("offer_note") ? <p className="wp-t-small">{c("offer_note")}</p> : null}
+                {c("offer_trust") ? (
+                  <p className="wp-t-assure">
+                    <ShieldCheck aria-hidden="true" />
+                    {c("offer_trust")}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="wp-t-night">
+                <Kicker>
+                  <Mail aria-hidden="true" />
+                  Check your inbox
+                </Kicker>
+                <h3>Your confirmation is on its way</h3>
+                <p>
+                  We sent your details to <strong>{form.email.trim() || "your email"}</strong>. Not there in a couple of minutes? Check your spam
+                  or promotions folder and mark it as safe, so the reminder reaches you too.
+                </p>
+              </div>
+            )}
           </div>
-          {w.social_proof.trim() ? <p className="wp-t-quote">{w.social_proof.trim()}</p> : null}
+
+          <Testimonial />
           {mode === "preview" ? (
             <button type="button" className="wp-cal-btn wp-t-back" onClick={form.reset}>
               Back to the form

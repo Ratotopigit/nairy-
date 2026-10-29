@@ -2216,9 +2216,10 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   12. SALES TRAINING: a night-sky hero, a long centred page and, after
-   registering, a full thank-you page in the same style. Hero tones and
-   the highlight colour (--t-*) are set inline by TrainingLayout.
+   12. SALES TRAINING: a night-sky hero, a long page with a sign-up card
+   and, after registering, a full thank-you page in the same style. The
+   hero tones and the highlight colour (--t-*) are set inline by
+   TrainingShell. Text comes from the host (lib/training-copy.ts).
    ══════════════════════════════════════════════════════════════════════ */
 
 .wp-t {
@@ -2277,7 +2278,7 @@
 
 .wp-t-hero .wp-brand {
   align-items: center;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.2rem;
 }
 
 .wp-t-hero .wp-brand-tag {
@@ -2286,6 +2287,17 @@
 
 .wp-t-hero .wp-logo {
   object-position: center;
+}
+
+.wp-t-aud {
+  max-width: 42em;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  line-height: 1.6;
+  text-transform: uppercase;
+  color: var(--t-hl);
+  opacity: 0.9;
 }
 
 .wp-t-hero .wp-kicker,
@@ -2318,6 +2330,10 @@
   color: var(--brand-text);
 }
 
+.wp-t-night .wp-t-hl {
+  color: var(--t-hl);
+}
+
 .wp-t-hero .wp-sub {
   max-width: 40em;
   margin-inline: auto;
@@ -2325,23 +2341,32 @@
   color: var(--t-soft);
 }
 
+/* Date and length in one pill, split by a hairline. */
 .wp-t-chips {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.35rem 0;
+  padding: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .wp-t-chips > span {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.95rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.9);
+  padding: 0.3rem 0.9rem;
+}
+
+.wp-t-chips > i {
+  width: 1px;
+  height: 1.1rem;
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .wp-t-cta {
@@ -2359,10 +2384,16 @@
   padding: 1.05rem 1.6rem;
   font-size: clamp(1.0625rem, 2.2cqi, 1.25rem);
   font-weight: 700;
+  text-decoration: none;
   box-shadow: 0 24px 60px -16px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
-.wp-t-hero .wp-btn:focus-visible {
+a.wp-btn:hover {
+  filter: brightness(1.08);
+}
+
+.wp-t-hero .wp-btn:focus-visible,
+.wp-t-night .wp-btn:focus-visible {
   outline-color: #fff;
 }
 
@@ -2382,6 +2413,39 @@
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--t-hl);
+}
+
+.wp-t-trust {
+  display: grid;
+  justify-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  max-width: 44rem;
+  margin-top: 0.6rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wp-t-trust > p {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.56);
+}
+
+.wp-t-trust ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 2rem;
+}
+
+.wp-t-trust li {
+  font-family: var(--font-head), serif;
+  font-size: 0.9375rem;
+  font-weight: var(--head-w);
+  color: rgba(255, 255, 255, 0.82);
 }
 
 /* ── Body ── */
@@ -2410,7 +2474,7 @@
 .wp-t-name,
 .wp-t-card h2,
 .wp-t-step h3,
-.wp-t-quote {
+.wp-t-offer h3 {
   font-family: var(--font-head), serif;
   font-weight: var(--head-w);
   letter-spacing: var(--head-track);
@@ -2423,6 +2487,7 @@
 }
 
 .wp-t-lead {
+  max-width: 38em;
   color: var(--muted);
 }
 
@@ -2461,9 +2526,34 @@
   margin: 0.5rem auto 0;
 }
 
+/* The story: left-aligned long-form copy. */
+.wp-t-story {
+  display: grid;
+  gap: 1.1rem;
+  text-align: left;
+}
+
+.wp-t-story p {
+  line-height: 1.7;
+  color: color-mix(in srgb, var(--ink) 84%, var(--bg));
+}
+
+.wp-t-story .wp-t-strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.wp-t-bonus {
+  padding: 1.1rem 1.3rem;
+  border: 2px solid var(--ink);
+  border-radius: calc(var(--radius) * 0.9);
+  line-height: 1.6;
+}
+
 .wp-t-learn,
 .wp-t-card,
-.wp-t-tile {
+.wp-t-tile,
+.wp-t-review {
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) * 1.1);
   background: var(--surface);
@@ -2473,13 +2563,18 @@
   padding: clamp(20px, 3.6cqi, 32px);
 }
 
-.wp-t-learn ul {
+.wp-t-learn ul,
+.wp-t-points {
   display: grid;
   gap: 0.95rem;
+}
+
+.wp-t-learn ul {
   margin-top: 1.1rem;
 }
 
-.wp-t-learn li {
+.wp-t-learn li,
+.wp-t-points li {
   display: grid;
   grid-template-columns: 1.75rem minmax(0, 1fr);
   gap: 0.8rem;
@@ -2500,6 +2595,32 @@
 .wp-t-tick svg {
   width: 0.95rem;
   height: 0.95rem;
+}
+
+/* "This is for you if": plain quoted lines and a highlighted close. */
+.wp-t-foryou {
+  display: grid;
+  gap: 1rem;
+  text-align: left;
+}
+
+.wp-t-foryou ul {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.wp-t-foryou li {
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--ink) 84%, var(--bg));
+}
+
+.wp-t-mark {
+  justify-self: start;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 70%, var(--bg));
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .wp-t-card {
@@ -2558,6 +2679,35 @@
   color: var(--bg);
 }
 
+/* Testimonial: gold stars, an italic quote and who said it. */
+.wp-t-review {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  margin: 0;
+  padding: clamp(18px, 3cqi, 28px);
+  text-align: center;
+}
+
+.wp-t-stars {
+  display: inline-flex;
+  gap: 0.15rem;
+  font-size: 1.15rem;
+  color: var(--accent);
+}
+
+.wp-t-review blockquote {
+  margin: 0;
+  max-width: 32em;
+  font-style: italic;
+  line-height: 1.55;
+}
+
+.wp-t-review figcaption {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
 .wp-t-final {
   padding-block: clamp(40px, 7cqi, 80px);
   border-top: 1px solid var(--line);
@@ -2570,12 +2720,35 @@
   margin-top: 0.4rem;
 }
 
+/* ── Footer ── */
+
 .wp-t-foot {
   background: var(--t-night);
+  color: rgba(255, 255, 255, 0.64);
 }
 
-.wp-t-foot .wp-foot {
-  color: rgba(255, 255, 255, 0.64);
+.wp-t-foot-in {
+  display: grid;
+  justify-items: center;
+  gap: 0.85rem;
+  max-width: 48rem;
+  margin-inline: auto;
+  padding: 2rem var(--g);
+  text-align: center;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.wp-t-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem 1.5rem;
+}
+
+.wp-t-links a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ── Thank-you page ── */
@@ -2591,7 +2764,7 @@
 .wp-t-tile {
   display: grid;
   align-content: start;
-  gap: 0.9rem;
+  gap: 0.7rem;
   padding: 1.4rem;
 }
 
@@ -2600,11 +2773,18 @@
   line-height: 1.45;
 }
 
+.wp-t-tile .wp-t-tile-text {
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
 .wp-t-icon {
   display: grid;
   place-items: center;
   width: 2.6rem;
   height: 2.6rem;
+  margin-bottom: 0.2rem;
   border-radius: calc(var(--radius) * 0.6);
   background: var(--tint);
   color: var(--brand-text);
@@ -2613,7 +2793,11 @@
 
 @container wp (min-width: 720px) {
   .wp-t-cards {
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  }
+  .wp-t-points {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.5rem;
   }
 }
 
@@ -2633,6 +2817,11 @@
   background: var(--brand);
   color: var(--brand-ink);
   font-weight: 700;
+}
+
+.wp-t-num[data-gold] {
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .wp-t-step h3 {
@@ -2665,10 +2854,13 @@
   gap: 1rem;
   padding: clamp(24px, 4.4cqi, 44px);
   border-radius: calc(var(--radius) * 1.1);
+  text-align: center;
 }
 
-.wp-t-night h3 {
+.wp-t-night h3,
+.wp-t-offer h3 {
   font-size: clamp(1.4rem, 3.6cqi, 2rem);
+  line-height: 1.2;
 }
 
 .wp-t-night p {
@@ -2679,6 +2871,55 @@
 .wp-t-night strong {
   color: #fff;
   overflow-wrap: anywhere;
+}
+
+.wp-t-compare {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.875rem;
+}
+
+.wp-t-compare s {
+  opacity: 0.7;
+}
+
+.wp-t-compare b {
+  color: var(--t-hl);
+}
+
+.wp-t-points {
+  width: 100%;
+  max-width: 34rem;
+  text-align: left;
+}
+
+.wp-t-night .wp-t-points li {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.wp-t-offer .wp-t-big {
+  width: 100%;
+  max-width: 34rem;
+}
+
+.wp-t-night .wp-t-small {
+  font-size: 0.8125rem;
+}
+
+.wp-t-night .wp-t-assure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.8125rem;
 }
 
 .wp-t-link {
@@ -2706,15 +2947,6 @@
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.wp-t-quote {
-  max-width: 30em;
-  margin-inline: auto;
-  font-size: clamp(1.25rem, 3cqi, 1.6rem);
-  font-style: italic;
-  line-height: 1.35;
-  text-align: center;
 }
 
 .wp-t-back {

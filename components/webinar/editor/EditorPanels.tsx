@@ -6,6 +6,7 @@ import { Divider, Field, INPUT, Section } from "@/components/webinar/editor/cont
 import { ImageSlot } from "@/components/webinar/editor/ImageSlot";
 import { FONT_PAIRS } from "@/lib/webinar-fonts";
 import { isHex } from "@/lib/color";
+import { COPY_FIELDS, COPY_GROUPS, copyOf } from "@/lib/training-copy";
 import {
   COLOR_PRESETS,
   FONT_PAIR_CATALOG,
@@ -466,6 +467,34 @@ export function LayoutPanel({ w, update, onBrowse }: PanelProps & { onBrowse: ()
         </div>
       </Section>
 
+      <Section title="Thank-you page" hint="What people see right after they register. It works with every template.">
+        <div className="grid gap-2">
+          {(
+            [
+              { id: "", name: "Simple confirmation", blurb: "A short “You're registered” card with calendar buttons." },
+              { id: "training", name: "Midnight Training thank-you page", blurb: "A full page: seat confirmed, what you'll learn, calendar, join link and an optional offer." },
+            ] as const
+          ).map((o) => {
+            const selected = w.thank_you_template === o.id;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => update("thank_you_template", o.id)}
+                aria-pressed={selected}
+                className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-secondary ${selected ? "border-foreground ring-1 ring-foreground" : "border-border"}`}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium">{o.name}</span>
+                  <span className="block text-[11px] text-muted-foreground">{o.blurb}</span>
+                </span>
+                {selected ? <Check className="size-4 shrink-0" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      </Section>
+
       <Section title={`More in ${t.category}`} hint="Different compositions, in colours chosen for this kind of business.">
         <div className="grid gap-2">
           {siblings.map((s) => {
@@ -494,6 +523,66 @@ export function LayoutPanel({ w, update, onBrowse }: PanelProps & { onBrowse: ()
           })}
         </div>
       </Section>
+    </div>
+  );
+}
+
+// ── Page text (Training templates) ────────────────────────────────────────
+
+/** Every editable line of the Training page and its thank-you page, grouped by where it appears. */
+export function TextPanel({ w, update }: PanelProps): ReactNode {
+  const onPage = getTemplate(w.template_id).layout === "training";
+  const onThanks = w.thank_you_template === "training";
+  const groups = COPY_GROUPS.filter((g) =>
+    g.id === "proof" || g.id === "footer" ? true : g.id === "thanks" || g.id === "offer" ? onThanks : onPage,
+  );
+  return (
+    <div className="space-y-6">
+      <p className="text-xs leading-5 text-muted-foreground">
+        Every line is yours to change. Leave a box empty to hide that part of the page, or reset it to bring the original wording back.
+      </p>
+      {groups.map((g, i) => (
+        <div key={g.id} className="space-y-6">
+          {i ? <Divider /> : null}
+          <Section title={g.title} hint={g.hint}>
+            {COPY_FIELDS.filter((f) => f.group === g.id).map((f) => {
+              const own = w.page_copy[f.key];
+              const value = own ?? copyOf({}, f.key);
+              const set = (v: string) => update("page_copy", { ...w.page_copy, [f.key]: v });
+              return (
+                <Field
+                  key={f.key}
+                  label={f.label}
+                  right={
+                    own !== undefined ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const { [f.key]: _drop, ...rest } = w.page_copy;
+                          void _drop;
+                          update("page_copy", rest);
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        <RotateCcw className="size-3" />
+                        Reset
+                      </button>
+                    ) : (
+                      <Counter value={value} max={f.max} />
+                    )
+                  }
+                >
+                  {f.long ? (
+                    <textarea value={value} onChange={(e) => set(e.target.value)} maxLength={f.max} rows={f.max > 300 ? 4 : 2} placeholder={f.sample} className={`${INPUT} resize-y`} />
+                  ) : (
+                    <input value={value} onChange={(e) => set(e.target.value)} maxLength={f.max} placeholder={f.sample} className={INPUT} />
+                  )}
+                </Field>
+              );
+            })}
+          </Section>
+        </div>
+      ))}
     </div>
   );
 }
