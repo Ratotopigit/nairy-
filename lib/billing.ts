@@ -1,7 +1,7 @@
 "use client";
 
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { auth, db, getFirebaseAuthToken } from "./firebase/config";
 import type { PlanId } from "./plans";
@@ -50,6 +50,15 @@ export function isPaid(record: BillingRecord, now: number = Date.now()): boolean
     { plan: record.plan, status: record.status, access_until: record.accessUntil, current_period_end: record.currentPeriodEnd },
     now,
   );
+}
+
+/** One read of whether this account has paid access now; null when it can't be read. */
+export async function fetchIsPaid(uid: string): Promise<boolean | null> {
+  try {
+    return isPaid(parseRecord((await getDoc(doc(db, "billing", uid))).data()));
+  } catch {
+    return null;
+  }
 }
 
 export interface EntitlementState {

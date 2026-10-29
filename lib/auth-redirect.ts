@@ -32,9 +32,21 @@ export async function destinationFor(uid: string): Promise<string> {
   const { pendingPlan } = await import("@/lib/plans");
   const completed = await checkUserOnboardingStatus(uid);
   if (!completed) return "/onboarding";
-  // A plan picked on the promo site before signing in goes straight to Billing.
+  const next = safeNextPath();
+  if (next) return next;
+  // A plan picked on the promo site before signing in goes to Billing, but only
+  // for free accounts: someone already subscribed just lands in the workspace.
+  // If the plan can't be read we also skip Billing rather than bother a payer.
   const plan = pendingPlan();
-  return safeNextPath() ?? (plan ? `/provider/billing?plan=${plan}` : "/provider");
+  if (!plan) return "/provider";
+  const { fetchIsPaid } = await import("@/lib/billing");
+  const paid = await fetchIsPaid(uid);
+  if (paid === false) return `/provider/billing?plan=${plan}`;
+  if (paid) {
+    const { clearPendingPlan } = await import("@/lib/plans");
+    clearPendingPlan();
+  }
+  return "/provider";
 }
 
 /**
