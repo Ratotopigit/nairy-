@@ -55,6 +55,7 @@ export type LoadedFontPair = {
 export const FONT_PAIRS: Record<FontPairId, LoadedFontPair> = {
   "bodoni-public": { heading: fam(bodoni), body: fam(publicSans), headingWeight: 500, tracking: "-0.02em" },
   "playfair-inter": { heading: fam(playfair), body: fam(inter), headingWeight: 600, tracking: "-0.02em" },
+  "playfair-bold": { heading: fam(playfair), body: fam(inter), headingWeight: 800, tracking: "-0.02em" },
   "instrument-inter": { heading: fam(instrument), body: fam(inter), headingWeight: 400, tracking: "-0.015em" },
   "cormorant-inter": { heading: fam(cormorant), body: fam(inter), headingWeight: 600, tracking: "-0.015em" },
   "fraunces-inter": { heading: fam(fraunces), body: fam(inter), headingWeight: 500, tracking: "-0.025em" },

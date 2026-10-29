@@ -22,6 +22,7 @@ import { contrast, darkenForWhite, ensureContrast, isDark, isHex, luminance, mix
 export const FONT_PAIR_CATALOG = {
   "bodoni-public": { label: "Magazine", note: "High-contrast serif with a clean sans" },
   "playfair-inter": { label: "Classic Editorial", note: "Elegant serif, neutral sans" },
+  "playfair-bold": { label: "Bold Editorial", note: "Heavy serif headlines, neutral sans" },
   "instrument-inter": { label: "Modern Editorial", note: "Tall, refined display serif" },
   "cormorant-inter": { label: "Refined", note: "Light, airy and elegant" },
   "fraunces-inter": { label: "Warm Serif", note: "Soft, friendly and human" },
@@ -50,7 +51,8 @@ export type LayoutId =
   | "letter"
   | "bento"
   | "agenda"
-  | "card";
+  | "card"
+  | "training";
 
 export const LAYOUT_LABELS: Record<LayoutId, { name: string; short: string; blurb: string }> = {
   editorial: { name: "Editorial", short: "Editorial", blurb: "Magazine masthead, big type and a side form" },
@@ -64,6 +66,7 @@ export const LAYOUT_LABELS: Record<LayoutId, { name: string; short: string; blur
   bento: { name: "Bento grid", short: "Bento", blurb: "Rounded tiles for headline, date, outcomes and form" },
   agenda: { name: "Programme", short: "Programme", blurb: "A form column beside a big numbered programme" },
   card: { name: "Focus card", short: "Focus", blurb: "One floating card on a colour or photo backdrop" },
+  training: { name: "Sales training", short: "Training", blurb: "A dark sales hero, a long-form page and a full thank-you page" },
 };
 
 export type TemplateCategory =
@@ -125,6 +128,8 @@ export type WebinarTemplate = {
   look: TemplateLook;
   /** Small line above the headline. */
   kicker: string;
+  /** Shown first, under "Most liked" in the picker. */
+  featured?: boolean;
 };
 
 // ── Palette ───────────────────────────────────────────────────────────────
@@ -401,6 +406,7 @@ const BASE_LOOK: Record<LayoutId, TemplateLook> = {
   bento: { radius: 20, field: "box", outcomes: "tick", backdrop: "dusk" },
   agenda: { radius: 8, field: "line", outcomes: "numbered", backdrop: "paper" },
   card: { radius: 18, field: "box", outcomes: "tick", backdrop: "studio" },
+  training: { radius: 16, field: "box", outcomes: "tick", backdrop: "dusk" },
 };
 
 /**
@@ -420,6 +426,7 @@ const RADIUS_CHOICES: Record<LayoutId, [number, number]> = {
   bento: [18, 26],
   agenda: [6, 14],
   card: [16, 28],
+  training: [16, 16],
 };
 
 /** A plain colour word for a template's brand colour, used in its name. */
@@ -652,7 +659,24 @@ function buildTemplates(): WebinarTemplate[] {
   return out;
 }
 
-export const WEBINAR_TEMPLATES: WebinarTemplate[] = buildTemplates();
+/** Hand-made templates, shown first and under "Most liked" in the picker. */
+const FEATURED_TEMPLATES: WebinarTemplate[] = [
+  {
+    id: "training-midnight",
+    name: "Midnight Training",
+    description: "A dark sales-training hero with a gold button, a long-form page and a full thank-you page after sign-up.",
+    category: "Marketing",
+    tags: ["sales", "training", "funnel", "on-demand", "course", "coaching", "agency", "most liked", "popular", "dark", "navy", "gold", "indigo"],
+    layout: "training",
+    seed: { bg: "#FFFFFF", ink: "#1A1530", brand: "#4F46E5", accent: "#FACC15" },
+    fonts: "playfair-bold",
+    look: BASE_LOOK.training,
+    kicker: "Free live training",
+    featured: true,
+  },
+];
+
+export const WEBINAR_TEMPLATES: WebinarTemplate[] = [...FEATURED_TEMPLATES, ...buildTemplates()];
 
 export const DEFAULT_TEMPLATE_ID = "business-editorial";
 

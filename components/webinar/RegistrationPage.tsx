@@ -27,6 +27,7 @@ import {
   PhotoLayout,
   PosterLayout,
   SplitLayout,
+  TrainingLayout,
 } from "@/components/webinar/page-layouts";
 import { BrandMark, Headline, PageProvider, type FormState, type PageState } from "@/components/webinar/page-parts";
 import { FONT_PAIRS } from "@/lib/webinar-fonts";
@@ -103,6 +104,7 @@ const LAYOUTS = {
   bento: BentoLayout,
   agenda: AgendaLayout,
   card: CardLayout,
+  training: TrainingLayout,
 } as const;
 
 export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false }: Props) {
@@ -214,6 +216,7 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false 
       setName("");
       setEmail("");
     },
+    jump: jumpToForm,
     nameRef,
     emailRef,
     panelRef,

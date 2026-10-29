@@ -1,14 +1,17 @@
 "use client";
 
 /**
- * The eleven compositions. Each is a different arrangement of the same parts,
+ * The twelve compositions. Each is a different arrangement of the same parts,
  * not a recolour: they differ in hero structure, image placement, text
  * alignment, where the form sits and how they recompose on a phone.
  * Spacing, sizing and breakpoints live in registration.css.
  */
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { ArrowRight, CalendarCheck, Check, CirclePlay, Clock, Copy, Lightbulb, Mail, Rocket, Sparkles, Target, TrendingUp, Users, Zap } from "lucide-react";
 import {
   Bio,
   BrandMark,
+  CalendarButtons,
   DateMark,
   Footer,
   Headline,
@@ -25,6 +28,10 @@ import {
   initials,
   usePage,
 } from "@/components/webinar/page-parts";
+import { ensureContrast, mix } from "@/lib/color";
+import { splitHeadline } from "@/lib/headline";
+import { seedWithOverrides } from "@/lib/webinar-templates";
+import { calendarEvent } from "@/lib/webinars";
 
 /** The main photograph: the hero image, else the portrait (still a real photo), else nothing. */
 function useHeroSource() {
@@ -452,6 +459,294 @@ export function CardLayout() {
           </div>
         </div>
         <Footer />
+      </div>
+    </div>
+  );
+}
+
+// ── 12. Sales training (with its own full thank-you page) ─────────────────
+
+const NIGHT = "#0b0920";
+
+/** Night-sky hero tones tinted by the brand, and a highlight colour that reads on them. */
+function useNightVars(): CSSProperties {
+  const { t, w } = usePage();
+  const seed = seedWithOverrides(t.seed, w);
+  const top = mix(NIGHT, seed.brand, 0.3);
+  const night = mix(NIGHT, seed.brand, 0.08);
+  return { "--t-top": top, "--t-night": night, "--t-hl": ensureContrast(mix(seed.accent, "#ffffff", 0.25), [top, night], 4.5) } as CSSProperties;
+}
+
+function Highlighted({ text }: { text: string }) {
+  const [lead, tail] = splitHeadline(text);
+  return (
+    <>
+      {lead}
+      {tail ? (
+        <>
+          {" "}
+          <em className="wp-t-hl">{tail}</em>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function JumpButton() {
+  const { w, form } = usePage();
+  return (
+    <button type="button" className="wp-btn wp-t-big" onClick={form.jump}>
+      {w.cta_label || "Register now"}
+      <ArrowRight aria-hidden="true" />
+    </button>
+  );
+}
+
+export function TrainingLayout() {
+  const { form, brandName } = usePage();
+  const vars = useNightVars();
+  const top = useRef<HTMLDivElement>(null);
+  // The thank-you page replaces the whole page, so start it from the top.
+  useEffect(() => {
+    if (form.done) top.current?.scrollIntoView({ block: "start" });
+  }, [form.done]);
+  return (
+    <div ref={top} className="wp-t" style={vars}>
+      {form.done ? <TrainingThanks /> : <TrainingRegister />}
+      {brandName ? (
+        <div className="wp-t-foot">
+          <Footer />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TrainingRegister() {
+  const { w, phase, hostName, outcomes } = usePage();
+  const open = phase !== "ended";
+  const minutes = w.duration_minutes;
+  return (
+    <>
+      <section className="wp-t-hero">
+        {w.image_url ? <Media className="wp-t-photo" src={w.image_url} focusX={w.image_focus_x} focusY={w.image_focus_y} priority /> : null}
+        <div className="wp-wrap wp-t-hero-in">
+          <BrandMark />
+          <Kicker />
+          <h1 className="wp-h1">
+            <Highlighted text={w.title || "Your webinar title"} />
+          </h1>
+          <Subtitle />
+          <p className="wp-t-chips">
+            <span>
+              <CirclePlay aria-hidden="true" />
+              <WhenLine short />
+            </span>
+            {minutes ? (
+              <span>
+                <Clock aria-hidden="true" />
+                {minutes}-minute training
+              </span>
+            ) : null}
+          </p>
+          {open ? (
+            <div className="wp-t-cta">
+              <JumpButton />
+              <p className="wp-t-note">Free. Takes 20 seconds to register.</p>
+            </div>
+          ) : null}
+          {w.social_proof.trim() ? (
+            <p className="wp-t-proof">
+              <Zap aria-hidden="true" />
+              {w.social_proof}
+            </p>
+          ) : null}
+        </div>
+      </section>
+      <section className="wp-t-body">
+        <div className="wp-t-col">
+          {hostName ? (
+            <div className="wp-t-host">
+              <Media
+                className="wp-t-face"
+                src={w.portrait_url}
+                focusX={w.portrait_focus_x}
+                focusY={w.portrait_focus_y}
+                mark={initials(hostName)}
+                alt={hostName}
+              />
+              <p className="wp-label">Presented by</p>
+              <p className="wp-t-name">{hostName}</p>
+              {w.presenter_title ? <p className="wp-host-title">{w.presenter_title}</p> : null}
+              <Bio />
+            </div>
+          ) : null}
+          {outcomes.length ? (
+            <div className="wp-t-learn">
+              <p className="wp-label">What you&apos;ll walk away with</p>
+              <ul>
+                {outcomes.map((item, i) => (
+                  <li key={i}>
+                    <span className="wp-t-tick" aria-hidden="true">
+                      <Check />
+                    </span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <div className="wp-t-card">
+            <p className="wp-t-card-bar">{phase === "live" ? "Happening now" : "Free registration"}</p>
+            <div className="wp-t-card-in">
+              <div className="wp-t-card-head">
+                <span className="wp-t-play" aria-hidden="true">
+                  <CirclePlay />
+                </span>
+                <h2>{minutes ? `Free ${minutes}-minute training` : "Free training"}</h2>
+                <p className="wp-t-card-sub">
+                  <WhenLine />
+                </p>
+              </div>
+              <RegisterPanel bare compact title={null} />
+            </div>
+          </div>
+        </div>
+      </section>
+      {open ? (
+        <section className="wp-t-final">
+          <div className="wp-t-col wp-t-center">
+            <Kicker />
+            <h2 className="wp-t-h2">Save your free seat today</h2>
+            <p className="wp-t-lead">
+              <WhenLine />
+            </p>
+            <JumpButton />
+            <p className="wp-t-note">Free. We never spam. Unsubscribe any time.</p>
+          </div>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+const TILE_ICONS = [TrendingUp, Users, Rocket, Target, Lightbulb];
+
+function TrainingThanks() {
+  const { w, phase, when, joinUrl, mode, form, outcomes } = usePage();
+  const event = calendarEvent(w, joinUrl);
+  const seeYou = phase === "live" ? "Join us now." : when ? `See you on ${when.weekday}.` : "See you there.";
+  return (
+    <>
+      <section className="wp-t-hero">
+        <div className="wp-wrap wp-t-hero-in">
+          <BrandMark />
+          <Kicker>
+            <Sparkles aria-hidden="true" />
+            Your seat is locked in
+          </Kicker>
+          <h1 className="wp-h1">
+            You&apos;re registered. <em className="wp-t-hl">{seeYou}</em>
+          </h1>
+          <p className="wp-sub">
+            Check your email for your webinar details.
+            {w.thank_you_message.trim() ? ` ${w.thank_you_message.trim()}` : ""}
+          </p>
+          <p className="wp-t-chips">
+            <span>
+              <CalendarCheck aria-hidden="true" />
+              Your seat is confirmed
+            </span>
+          </p>
+        </div>
+      </section>
+      <section className="wp-t-body">
+        <div className="wp-t-col">
+          {outcomes.length ? (
+            <div className="wp-t-center">
+              <p className="wp-label">On this training you&apos;ll learn</p>
+              <h2 className="wp-t-h2">
+                <Highlighted text={w.title || "Your webinar title"} />
+              </h2>
+              <div className="wp-t-cards">
+                {outcomes.map((item, i) => {
+                  const Icon = TILE_ICONS[i % TILE_ICONS.length];
+                  return (
+                    <div key={i} className="wp-t-tile">
+                      <span className="wp-t-icon" aria-hidden="true">
+                        <Icon />
+                      </span>
+                      <p>{item}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+          <div className="wp-t-center">
+            <p className="wp-label">Before you go, do these 2 things</p>
+            <h2 className="wp-t-h2">Lock in your spot.</h2>
+          </div>
+          <div className="wp-t-step">
+            <span className="wp-t-num" aria-hidden="true">
+              1
+            </span>
+            <h3>Add the training to your calendar</h3>
+            <p>So you don&apos;t miss it. Your link to join is in your email{joinUrl ? " and right here" : ""}.</p>
+            <div className="wp-t-card">
+              <p className="wp-t-card-bar">Your countdown, calendar &amp; link to join</p>
+              <div className="wp-t-card-in">
+                <SessionBlock />
+                {event && phase !== "ended" ? <CalendarButtons event={event} /> : null}
+                {joinUrl ? <JoinLink url={joinUrl} /> : null}
+              </div>
+            </div>
+          </div>
+          <div className="wp-t-step">
+            <span className="wp-t-num" aria-hidden="true">
+              2
+            </span>
+            <div className="wp-t-night">
+              <Kicker>
+                <Mail aria-hidden="true" />
+                Check your inbox
+              </Kicker>
+              <h3>Your confirmation is on its way</h3>
+              <p>
+                We sent your details to <strong>{form.email.trim() || "your email"}</strong>. Not there in a couple of minutes? Check your spam or
+                promotions folder and mark it as safe, so the reminder reaches you too.
+              </p>
+            </div>
+          </div>
+          {w.social_proof.trim() ? <p className="wp-t-quote">{w.social_proof.trim()}</p> : null}
+          {mode === "preview" ? (
+            <button type="button" className="wp-cal-btn wp-t-back" onClick={form.reset}>
+              Back to the form
+            </button>
+          ) : null}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function JoinLink({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="wp-t-link">
+      <p className="wp-label">Your link to join</p>
+      <div className="wp-t-link-row">
+        <a href={url} target="_blank" rel="noopener noreferrer">
+          {url}
+        </a>
+        <button
+          type="button"
+          className="wp-cal-btn"
+          aria-label={copied ? "Link copied" : "Copy your link to join"}
+          onClick={() => void navigator.clipboard?.writeText(url).then(() => setCopied(true), () => undefined)}
+        >
+          {copied ? <Check /> : <Copy />}
+        </button>
       </div>
     </div>
   );

@@ -379,6 +379,7 @@ const HERO_USE: Record<LayoutId, string> = {
   bento: "The image tile beside the outcomes. Without it the tile shows your initials.",
   agenda: "A wide image under your headline. Optional.",
   card: "The full-page backdrop behind the card, under your brand colour.",
+  training: "A faint photo behind the dark headline area. Optional; the page looks complete without it.",
 };
 
 const PORTRAIT_USE: Record<LayoutId, string> = {
@@ -393,6 +394,7 @@ const PORTRAIT_USE: Record<LayoutId, string> = {
   bento: "A small photo beside your name. Also used as the main image if you have no other photo.",
   agenda: "A small photo beside your name. Also used as the main image if you have no other photo.",
   card: "A small photo beside your name. Also used as the main image if you have no other photo.",
+  training: "The round photo in the Presented by section.",
 };
 
 type ImagesProps = PanelProps & {
@@ -464,7 +466,7 @@ export function LayoutPanel({ w, update, onBrowse }: PanelProps & { onBrowse: ()
         </div>
       </Section>
 
-      <Section title={`More in ${t.category}`} hint="Five different compositions, in colours chosen for this kind of business.">
+      <Section title={`More in ${t.category}`} hint="Different compositions, in colours chosen for this kind of business.">
         <div className="grid gap-2">
           {siblings.map((s) => {
             const selected = s.id === t.id;

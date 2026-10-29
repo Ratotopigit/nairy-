@@ -1606,7 +1606,8 @@
 .wp-x .wp-panel[data-bare],
 .wp-b .wp-panel[data-bare],
 .wp-g .wp-panel[data-bare],
-.wp-c .wp-panel[data-bare] {
+.wp-c .wp-panel[data-bare],
+.wp-t .wp-panel[data-bare] {
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -2212,4 +2213,510 @@
 
 .wp-c-copy .wp-brand {
   margin-bottom: 0.5rem;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   12. SALES TRAINING: a night-sky hero, a long centred page and, after
+   registering, a full thank-you page in the same style. Hero tones and
+   the highlight colour (--t-*) are set inline by TrainingLayout.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.wp-t {
+  --t-soft: rgba(255, 255, 255, 0.76);
+}
+
+.wp-t svg {
+  width: 1em;
+  height: 1em;
+  flex: none;
+}
+
+.wp-t-hero,
+.wp-t-night {
+  color: #fff;
+  background: radial-gradient(120% 90% at 50% 0%, var(--t-top) 0%, var(--t-night) 62%, color-mix(in srgb, var(--t-night) 70%, #000) 100%);
+}
+
+.wp-t-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  text-align: center;
+  padding-block: clamp(36px, 7cqi, 96px) clamp(44px, 8cqi, 104px);
+}
+
+/* A fine line grid that fades out toward the bottom. */
+.wp-t-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: linear-gradient(180deg, #000, transparent 85%);
+  mask-image: linear-gradient(180deg, #000, transparent 85%);
+}
+
+.wp-t-photo {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: 0;
+  background: transparent;
+  opacity: 0.2;
+}
+
+.wp-t-hero-in {
+  display: grid;
+  justify-items: center;
+  gap: 1.15rem;
+  max-width: 64rem;
+}
+
+.wp-t-hero .wp-brand {
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.wp-t-hero .wp-brand-tag {
+  color: var(--t-soft);
+}
+
+.wp-t-hero .wp-logo {
+  object-position: center;
+}
+
+.wp-t-hero .wp-kicker,
+.wp-t-night .wp-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--t-hl) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--t-hl) 10%, transparent);
+  color: var(--t-hl);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.wp-t-hero .wp-h1 {
+  max-width: 17em;
+  font-size: clamp(2.1rem, 6.4cqi, 4rem);
+  line-height: 1.08;
+}
+
+.wp-t-hl {
+  font-style: italic;
+  color: var(--t-hl);
+}
+
+.wp-t-body .wp-t-hl {
+  color: var(--brand-text);
+}
+
+.wp-t-hero .wp-sub {
+  max-width: 40em;
+  margin-inline: auto;
+  font-size: clamp(1rem, 2cqi, 1.1875rem);
+  color: var(--t-soft);
+}
+
+.wp-t-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.wp-t-chips > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.wp-t-cta {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  max-width: 40rem;
+  margin-top: 0.5rem;
+}
+
+.wp-t-big {
+  height: auto;
+  min-height: 4.25rem;
+  padding: 1.05rem 1.6rem;
+  font-size: clamp(1.0625rem, 2.2cqi, 1.25rem);
+  font-weight: 700;
+  box-shadow: 0 24px 60px -16px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.wp-t-hero .wp-btn:focus-visible {
+  outline-color: #fff;
+}
+
+.wp-t-note {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.wp-t-hero .wp-t-note {
+  color: var(--t-soft);
+}
+
+.wp-t-proof {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--t-hl);
+}
+
+/* ── Body ── */
+
+.wp-t-body {
+  padding-block: clamp(40px, 7cqi, 88px);
+}
+
+.wp-t-col {
+  display: grid;
+  gap: clamp(32px, 5cqi, 52px);
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
+  padding-inline: var(--g);
+}
+
+.wp-t-center {
+  display: grid;
+  justify-items: center;
+  gap: 0.85rem;
+  text-align: center;
+}
+
+.wp-t-h2,
+.wp-t-name,
+.wp-t-card h2,
+.wp-t-step h3,
+.wp-t-quote {
+  font-family: var(--font-head), serif;
+  font-weight: var(--head-w);
+  letter-spacing: var(--head-track);
+  text-wrap: balance;
+}
+
+.wp-t-h2 {
+  font-size: clamp(1.6rem, 4.2cqi, 2.4rem);
+  line-height: 1.15;
+}
+
+.wp-t-lead {
+  color: var(--muted);
+}
+
+.wp-t-host {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  text-align: center;
+}
+
+.wp-t-face {
+  width: 104px;
+  height: 104px;
+  margin-bottom: 0.9rem;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 4px var(--bg),
+    0 0 0 7px var(--brand);
+}
+
+.wp-t-face .wp-ph-mark {
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 2.25rem;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.wp-t-name {
+  font-size: 1.375rem;
+  line-height: 1.2;
+}
+
+.wp-t-host .wp-bio {
+  margin: 0.5rem auto 0;
+}
+
+.wp-t-learn,
+.wp-t-card,
+.wp-t-tile {
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 1.1);
+  background: var(--surface);
+}
+
+.wp-t-learn {
+  padding: clamp(20px, 3.6cqi, 32px);
+}
+
+.wp-t-learn ul {
+  display: grid;
+  gap: 0.95rem;
+  margin-top: 1.1rem;
+}
+
+.wp-t-learn li {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+  line-height: 1.5;
+}
+
+.wp-t-tick {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.wp-t-tick svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.wp-t-card {
+  overflow: hidden;
+  box-shadow: 0 30px 60px -36px color-mix(in srgb, var(--ink) 45%, transparent);
+}
+
+.wp-t-card-bar {
+  padding: 0.7rem 1rem;
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.wp-t-card-in {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(20px, 3.6cqi, 32px);
+}
+
+.wp-t-card-head {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.wp-t-play {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin-bottom: 0.3rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 24%, var(--surface));
+  color: var(--ink);
+  font-size: 1.4rem;
+}
+
+.wp-t-card h2 {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.wp-t-card-sub {
+  font-size: 0.9375rem;
+  color: var(--muted);
+}
+
+.wp-t-card .wp-btn {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.wp-t-final {
+  padding-block: clamp(40px, 7cqi, 80px);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 3%, var(--bg));
+}
+
+.wp-t-final .wp-t-big {
+  width: auto;
+  max-width: 100%;
+  margin-top: 0.4rem;
+}
+
+.wp-t-foot {
+  background: var(--t-night);
+}
+
+.wp-t-foot .wp-foot {
+  color: rgba(255, 255, 255, 0.64);
+}
+
+/* ── Thank-you page ── */
+
+.wp-t-cards {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  margin-top: 0.75rem;
+  text-align: left;
+}
+
+.wp-t-tile {
+  display: grid;
+  align-content: start;
+  gap: 0.9rem;
+  padding: 1.4rem;
+}
+
+.wp-t-tile p {
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.wp-t-icon {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: calc(var(--radius) * 0.6);
+  background: var(--tint);
+  color: var(--brand-text);
+  font-size: 1.15rem;
+}
+
+@container wp (min-width: 720px) {
+  .wp-t-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.wp-t-step {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.wp-t-num {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-weight: 700;
+}
+
+.wp-t-step h3 {
+  font-size: clamp(1.25rem, 3cqi, 1.6rem);
+  line-height: 1.2;
+}
+
+.wp-t-step > p {
+  max-width: 32em;
+  color: var(--muted);
+}
+
+.wp-t-step .wp-t-card,
+.wp-t-night {
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+.wp-t-step .wp-session {
+  justify-items: center;
+}
+
+.wp-t-step .wp-count {
+  justify-content: center;
+}
+
+.wp-t-night {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  padding: clamp(24px, 4.4cqi, 44px);
+  border-radius: calc(var(--radius) * 1.1);
+}
+
+.wp-t-night h3 {
+  font-size: clamp(1.4rem, 3.6cqi, 2rem);
+}
+
+.wp-t-night p {
+  max-width: 34em;
+  color: var(--t-soft);
+}
+
+.wp-t-night strong {
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.wp-t-link {
+  text-align: left;
+}
+
+.wp-t-link .wp-label {
+  margin-bottom: 0.45rem;
+}
+
+.wp-t-link-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.wp-t-link-row a {
+  flex: 1;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  overflow: hidden;
+  border: 1px solid var(--lineStrong);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: 0.875rem;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wp-t-quote {
+  max-width: 30em;
+  margin-inline: auto;
+  font-size: clamp(1.25rem, 3cqi, 1.6rem);
+  font-style: italic;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.wp-t-back {
+  justify-self: center;
 }

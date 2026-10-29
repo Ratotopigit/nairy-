@@ -7,7 +7,7 @@
  */
 import { createContext, useContext, useId, useState, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from "react";
 import { CalendarPlus, Check } from "lucide-react";
-import { downloadIcs, googleCalendarUrl, outlookCalendarUrl } from "@/lib/calendar";
+import { downloadIcs, googleCalendarUrl, outlookCalendarUrl, type CalendarEvent } from "@/lib/calendar";
 import { WEBINAR_LIMITS, calendarEvent, type SessionPhase, type Webinar } from "@/lib/webinars";
 import type { WebinarTemplate } from "@/lib/webinar-templates";
 
@@ -27,6 +27,8 @@ export type FormState = {
   validateName: () => void;
   validateEmail: () => void;
   reset: () => void;
+  /** Scroll to the form and focus the first field. */
+  jump: () => void;
   nameRef: RefObject<HTMLInputElement>;
   emailRef: RefObject<HTMLInputElement>;
   panelRef: RefObject<HTMLDivElement>;
@@ -422,6 +424,26 @@ function CalendarIcon() {
   return <CalendarPlus aria-hidden="true" />;
 }
 
+/** Google, Outlook and Apple calendar buttons for the session. */
+export function CalendarButtons({ event }: { event: CalendarEvent }) {
+  return (
+    <div className="wp-cal-row" data-wide="">
+      <a className="wp-cal-btn" href={googleCalendarUrl(event)} target="_blank" rel="noopener noreferrer">
+        <CalendarIcon />
+        Google
+      </a>
+      <a className="wp-cal-btn" href={outlookCalendarUrl(event)} target="_blank" rel="noopener noreferrer">
+        <CalendarIcon />
+        Outlook
+      </a>
+      <button type="button" className="wp-cal-btn" onClick={() => downloadIcs(event)}>
+        <CalendarIcon />
+        Apple (.ics)
+      </button>
+    </div>
+  );
+}
+
 function Success() {
   const { form, w, when, phase, joinUrl, mode } = usePage();
   const event = calendarEvent(w, joinUrl);
@@ -446,20 +468,7 @@ function Success() {
       {showCalendar && event ? (
         <div className="wp-cal">
           <p className="wp-label">Add to your calendar</p>
-          <div className="wp-cal-row" data-wide="">
-            <a className="wp-cal-btn" href={googleCalendarUrl(event)} target="_blank" rel="noopener noreferrer">
-              <CalendarIcon />
-              Google
-            </a>
-            <a className="wp-cal-btn" href={outlookCalendarUrl(event)} target="_blank" rel="noopener noreferrer">
-              <CalendarIcon />
-              Outlook
-            </a>
-            <button type="button" className="wp-cal-btn" onClick={() => downloadIcs(event)}>
-              <CalendarIcon />
-              Apple (.ics)
-            </button>
-          </div>
+          <CalendarButtons event={event} />
         </div>
       ) : null}
       {mode === "preview" ? (

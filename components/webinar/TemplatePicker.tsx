@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Search, X } from "lucide-react";
+import { Check, Heart, Search, X } from "lucide-react";
 import { LiveThumb } from "@/components/webinar/LiveThumb";
 import { previewWebinar } from "@/lib/webinar-preview";
 import {
@@ -23,15 +23,18 @@ type Props = {
   onPick: (templateId: string) => void;
 };
 
+const MOST_LIKED = "Most liked";
+type Tab = TemplateCategory | "All" | typeof MOST_LIKED;
+
 export function TemplatePicker({ open, webinar, onClose, onPick }: Props) {
   const current = getTemplate(webinar.template_id);
-  const [category, setCategory] = useState<TemplateCategory | "All">(current.category);
+  const [category, setCategory] = useState<Tab>(MOST_LIKED);
   const [text, setText] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    setCategory(getTemplate(webinar.template_id).category);
+    setCategory(MOST_LIKED);
     setText("");
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -44,7 +47,14 @@ export function TemplatePicker({ open, webinar, onClose, onPick }: Props) {
   }, [open]);
 
   const results: WebinarTemplate[] = useMemo(
-    () => (text.trim() ? searchTemplates(text, category) : category === "All" ? searchTemplates("", "All") : templatesInCategory(category)),
+    () =>
+      category === MOST_LIKED
+        ? searchTemplates(text, "All").filter((t) => t.featured)
+        : text.trim()
+          ? searchTemplates(text, category)
+          : category === "All"
+            ? searchTemplates("", "All")
+            : templatesInCategory(category),
     [text, category],
   );
 
@@ -83,7 +93,7 @@ export function TemplatePicker({ open, webinar, onClose, onPick }: Props) {
             />
           </label>
           <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Category">
-            {(["All", ...TEMPLATE_CATEGORIES] as const).map((cat) => (
+            {([MOST_LIKED, "All", ...TEMPLATE_CATEGORIES] as const).map((cat) => (
               <button
                 key={cat}
                 type="button"
@@ -94,6 +104,7 @@ export function TemplatePicker({ open, webinar, onClose, onPick }: Props) {
                   category === cat ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
+                {cat === MOST_LIKED ? <Heart className="mr-1 inline size-3 -translate-y-px" /> : null}
                 {cat}
               </button>
             ))}
@@ -129,6 +140,11 @@ export function TemplatePicker({ open, webinar, onClose, onPick }: Props) {
                           <Check className="size-3" /> In use
                         </span>
                       ) : null}
+                      {t.featured ? (
+                        <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-background px-2.5 py-1 text-[11px] font-semibold text-foreground shadow-sm">
+                          <Heart className="size-3 fill-current" /> {MOST_LIKED}
+                        </span>
+                      ) : null}
                     </div>
                     <div className="px-4 py-3">
                       <div className="flex items-center justify-between gap-2">
@@ -136,7 +152,7 @@ export function TemplatePicker({ open, webinar, onClose, onPick }: Props) {
                         <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">{LAYOUT_LABELS[t.layout].name}</span>
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{t.description}</p>
-                      {category === "All" || text.trim() ? <p className="mt-1 text-[11px] text-muted-foreground">{t.category}</p> : null}
+                      {category === "All" || category === MOST_LIKED || text.trim() ?<p className="mt-1 text-[11px] text-muted-foreground">{t.category}</p> : null}
                     </div>
                   </div>
                 );
