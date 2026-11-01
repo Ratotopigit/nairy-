@@ -84,7 +84,7 @@ The only Firestore credential today sits inside n8n and can't be exported, so cr
 
 **Right after (no charge, no resend):**
 - `curl -X POST https://webinarstackai.com/api/billing/webhook -d "{}"` returns 400.
-- The Billing page shows $199 / $1,188 / $1,896 with the $1 line and the terms box.
+- The Billing page shows $97 / $948 / $1,608 with the $1 line and the terms box.
 - The next real Stripe event shows 200 under Developers > Webhooks, and the n8n workflow shows no new execution.
 
 Resending a past event or making a $1 purchase with your own card are optional stronger checks, and need your

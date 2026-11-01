@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, Building2, Check, CreditCard, Crown, Gift } from "lucide-react";
 import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { billingEnabled, billingTestMode, createCheckoutUrl, createPortalUrl, fetchIntroEligibility, useEntitlement, type CheckoutPlan } from "@/lib/billing";
-import { INTRO_DAYS, INTRO_PRICE, PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES, TERMS_URL, clearPendingPlan, pendingPlan } from "@/lib/plans";
+import { INTRO_DAYS, INTRO_PRICE, MONTHLY_PRICE, PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES, TERMS_URL, clearPendingPlan, pendingPlan } from "@/lib/plans";
 import { CheckoutConfirmDialog } from "@/components/provider/CheckoutConfirmDialog";
 
 /**
@@ -26,8 +26,6 @@ const CONFIRM_TIMEOUT_MS = 45_000;
 
 const PLAN_LABEL: Record<CheckoutPlan, string> = { monthly: "Monthly", annual: "Annual", two_year: "Two-year" };
 
-/** Shown after each plan's full price. */
-const UNIT: Record<CheckoutPlan, string> = { monthly: "/month", annual: "/year", two_year: "/2 years" };
 
 function formatDate(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
@@ -284,8 +282,9 @@ export default function BillingPage() {
                 ) : null}
 
                 <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1" style={{ color: GREEN }}>
-                  <span className={`font-serif font-bold tracking-[-0.03em] ${trial ? "text-3xl" : "text-4xl"}`}>{plan.price}</span>
-                  <span className="font-serif text-base font-bold">{UNIT[plan.id]}</span>
+                  {plan.id !== "monthly" ? <span className="text-base font-medium text-muted-foreground line-through">{MONTHLY_PRICE}</span> : null}
+                  <span className={`font-serif font-bold tracking-[-0.03em] ${trial ? "text-3xl" : "text-4xl"}`}>{plan.perMonth}</span>
+                  <span className="font-serif text-base font-bold">/month</span>
                   {plan.badge ? (
                     <span className="ml-1 inline-flex self-center rounded-full bg-[#dff0df] px-2.5 py-0.5 text-[11px] font-semibold" style={{ color: GREEN }}>
                       {plan.badge}

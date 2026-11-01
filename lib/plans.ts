@@ -13,18 +13,17 @@ export interface PlanInfo {
   id: PlanId;
   name: string;
   tagline: string;
-  /** Crossed-out comparison price, if any. */
-  was?: string;
+  /** What each charge is ("$948"). */
   price: string;
-  /** "/mo", "/yr", "/2 yrs". */
-  unit: string;
   /** How often a subscription renews ("every month"); absent for one-time plans. */
   renews?: string;
-  /** Billing page: what is actually charged and how often ("Billed $1,188 annually"). */
+  /** The per-month figure shown large, next to the struck-through monthly price ("$79"). */
+  perMonth: string;
+  /** What is actually charged and how often ("Billed $948 annually"). */
   billedAs: string;
   /** Billing page: button for customers who don't qualify for the $1 week. */
   fullPriceCta: string;
-  note: string;
+  /** Saving against paying monthly, rounded down so it never overstates. */
   badge?: string;
   popular?: boolean;
   cta: string;
@@ -35,26 +34,23 @@ export const PLAN_CATALOG: PlanInfo[] = [
     id: "monthly",
     name: "Monthly",
     tagline: "Perfect for getting started.",
-    price: "$199",
-    unit: "/mo",
+    price: "$97",
     renews: "every month",
-    billedAs: "Billed $199 monthly",
-    fullPriceCta: "Subscribe for $199/month",
-    note: "Billed monthly",
+    perMonth: "$97",
+    billedAs: "Billed $97 monthly",
+    fullPriceCta: "Subscribe for $97/month",
     cta: "Start monthly",
   },
   {
     id: "annual",
     name: "Annually",
     tagline: "Best value for growing businesses.",
-    was: "$2,388/yr",
-    price: "$1,188",
-    unit: "/yr",
+    price: "$948",
     renews: "every year",
-    billedAs: "Billed $1,188 annually",
-    fullPriceCta: "Subscribe for $1,188/year",
-    note: "Billed once a year",
-    badge: "Save 50%",
+    perMonth: "$79",
+    billedAs: "Billed $948 annually",
+    fullPriceCta: "Subscribe for $948/year",
+    badge: "Save 18%",
     popular: true,
     cta: "Start annually",
   },
@@ -62,17 +58,18 @@ export const PLAN_CATALOG: PlanInfo[] = [
     id: "two_year",
     name: "Two years",
     tagline: "Lowest price, locked in for two years.",
-    was: "$4,776",
-    price: "$1,896",
-    unit: "/2 yrs",
+    price: "$1,608",
     renews: "every 2 years",
-    billedAs: "Billed $1,896 every two years",
-    fullPriceCta: "Subscribe for $1,896/2 years",
-    note: "Billed once every two years",
-    badge: "Save 60%",
+    perMonth: "$67",
+    billedAs: "Billed $1,608 every two years",
+    fullPriceCta: "Subscribe for $1,608/2 years",
+    badge: "Save 30%",
     cta: "Start two years",
   },
 ];
+
+/** The monthly price, struck through next to the cheaper per-month figures. */
+export const MONTHLY_PRICE = PLAN_CATALOG.find((p) => p.id === "monthly")?.price ?? "";
 
 /**
  * Payment terms, shown before anyone pays (Billing page, first-login plan step,

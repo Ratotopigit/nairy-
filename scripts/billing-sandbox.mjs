@@ -6,8 +6,8 @@
  *   npm run verify:billing          (asks for the sandbox sk_test_ key, or reads STRIPE_SECRET_KEY)
  *
  * What it does, all locally except the Stripe sandbox:
- *  1. Creates the four sandbox prices once ($1 one-time, $199/month, $1,188/year,
- *     $1,896 every 2 years); a rerun finds them by lookup_key, never duplicates.
+ *  1. Creates the four sandbox prices once ($1 one-time, $97/month, $948/year,
+ *     $1,608 every 2 years); a rerun finds them by lookup_key, never duplicates.
  *  2. Starts the Firestore emulator (demo-nairy) and the site's functions in
  *     Cloudflare's runtime (wrangler pages dev), with no Firebase credentials at
  *     all, so nothing can reach the production project.
@@ -62,9 +62,9 @@ const post = (path, params) => stripe("POST", path, params);
 
 const PLANS = {
   intro: { lookup: "ws_intro_1usd", name: "Webinar Stack: first 7 days", amount: 100 },
-  monthly: { lookup: "ws_monthly_199", name: "Webinar Stack Monthly", amount: 19900, interval: "month", count: 1, days: [28, 31] },
-  annual: { lookup: "ws_annual_1188", name: "Webinar Stack Annual", amount: 118800, interval: "year", count: 1, days: [365, 366] },
-  two_year: { lookup: "ws_two_year_1896", name: "Webinar Stack Two-Year", amount: 189600, interval: "year", count: 2, days: [730, 731] },
+  monthly: { lookup: "ws_monthly_97", name: "Webinar Stack Monthly", amount: 9700, interval: "month", count: 1, days: [28, 31] },
+  annual: { lookup: "ws_annual_948", name: "Webinar Stack Annual", amount: 94800, interval: "year", count: 1, days: [365, 366] },
+  two_year: { lookup: "ws_two_year_1608", name: "Webinar Stack Two-Year", amount: 160800, interval: "year", count: 2, days: [730, 731] },
 };
 const HANDLED = new Set([
   "checkout.session.completed", "checkout.session.async_payment_succeeded", "customer.subscription.created",

@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { Check, Sparkles } from "lucide-react";
 import { OnboardingData, SubscriptionTier } from "@/lib/onboarding";
 import { billingEnabled } from "@/lib/billing";
-import { CONSENT_LABEL, PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES, introTerms } from "@/lib/plans";
+import { CONSENT_LABEL, MONTHLY_PRICE, PAYMENT_TERMS, PLAN_CATALOG, PLAN_FEATURES, introTerms } from "@/lib/plans";
 
 /**
  * Last onboarding step. Shows exactly the plans and prices of the Billing page
@@ -69,17 +69,15 @@ export function StepChoosePlan({
                 </p>
 
                 <div className="mt-2.5 flex flex-wrap items-baseline gap-x-1.5">
-                  {plan.was ? (
-                    <span className="text-xs font-medium text-muted-foreground line-through">{plan.was}</span>
+                  {plan.id !== "monthly" ? (
+                    <span className="text-xs font-medium text-muted-foreground line-through">{MONTHLY_PRICE}</span>
                   ) : null}
                   <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-                    {plan.price}
+                    {plan.perMonth}
                   </span>
-                  {plan.unit ? (
-                    <span className="text-xs text-muted-foreground font-medium">{plan.unit}</span>
-                  ) : null}
+                  <span className="text-xs text-muted-foreground font-medium">/mo</span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{plan.note}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{plan.billedAs}</p>
                 {billingEnabled && plan.renews ? (
                   <p className="mt-1 text-xs font-medium text-foreground">New here? {introTerms(plan)}</p>
                 ) : null}

@@ -2,7 +2,7 @@
 
 > **Releasing billing:** see [BILLING_RELEASE.md](BILLING_RELEASE.md) for the checks, production secrets, deploy and rollback.
 
-Plans (since 2026-10-25): **Monthly $199/mo**, **Annual $1,188/yr**, **Two-Year $1,896 every 2 years**, each after a
+Plans (since 2026-11-01): **Monthly $97/mo**, **Annual $948/yr**, **Two-Year $1,608 every 2 years**, each after a
 one-time **$1** introductory week. Lifetime ($222) is no longer sold; accounts that bought it keep it. The amounts shown in the app
 live in one place, `lib/plans.ts`, which both the Billing page and the first-login plan step read. If a price
 changes, change the Stripe Price and that file together.
@@ -79,7 +79,7 @@ then come from Stripe ("webhook failing" emails) and the Cloudflare function log
 ## Introductory offer: $1 for the first 7 days
 
 **Rule.** A first-time subscriber (any plan) pays a one-time **$1** today and gets a 7-day trial on the
-plan's regular price. When the trial ends, Stripe charges $199 (monthly), $1,188 (yearly) or $1,896 (every 2 years) and
+plan's regular price. When the trial ends, Stripe charges $97 (monthly), $948 (yearly) or $1,608 (every 2 years) and
 keeps renewing on that interval until they cancel. Anyone who has paid before pays the
 regular price today.
 
@@ -116,8 +116,8 @@ event re-reads the subscription from Stripe and writes its current state.
 
 ### What to set up in Stripe (do it in test mode first, then repeat in live)
 
-1. **Products and prices: already created, nothing to add.** Monthly $199 `price_1UUPYN...`, Annual $1,188
-   `price_1UUPZ7...`, Two-Year $1,896 `price_1UUPZv...` (recurring, every 2 years) and the one-time $1
+1. **Products and prices: already created, nothing to add.** Monthly $97 `price_1UUPYN...`, Annual $948
+   `price_1UWpaU...`, Two-Year $1,608 `price_1UUPZv...` (recurring, every 2 years) and the one-time $1
    `price_1UUPcv...`, all in `wrangler.toml`. The checkout refuses to run if the $1 price is not one-time or a plan
    price is not recurring. The product name of the $1 price is what customers see on their invoice.
 2. **Customer portal** (Settings > Billing > Customer portal): cancel **at end of billing period**, update payment
@@ -140,11 +140,11 @@ event re-reads the subscription from Stripe and writes its current state.
 2. **Test mode, locally:** copy `.dev.vars.example` to `.dev.vars` with test values, `npm run build`,
    `npx wrangler pages dev out`, `stripe listen --forward-to localhost:8788/api/billing/webhook`. Then:
    - Buy Monthly with `4242 4242 4242 4242`. Expect $1.00 charged and Billing to show "introductory week".
-   - Advance a [test clock](https://docs.stripe.com/billing/testing/test-clocks) 7 days. Expect a $199.00 invoice
-     paid and the status `active`. Repeat with Annual ($1,188.00) and Two-Year ($1,896.00).
+   - Advance a [test clock](https://docs.stripe.com/billing/testing/test-clocks) 7 days. Expect a $97.00 invoice
+     paid and the status `active`. Repeat with Annual ($948.00) and Two-Year ($1,608.00).
    - Buy with 4242, then in Manage billing switch the card to `4000 0000 0000 0341` (it attaches but every charge
      declines) and advance the clock 7 days. The renewal fails and Billing says the payment didn't go through.
-   - Cancel in Manage billing during the trial: no $199 charge at the trial end.
+   - Cancel in Manage billing during the trial: no $97 charge at the trial end.
    - Buy again with the same account or email: the regular price is due today and there is no $1 line.
 3. **Live:** the price ids in `wrangler.toml` are live. Test mode needs its own copies of these prices (test and live
    ids differ), set in `.dev.vars`. Do steps 2–3 of the Stripe setup in live mode.

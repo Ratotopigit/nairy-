@@ -54,7 +54,7 @@ test("blocked storage does not break sign-in", () => {
 
 test("every plan card states the $1 week and its renewal price", () => {
   const terms = Object.fromEntries(PLAN_CATALOG.map((p) => [p.id, introTerms(p)]));
-  assert.equal(terms.monthly, "$1 for your first 7 days, then $199 every month until you cancel.");
-  assert.equal(terms.annual, "$1 for your first 7 days, then $1,188 every year until you cancel.");
-  assert.equal(terms.two_year, "$1 for your first 7 days, then $1,896 every 2 years until you cancel.");
+  assert.equal(terms.monthly, "$1 for your first 7 days, then $97 every month until you cancel.");
+  assert.equal(terms.annual, "$1 for your first 7 days, then $948 every year until you cancel.");
+  assert.equal(terms.two_year, "$1 for your first 7 days, then $1,608 every 2 years until you cancel.");
 });

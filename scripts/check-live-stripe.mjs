@@ -10,7 +10,7 @@
  *
  * Checks:
  *  - the four price ids in wrangler.toml [vars] are live, active, USD and exactly
- *    $1 one-time / $199 every month / $1,188 every year / $1,896 every 2 years;
+ *    $1 one-time / $97 every month / $948 every year / $1,608 every 2 years;
  *  - the live webhook endpoint for https://webinarstackai.com/api/billing/webhook is
  *    enabled and subscribed to every event the site handles;
  *  - recent live billing events were all delivered (none pending), which shows the production
@@ -59,9 +59,9 @@ const tryCheck = async (name, fn) => {
 
 const EXPECT = {
   STRIPE_PRICE_INTRO: { amount: 100, type: "one_time", label: "$1 one-time" },
-  STRIPE_PRICE_MONTHLY: { amount: 19900, type: "recurring", interval: "month", count: 1, label: "$199 every month" },
-  STRIPE_PRICE_ANNUAL: { amount: 118800, type: "recurring", interval: "year", count: 1, label: "$1,188 every year" },
-  STRIPE_PRICE_TWO_YEAR: { amount: 189600, type: "recurring", interval: "year", count: 2, label: "$1,896 every 2 years" },
+  STRIPE_PRICE_MONTHLY: { amount: 9700, type: "recurring", interval: "month", count: 1, label: "$97 every month" },
+  STRIPE_PRICE_ANNUAL: { amount: 94800, type: "recurring", interval: "year", count: 1, label: "$948 every year" },
+  STRIPE_PRICE_TWO_YEAR: { amount: 160800, type: "recurring", interval: "year", count: 2, label: "$1,608 every 2 years" },
 };
 for (const [name, e] of Object.entries(EXPECT)) {
   await tryCheck(`${name} = ${e.label}`, async () => {
