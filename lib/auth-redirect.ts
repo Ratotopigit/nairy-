@@ -41,7 +41,8 @@ export async function destinationFor(uid: string): Promise<string> {
   if (!plan) return "/provider";
   const { fetchIsPaid } = await import("@/lib/billing");
   const paid = await fetchIsPaid(uid);
-  if (paid === false) return `/provider/billing?plan=${plan}`;
+  // ?start= opens the confirm-and-pay step for that plan straight away.
+  if (paid === false) return `/provider/billing?start=${plan}`;
   if (paid) {
     const { clearPendingPlan } = await import("@/lib/plans");
     clearPendingPlan();

@@ -7,20 +7,20 @@ import { billingEnabled, fetchIntroEligibility, useEntitlement } from "@/lib/bil
 import { INTRO_DAYS, INTRO_PRICE, PAYMENT_TERMS, PLAN_CATALOG, introTerms } from "@/lib/plans";
 
 /**
- * "$1 for 7 days" offer for signed-in accounts that haven't paid. Shown at most
- * once a day, never on the Billing page, and only to people who still qualify for
- * the $1 week (same server rule as checkout), so it never promises a price
- * checkout won't charge. The button opens Billing's own confirm-and-pay step for
- * Monthly, where consent is given.
+ * Offer for every signed-in account without a subscription, once per visit
+ * (browser session), never on the Billing page. People who still qualify for the
+ * $1 week (same server rule as checkout) see "$1 for 7 days"; returning customers
+ * see the regular monthly price, so it never promises a price checkout won't
+ * charge. The button opens Billing's own confirm-and-pay step for Monthly.
  */
 
 const BLUE = "#2563eb";
 const DISMISS_KEY = "billing:trial-popup-dismissed";
 const MONTHLY = PLAN_CATALOG.find((p) => p.id === "monthly")!;
 
-function dismissedToday(): boolean {
+function dismissedThisVisit(): boolean {
   try {
-    return localStorage.getItem(DISMISS_KEY) === new Date().toDateString();
+    return sessionStorage.getItem(DISMISS_KEY) === "1";
   } catch {
     return false;
   }
@@ -28,7 +28,7 @@ function dismissedToday(): boolean {
 
 function rememberDismissed(): void {
   try {
-    localStorage.setItem(DISMISS_KEY, new Date().toDateString());
+    sessionStorage.setItem(DISMISS_KEY, "1");
   } catch {}
 }
 
@@ -37,15 +37,19 @@ export default function TrialPopup() {
   const router = useRouter();
   const { loading, paid } = useEntitlement();
   const [open, setOpen] = useState(false);
+  // true = qualifies for the $1 week; false/null = show the regular price.
+  const [intro, setIntro] = useState<boolean | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const onBilling = pathname.startsWith("/provider/billing");
 
   useEffect(() => {
-    if (!billingEnabled || loading || paid || onBilling || dismissedToday()) return;
+    if (!billingEnabled || loading || paid || onBilling || dismissedThisVisit()) return;
     let active = true;
     const timer = window.setTimeout(() => {
       void fetchIntroEligibility().then((intro) => {
-        if (active && intro === true && !dismissedToday()) setOpen(true);
+        if (!active || dismissedThisVisit()) return;
+        setIntro(intro);
+        setOpen(true);
       });
     }, 1500);
     return () => {
@@ -77,6 +81,7 @@ export default function TrialPopup() {
   }
 
   if (!open || onBilling) return null;
+  const trial = intro === true;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-6" onClick={close}>
@@ -99,20 +104,24 @@ export default function TrialPopup() {
         </button>
 
         <span className="inline-flex rounded-full bg-[#dbeafe] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: BLUE }}>
-          {INTRO_DAYS}-day trial
+          {trial ? `${INTRO_DAYS}-day trial` : "Upgrade"}
         </span>
         <h2 id="trial-popup-title" className="mt-3 font-serif text-3xl font-bold leading-tight tracking-[-0.02em]" style={{ color: BLUE }}>
-          Try Webinar Stack for {INTRO_PRICE}
+          {trial ? `Try Webinar Stack for ${INTRO_PRICE}` : "Get everything in Webinar Stack"}
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Everything included for your first {INTRO_DAYS} days. Build your webinar, pages, slides and emails.
+          {trial
+            ? `Everything included for your first ${INTRO_DAYS} days. Build your webinar, pages, slides and emails.`
+            : "Webinars, pages, slides, emails and the AI tools, in one plan."}
         </p>
 
         <div className="mt-5 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4">
           <p className="font-serif text-3xl font-bold" style={{ color: BLUE }}>
-            {INTRO_PRICE} <span className="text-base">today</span>
+            {trial ? INTRO_PRICE : MONTHLY.price} <span className="text-base">{trial ? "today" : "/month"}</span>
           </p>
-          <p className="mt-1 text-sm font-medium text-foreground">{introTerms(MONTHLY)}</p>
+          <p className="mt-1 text-sm font-medium text-foreground">
+            {trial ? introTerms(MONTHLY) : `${MONTHLY.billedAs}, renews until you cancel.`}
+          </p>
         </div>
 
         <button
@@ -121,7 +130,7 @@ export default function TrialPopup() {
           className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90"
           style={{ background: BLUE }}
         >
-          Start my {INTRO_PRICE} trial
+          {trial ? `Start my ${INTRO_PRICE} trial` : MONTHLY.fullPriceCta}
           <ArrowRight className="size-4" />
         </button>
         <button type="button" onClick={close} className="mt-2 w-full py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
