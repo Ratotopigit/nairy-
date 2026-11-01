@@ -66,7 +66,14 @@ export default function BillingPage() {
 
   useEffect(() => {
     setPicked(pendingPlan());
-    const status = new URLSearchParams(window.location.search).get("status");
+    const params = new URLSearchParams(window.location.search);
+    // ?start=monthly (the $1 trial popup) opens the confirm-and-pay step straight away.
+    const start = PLAN_CATALOG.find((p) => p.id === params.get("start"))?.id;
+    if (start && billingEnabled) {
+      openConfirm(start);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    const status = params.get("status");
     if (status === "success" || status === "cancelled") {
       setReturned(status);
       window.history.replaceState(null, "", window.location.pathname);

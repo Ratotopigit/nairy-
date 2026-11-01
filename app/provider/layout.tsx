@@ -4,6 +4,7 @@ import { MotionConfig } from "framer-motion";
 import { usePathname } from "next/navigation";
 
 import ProviderNavbar from "@/components/provider/ProviderNavbar";
+import TrialPopup from "@/components/provider/TrialPopup";
 import AuthGuard from "@/components/auth/AuthGuard";
 import "../globals.css";
 
@@ -24,6 +25,7 @@ export default function ProviderLayout({
     <MotionConfig reducedMotion="user">
     <div className="provider-page-canvas flex min-h-screen flex-col text-foreground overflow-x-hidden">
       <ProviderNavbar />
+      <TrialPopup />
 
       <main
         className={
