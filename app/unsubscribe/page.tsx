@@ -36,16 +36,16 @@ function Unsubscribe() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f4f1e8] px-5">
-      <div className="w-full max-w-md rounded-2xl border border-[#ddd7ca] bg-white p-7 text-center text-[#1d2a27] shadow-sm reg-rise">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#68736f]">Webinar Stack</p>
+    <main className="grid min-h-screen place-items-center bg-[#f5f8fc] px-5">
+      <div className="w-full max-w-md rounded-2xl border border-[#dbe3ee] bg-white p-7 text-center text-[#0f1f3a] shadow-sm reg-rise">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748b]">Webinar Stack</p>
         {state === "done" ? (
           <>
-            <div className="mx-auto mt-5 grid size-11 place-items-center rounded-full bg-[#1f4d3d] text-white">
+            <div className="mx-auto mt-5 grid size-11 place-items-center rounded-full bg-[#2563eb] text-white">
               <Check className="size-5" />
             </div>
             <h1 className="mt-4 text-xl font-semibold">You&apos;re unsubscribed</h1>
-            <p className="mt-2 text-sm leading-6 text-[#68736f]">
+            <p className="mt-2 text-sm leading-6 text-[#64748b]">
               You won&apos;t get announcement emails any more. Emails about your own account and webinars you
               register for will still arrive.
             </p>
@@ -53,7 +53,7 @@ function Unsubscribe() {
         ) : state === "invalid" ? (
           <>
             <h1 className="mt-4 text-xl font-semibold">This link isn&apos;t valid</h1>
-            <p className="mt-2 text-sm leading-6 text-[#68736f]">
+            <p className="mt-2 text-sm leading-6 text-[#64748b]">
               It may be incomplete. Try clicking the unsubscribe link in the email again, or reply to the email
               and ask to be removed.
             </p>
@@ -61,14 +61,14 @@ function Unsubscribe() {
         ) : (
           <>
             <h1 className="mt-4 text-xl font-semibold">Unsubscribe from announcements?</h1>
-            <p className="mt-2 text-sm leading-6 text-[#68736f]">
+            <p className="mt-2 text-sm leading-6 text-[#64748b]">
               You&apos;ll stop getting news and announcement emails from Webinar Stack.
             </p>
             <button
               type="button"
               onClick={() => void confirm()}
               disabled={state === "working"}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f4d3d] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16392d] disabled:opacity-70"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1e40af] disabled:opacity-70"
             >
               {state === "working" ? <Loader2 className="size-4 animate-spin" /> : null}
               Unsubscribe
@@ -87,7 +87,7 @@ function Unsubscribe() {
 
 export default function UnsubscribePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#f4f1e8]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#f5f8fc]" />}>
       <Unsubscribe />
     </Suspense>
   );

@@ -12,7 +12,7 @@ import { INTRO_DAYS, INTRO_PRICE, TERMS_URL, type PlanInfo } from "@/lib/plans";
  * Same overlay pattern as NewWebinarDialog: a bottom sheet on phones, centred above.
  */
 
-const GREEN = "#1a4a3a";
+const GREEN = "#2563eb";
 const MONTHS: Record<CheckoutPlan, number> = { monthly: 1, annual: 12, two_year: 24 };
 const TITLE: Record<CheckoutPlan, string> = { monthly: "Monthly", annual: "Annual", two_year: "Two-year" };
 
@@ -116,7 +116,7 @@ export function CheckoutConfirmDialog({ plan, plans, intro, checking, busy, erro
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[92dvh] outline-none w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-lg sm:rounded-3xl"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-[#e6ece6] px-5 pb-4 pt-5 sm:px-6">
+        <div className="flex items-start justify-between gap-3 border-b border-[#e2e8f0] px-5 pb-4 pt-5 sm:px-6">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Confirm your plan</p>
             <h2 id="checkout-confirm-title" className="mt-1 font-serif text-2xl font-bold leading-tight tracking-[-0.02em]" style={{ color: GREEN }}>
@@ -135,7 +135,7 @@ export function CheckoutConfirmDialog({ plan, plans, intro, checking, busy, erro
         </div>
 
         <div className="overflow-y-auto px-5 py-4 sm:px-6">
-          <div role="radiogroup" aria-label="Change plan" className="grid grid-cols-3 gap-1 rounded-2xl bg-[#eef7ee] p-1">
+          <div role="radiogroup" aria-label="Change plan" className="grid grid-cols-3 gap-1 rounded-2xl bg-[#eff6ff] p-1">
             {plans.map((p) => {
               const selected = p.id === plan.id;
               return (
@@ -155,7 +155,7 @@ export function CheckoutConfirmDialog({ plan, plans, intro, checking, busy, erro
             })}
           </div>
 
-          <dl id="checkout-confirm-summary" className="mt-4 divide-y divide-[#e6ece6] rounded-2xl border border-[#cfe3cf]">
+          <dl id="checkout-confirm-summary" className="mt-4 divide-y divide-[#e2e8f0] rounded-2xl border border-[#bfdbfe]">
             <div className="flex items-baseline justify-between gap-4 px-4 py-3">
               <dt className="text-sm text-muted-foreground">Charged today</dt>
               <dd className="text-right font-serif text-2xl font-bold" style={{ color: GREEN }}>
@@ -165,18 +165,18 @@ export function CheckoutConfirmDialog({ plan, plans, intro, checking, busy, erro
             {intro !== false ? (
               <div className="flex items-baseline justify-between gap-4 px-4 py-3">
                 <dt className="text-sm text-muted-foreground">Introductory period</dt>
-                <dd className="text-right text-sm font-semibold text-[#1d2a27]">{INTRO_DAYS} days for {INTRO_PRICE}, one time</dd>
+                <dd className="text-right text-sm font-semibold text-[#0f1f3a]">{INTRO_DAYS} days for {INTRO_PRICE}, one time</dd>
               </div>
             ) : null}
             <div className="flex items-baseline justify-between gap-4 px-4 py-3">
               <dt className="text-sm text-muted-foreground">{intro !== false ? "First full charge" : "Next charge"}</dt>
-              <dd className="text-right text-sm font-semibold text-[#1d2a27]">
+              <dd className="text-right text-sm font-semibold text-[#0f1f3a]">
                 {plan.price} on {renewal}
               </dd>
             </div>
             <div className="flex items-baseline justify-between gap-4 px-4 py-3">
               <dt className="text-sm text-muted-foreground">Then</dt>
-              <dd className="text-right text-sm font-semibold text-[#1d2a27]">
+              <dd className="text-right text-sm font-semibold text-[#0f1f3a]">
                 {plan.price} {interval}
               </dd>
             </div>
@@ -187,7 +187,7 @@ export function CheckoutConfirmDialog({ plan, plans, intro, checking, busy, erro
             </p>
           ) : null}
 
-          <ul className="mt-4 space-y-2 text-[13px] leading-snug text-[#1d2a27]">
+          <ul className="mt-4 space-y-2 text-[13px] leading-snug text-[#0f1f3a]">
             <li>
               <strong>Automatic renewal.</strong>{" "}
               {intro !== false
@@ -213,7 +213,7 @@ export function CheckoutConfirmDialog({ plan, plans, intro, checking, busy, erro
             Read the full Terms of Service
           </a>
 
-          <label className={`mt-4 flex cursor-pointer items-start gap-2.5 rounded-2xl border p-3 text-sm text-[#1d2a27] ${needsAgreement && !agreed ? "border-red-300 bg-red-50" : "border-[#cfe3cf]"}`}>
+          <label className={`mt-4 flex cursor-pointer items-start gap-2.5 rounded-2xl border p-3 text-sm text-[#0f1f3a] ${needsAgreement && !agreed ? "border-red-300 bg-red-50" : "border-[#bfdbfe]"}`}>
             <input
               ref={checkboxRef}
               type="checkbox"
@@ -244,7 +244,7 @@ export function CheckoutConfirmDialog({ plan, plans, intro, checking, busy, erro
           ) : null}
         </div>
 
-        <div className="border-t border-[#e6ece6] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-5">
+        <div className="border-t border-[#e2e8f0] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-5">
           <button
             type="button"
             onClick={confirm}

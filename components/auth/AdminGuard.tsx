@@ -90,10 +90,10 @@ export default function AdminGuard({ children }: AdminGuardProps) {
   // 2. During the 2-minute tarpit / verification -> Neutral connecting screen (not login dashboard)
   if (authState === "loading") {
     return (
-      <div className="grid min-h-screen place-items-center bg-[#faf8f3] text-center p-4">
+      <div className="grid min-h-screen place-items-center bg-[#f8fafc] text-center p-4">
         <div className="flex flex-col items-center max-w-sm space-y-3">
-          <div className="size-6 animate-spin rounded-full border-2 border-[#1f4d3d]/20 border-t-[#1f4d3d]" />
-          <p className="text-xs text-[#526a61] font-medium tracking-tight">
+          <div className="size-6 animate-spin rounded-full border-2 border-[#2563eb]/20 border-t-[#2563eb]" />
+          <p className="text-xs text-[#64748b] font-medium tracking-tight">
             Connecting to workspace server...
           </p>
         </div>

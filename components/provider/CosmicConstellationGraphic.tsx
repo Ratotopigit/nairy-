@@ -214,15 +214,15 @@ export default function CosmicConstellationGraphic() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: [0, -7, 0] }}
         transition={{ duration: 5.2, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-        className="absolute top-6 left-5 sm:top-10 sm:left-8 z-20 rounded-2xl border border-emerald-500/30 bg-[#0c1017]/85 backdrop-blur-xl px-3.5 py-2.5 shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_20px_rgba(16,185,129,0.2)] flex items-center gap-3"
+        className="absolute top-6 left-5 sm:top-10 sm:left-8 z-20 rounded-2xl border border-blue-500/30 bg-[#0c1017]/85 backdrop-blur-xl px-3.5 py-2.5 shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_20px_rgba(37,99,235,0.2)] flex items-center gap-3"
       >
-        <div className="size-8 rounded-xl bg-gradient-to-br from-emerald-400/20 to-emerald-950/40 border border-emerald-400/40 text-emerald-300 flex items-center justify-center shadow-[0_0_10px_rgba(16,185,129,0.35)]">
+        <div className="size-8 rounded-xl bg-gradient-to-br from-blue-400/20 to-blue-950/40 border border-blue-400/40 text-blue-300 flex items-center justify-center shadow-[0_0_10px_rgba(37,99,235,0.35)]">
           <Sparkles className="size-4" />
         </div>
         <div>
           <div className="flex items-center gap-1.5">
             <p className="text-xs font-semibold text-white">Webinar Chat</p>
-            <ShieldCheck className="size-3 text-emerald-400" />
+            <ShieldCheck className="size-3 text-blue-400" />
           </div>
           <p className="text-[10px] text-slate-400">Buyer Persona Synced</p>
         </div>

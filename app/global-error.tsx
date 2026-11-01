@@ -7,8 +7,8 @@ export default function GlobalError({ reset }: { reset: () => void }) {
         <main
           style={{
             alignItems: "center",
-            background: "#f4f1e8",
-            color: "#1d2a27",
+            background: "#f5f8fc",
+            color: "#0f1f3a",
             display: "flex",
             fontFamily: "ui-sans-serif, system-ui, sans-serif",
             justifyContent: "center",
@@ -20,17 +20,17 @@ export default function GlobalError({ reset }: { reset: () => void }) {
             <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-0.01em", margin: 0 }}>
               Webinar Stack needs to reload
             </h1>
-            <p style={{ color: "#68736f", lineHeight: 1.6, margin: "16px 0 24px" }}>
+            <p style={{ color: "#64748b", lineHeight: 1.6, margin: "16px 0 24px" }}>
               A shared part of the application failed to load. Retry to restore the workspace.
             </p>
             <button
               type="button"
               onClick={reset}
               style={{
-                background: "#1f4d3d",
+                background: "#2563eb",
                 border: 0,
                 borderRadius: 999,
-                color: "#fffefb",
+                color: "#ffffff",
                 cursor: "pointer",
                 fontSize: 14,
                 fontWeight: 600,

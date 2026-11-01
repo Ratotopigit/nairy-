@@ -241,7 +241,7 @@ function Webinars() {
               return (
                 <div
                   key={webinar.id}
-                  className="group flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 transition-shadow hover:shadow-[0_10px_30px_-20px_rgba(29,42,39,0.35)] sm:flex-row sm:items-center"
+                  className="group flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 transition-shadow hover:shadow-[0_10px_30px_-20px_rgba(15,31,58,0.35)] sm:flex-row sm:items-center"
                 >
                   <Link href={`/provider/webinars/edit?id=${webinar.id}`} className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">

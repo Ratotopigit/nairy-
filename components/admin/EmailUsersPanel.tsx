@@ -31,7 +31,7 @@ type Sending =
   | { phase: "error"; message: string };
 
 const FIELD =
-  "w-full rounded-xl border border-[#d6e8dc] bg-white px-3.5 py-2.5 text-sm text-[#1f4d3d] outline-none transition focus:border-[#1f4d3d] focus:ring-2 focus:ring-[#1f4d3d]/15";
+  "w-full rounded-xl border border-[#dbeafe] bg-white px-3.5 py-2.5 text-sm text-[#2563eb] outline-none transition focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15";
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -130,25 +130,25 @@ export default function EmailUsersPanel() {
     setFilters((f) => ({ ...f, [key]: value }));
 
   return (
-    <div className="min-h-screen bg-[#faf8f3] pb-20 text-[#1f4d3d]">
-      <header className="sticky top-0 z-30 border-b border-[#d6e8dc] bg-[#faf8f3]/90 backdrop-blur-md">
+    <div className="min-h-screen bg-[#f8fafc] pb-20 text-[#2563eb]">
+      <header className="sticky top-0 z-30 border-b border-[#dbeafe] bg-[#f8fafc]/90 backdrop-blur-md">
         <div className="mx-auto flex min-h-16 max-w-6xl items-center gap-3 px-4 py-2 sm:px-6">
           <Link
             href="/admin"
-            className="grid size-9 place-items-center rounded-xl border border-[#d6e8dc] bg-white transition-colors hover:bg-[#e8f3ec]"
+            className="grid size-9 place-items-center rounded-xl border border-[#dbeafe] bg-white transition-colors hover:bg-[#eff6ff]"
             title="Back to admin"
           >
             <ArrowLeft className="size-4" />
           </Link>
           <span className="text-sm font-semibold tracking-tight">Email users</span>
-          <span className="ml-auto truncate text-xs text-[#526a61]">Signed in as {auth.currentUser?.email}</span>
+          <span className="ml-auto truncate text-xs text-[#64748b]">Signed in as {auth.currentUser?.email}</span>
         </div>
       </header>
 
       <main className="mx-auto grid max-w-6xl gap-6 px-4 pt-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         {/* Audience */}
         <section className="space-y-4">
-          <div className="rounded-2xl border border-[#d6e8dc] bg-white p-5 shadow-xs">
+          <div className="rounded-2xl border border-[#dbeafe] bg-white p-5 shadow-xs">
             <h2 className="flex items-center gap-2 text-sm font-bold"><Users className="size-4" /> Who gets it</h2>
             <div className="mt-4 space-y-3">
               <input
@@ -183,12 +183,12 @@ export default function EmailUsersPanel() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#d6e8dc] bg-white shadow-xs">
+          <div className="rounded-2xl border border-[#dbeafe] bg-white shadow-xs">
             <div className="flex items-baseline justify-between gap-3 border-b border-[#e8efe9] px-5 py-3">
               <p className="text-sm font-bold">
                 {users === null ? "Loading…" : `${recipients.length} ${recipients.length === 1 ? "person" : "people"}`}
               </p>
-              <p className="text-right text-[11px] text-[#526a61]">
+              <p className="text-right text-[11px] text-[#64748b]">
                 {optedOut === null
                   ? "Unsubscribed users are skipped automatically when sending"
                   : optedOutCount
@@ -199,24 +199,24 @@ export default function EmailUsersPanel() {
             {loadError ? (
               <p role="alert" className="px-5 py-6 text-sm text-rose-700">{loadError}</p>
             ) : users === null ? (
-              <div className="grid h-40 place-items-center"><Loader2 className="size-5 animate-spin text-[#526a61]" /></div>
+              <div className="grid h-40 place-items-center"><Loader2 className="size-5 animate-spin text-[#64748b]" /></div>
             ) : recipients.length === 0 ? (
-              <p className="px-5 py-10 text-center text-sm text-[#526a61]">Nobody matches these filters.</p>
+              <p className="px-5 py-10 text-center text-sm text-[#64748b]">Nobody matches these filters.</p>
             ) : (
               <ul className="max-h-[360px] divide-y divide-[#eef3ef] overflow-y-auto">
                 {recipients.slice(0, 100).map((u) => (
                   <li key={u.uid} className="flex items-center justify-between gap-3 px-5 py-2.5 text-sm">
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{u.name || u.email.split("@")[0]}</span>
-                      <span className="block truncate text-xs text-[#526a61]">{u.email}</span>
+                      <span className="block truncate text-xs text-[#64748b]">{u.email}</span>
                     </span>
-                    <span className="shrink-0 text-right text-[11px] text-[#526a61]">
+                    <span className="shrink-0 text-right text-[11px] text-[#64748b]">
                       Joined {formatDate(u.createdAt)}
                     </span>
                   </li>
                 ))}
                 {recipients.length > 100 ? (
-                  <li className="px-5 py-2.5 text-center text-xs text-[#526a61]">and {recipients.length - 100} more</li>
+                  <li className="px-5 py-2.5 text-center text-xs text-[#64748b]">and {recipients.length - 100} more</li>
                 ) : null}
               </ul>
             )}
@@ -225,7 +225,7 @@ export default function EmailUsersPanel() {
 
         {/* Message */}
         <section className="space-y-4">
-          <div className="rounded-2xl border border-[#d6e8dc] bg-white p-5 shadow-xs">
+          <div className="rounded-2xl border border-[#dbeafe] bg-white p-5 shadow-xs">
             <h2 className="flex items-center gap-2 text-sm font-bold"><Mail className="size-4" /> Message</h2>
             <div className="mt-4 space-y-3">
               <input
@@ -240,7 +240,7 @@ export default function EmailUsersPanel() {
                 rows={8}
                 className={`${FIELD} resize-y`}
               />
-              <p className="text-[11px] leading-5 text-[#526a61]">
+              <p className="text-[11px] leading-5 text-[#64748b]">
                 Plain text. A blank line starts a new paragraph, <code>https://</code> links become clickable, and{" "}
                 <code>{"{first_name}"}</code> becomes each person&apos;s first name. An unsubscribe link is added automatically.
               </p>
@@ -249,7 +249,7 @@ export default function EmailUsersPanel() {
                   type="button"
                   onClick={() => void send(true)}
                   disabled={!ready || busy}
-                  className="inline-flex items-center gap-2 rounded-full border border-[#d6e8dc] px-4 py-2 text-sm font-medium transition hover:bg-[#e8f3ec] disabled:opacity-40"
+                  className="inline-flex items-center gap-2 rounded-full border border-[#dbeafe] px-4 py-2 text-sm font-medium transition hover:bg-[#eff6ff] disabled:opacity-40"
                 >
                   Send test to me
                 </button>
@@ -257,7 +257,7 @@ export default function EmailUsersPanel() {
                   type="button"
                   onClick={() => void send(false)}
                   disabled={!ready || busy || recipients.length === 0}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#1f4d3d] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#16392d] disabled:opacity-40"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#2563eb] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#1e40af] disabled:opacity-40"
                 >
                   <Send className="size-3.5" />
                   Send to {recipients.length} {recipients.length === 1 ? "person" : "people"}
@@ -267,17 +267,17 @@ export default function EmailUsersPanel() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-[#d6e8dc] bg-white shadow-xs">
-            <div className="border-b border-[#e8efe9] px-5 py-3 text-xs text-[#526a61]">
-              <span className="font-semibold text-[#1f4d3d]">Preview</span> · {preview.subject}
+          <div className="overflow-hidden rounded-2xl border border-[#dbeafe] bg-white shadow-xs">
+            <div className="border-b border-[#e8efe9] px-5 py-3 text-xs text-[#64748b]">
+              <span className="font-semibold text-[#2563eb]">Preview</span> · {preview.subject}
               {recipients[0] ? ` · as ${recipients[0].email}` : ""}
             </div>
             {/* sandbox: the preview can never run script or navigate the page. */}
-            <iframe title="Email preview" srcDoc={preview.html} sandbox="" className="h-[460px] w-full bg-[#f4f1e8]" />
+            <iframe title="Email preview" srcDoc={preview.html} sandbox="" className="h-[460px] w-full bg-[#f5f8fc]" />
           </div>
 
           {history && history.length ? (
-            <div className="rounded-2xl border border-[#d6e8dc] bg-white p-5 shadow-xs">
+            <div className="rounded-2xl border border-[#dbeafe] bg-white p-5 shadow-xs">
               <h2 className="text-sm font-bold">Recent</h2>
               <ul className="mt-3 divide-y divide-[#eef3ef] text-sm">
                 {history.map((b) => (
@@ -286,7 +286,7 @@ export default function EmailUsersPanel() {
                       {b.test ? <span className="mr-1.5 rounded bg-[#eef3ef] px-1.5 py-0.5 text-[10px] font-semibold">TEST</span> : null}
                       {b.subject}
                     </span>
-                    <span className="shrink-0 text-xs text-[#526a61]">
+                    <span className="shrink-0 text-xs text-[#64748b]">
                       {b.sent} sent{b.failed ? ` · ${b.failed} failed` : ""} · {formatDate(b.created_at)}
                     </span>
                   </li>
@@ -304,7 +304,7 @@ function SendingStatus({ sending }: { sending: Sending }) {
   if (sending.phase === "idle") return null;
   if (sending.phase === "sending") {
     return (
-      <p role="status" className="flex items-center gap-2 text-sm text-[#526a61]">
+      <p role="status" className="flex items-center gap-2 text-sm text-[#64748b]">
         <Loader2 className="size-4 animate-spin" />
         {sending.test ? "Sending your test…" : `Sending to ${sending.count} people… you can leave this page.`}
       </p>

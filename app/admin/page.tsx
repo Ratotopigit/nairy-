@@ -85,24 +85,24 @@ function AdminContentManager() {
   };
 
   return (
-    <div className="min-h-screen bg-[#faf8f3] text-[#1f4d3d] font-sans pb-20">
+    <div className="min-h-screen bg-[#f8fafc] text-[#2563eb] font-sans pb-20">
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-[#d6e8dc] bg-[#faf8f3]/90 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-[#dbeafe] bg-[#f8fafc]/90 backdrop-blur-md">
         <div className="mx-auto flex min-h-16 max-w-4xl flex-wrap sm:flex-nowrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
               href="/provider"
-              className="grid size-9 place-items-center rounded-xl border border-[#d6e8dc] bg-card text-[#1f4d3d] transition-colors hover:bg-[#e8f3ec]"
+              className="grid size-9 place-items-center rounded-xl border border-[#dbeafe] bg-card text-[#2563eb] transition-colors hover:bg-[#eff6ff]"
               title="Return to Workspace"
             >
               <ArrowLeft className="size-4" />
             </Link>
-            <span className="text-sm font-semibold tracking-tight text-[#1f4d3d]">
+            <span className="text-sm font-semibold tracking-tight text-[#2563eb]">
               Home Settings
             </span>
             <Link
               href="/admin/email"
-              className="rounded-lg border border-[#d6e8dc] bg-card px-2.5 py-1 text-xs font-medium text-[#1f4d3d] transition-colors hover:bg-[#e8f3ec]"
+              className="rounded-lg border border-[#dbeafe] bg-card px-2.5 py-1 text-xs font-medium text-[#2563eb] transition-colors hover:bg-[#eff6ff]"
             >
               Email users
             </Link>
@@ -114,7 +114,7 @@ function AdminContentManager() {
               type="button"
               onClick={handleManualRefresh}
               disabled={isRefreshing}
-              className="flex items-center gap-1.5 text-xs text-[#526a61] hover:text-[#1f4d3d] border border-[#d6e8dc] rounded-lg px-2.5 py-1 transition disabled:opacity-50"
+              className="flex items-center gap-1.5 text-xs text-[#64748b] hover:text-[#2563eb] border border-[#dbeafe] rounded-lg px-2.5 py-1 transition disabled:opacity-50"
               title="Re-fetch from server & Firestore"
             >
               <RefreshCw className={`size-3 ${isRefreshing ? "animate-spin" : ""}`} />
@@ -162,16 +162,16 @@ function AdminContentManager() {
         <form onSubmit={handleSave} className="space-y-6">
           
           {/* 1. YouTube Video URL & Live Preview */}
-          <div className="rounded-2xl sm:rounded-3xl border border-[#d6e8dc] bg-card p-5 sm:p-7 shadow-xs space-y-4">
+          <div className="rounded-2xl sm:rounded-3xl border border-[#dbeafe] bg-card p-5 sm:p-7 shadow-xs space-y-4">
             <div className="flex items-center gap-2.5">
-              <div className="grid size-8 place-items-center rounded-xl bg-[#e3f0e7] text-[#1f4d3d]">
+              <div className="grid size-8 place-items-center rounded-xl bg-[#e0ecff] text-[#2563eb]">
                 <Video className="size-4" />
               </div>
-              <h2 className="text-sm font-bold text-[#1f4d3d]">Home Video</h2>
+              <h2 className="text-sm font-bold text-[#2563eb]">Home Video</h2>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-[#526a61]">
+              <label className="block text-xs font-semibold text-[#64748b]">
                 YouTube URL or Video ID
               </label>
               <input
@@ -179,12 +179,12 @@ function AdminContentManager() {
                 value={form.youtubeUrl}
                 onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
                 placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full rounded-xl border border-[#d6e8dc] bg-[#f4fbf7] px-4 py-2.5 text-sm text-[#1f4d3d] placeholder:text-muted-foreground focus:border-[#1f4d3d] focus:outline-none focus:ring-2 focus:ring-[#1f4d3d]/20 transition-all"
+                className="w-full rounded-xl border border-[#dbeafe] bg-[#f5f9ff] px-4 py-2.5 text-sm text-[#2563eb] placeholder:text-muted-foreground focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
               />
             </div>
 
             {/* Live Video Preview (Responsive aspect-video) */}
-            <div className="relative w-full max-w-lg aspect-video rounded-2xl border border-[#d6e8dc] bg-black/5 overflow-hidden shadow-xs mt-3">
+            <div className="relative w-full max-w-lg aspect-video rounded-2xl border border-[#dbeafe] bg-black/5 overflow-hidden shadow-xs mt-3">
               {previewId ? (
                 <CustomYouTubePlayer videoId={previewId} autoplay={false} />
               ) : (
@@ -196,87 +196,87 @@ function AdminContentManager() {
           </div>
 
           {/* 2. Home Page Content Edit Fields */}
-          <div className="rounded-3xl border border-[#d6e8dc] bg-card p-6 sm:p-7 shadow-xs space-y-6">
+          <div className="rounded-3xl border border-[#dbeafe] bg-card p-6 sm:p-7 shadow-xs space-y-6">
             <div className="flex items-center gap-2.5">
               <div className="grid size-8 place-items-center rounded-xl bg-[#faead4] text-[#9a6a18]">
                 <FileEdit className="size-4" />
               </div>
-              <h2 className="text-sm font-bold text-[#1f4d3d]">Home Page Content</h2>
+              <h2 className="text-sm font-bold text-[#2563eb]">Home Page Content</h2>
             </div>
 
             {/* Context Highlight Card Fields */}
-            <div className="space-y-4 pt-2 border-t border-[#d6e8dc]">
-              <span className="block text-[11px] font-mono uppercase tracking-wider text-[#526a61] font-semibold">
+            <div className="space-y-4 pt-2 border-t border-[#dbeafe]">
+              <span className="block text-[11px] font-mono uppercase tracking-wider text-[#64748b] font-semibold">
                 Context Highlight
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#526a61]">Tagline</label>
+                  <label className="block text-xs font-semibold text-[#64748b]">Tagline</label>
                   <input
                     type="text"
                     value={form.tagline}
                     onChange={(e) => handleInputChange("tagline", e.target.value)}
-                    className="w-full rounded-xl border border-[#d6e8dc] bg-[#f4fbf7] px-3.5 py-2 text-sm text-[#1f4d3d] focus:border-[#1f4d3d] focus:outline-none transition-all"
+                    className="w-full rounded-xl border border-[#dbeafe] bg-[#f5f9ff] px-3.5 py-2 text-sm text-[#2563eb] focus:border-[#2563eb] focus:outline-none transition-all"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#526a61]">Title Line 1</label>
+                  <label className="block text-xs font-semibold text-[#64748b]">Title Line 1</label>
                   <input
                     type="text"
                     value={form.titleLine1}
                     onChange={(e) => handleInputChange("titleLine1", e.target.value)}
-                    className="w-full rounded-xl border border-[#d6e8dc] bg-[#f4fbf7] px-3.5 py-2 text-sm text-[#1f4d3d] focus:border-[#1f4d3d] focus:outline-none transition-all"
+                    className="w-full rounded-xl border border-[#dbeafe] bg-[#f5f9ff] px-3.5 py-2 text-sm text-[#2563eb] focus:border-[#2563eb] focus:outline-none transition-all"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#526a61]">Title Line 2</label>
+                  <label className="block text-xs font-semibold text-[#64748b]">Title Line 2</label>
                   <input
                     type="text"
                     value={form.titleLine2}
                     onChange={(e) => handleInputChange("titleLine2", e.target.value)}
-                    className="w-full rounded-xl border border-[#d6e8dc] bg-[#f4fbf7] px-3.5 py-2 text-sm text-[#1f4d3d] focus:border-[#1f4d3d] focus:outline-none transition-all"
+                    className="w-full rounded-xl border border-[#dbeafe] bg-[#f5f9ff] px-3.5 py-2 text-sm text-[#2563eb] focus:border-[#2563eb] focus:outline-none transition-all"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="block text-xs font-semibold text-[#526a61]">Description</label>
+                <label className="block text-xs font-semibold text-[#64748b]">Description</label>
                 <textarea
                   rows={2}
                   value={form.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
-                  className="w-full rounded-xl border border-[#d6e8dc] bg-[#f4fbf7] px-3.5 py-2 text-sm text-[#1f4d3d] focus:border-[#1f4d3d] focus:outline-none transition-all resize-y"
+                  className="w-full rounded-xl border border-[#dbeafe] bg-[#f5f9ff] px-3.5 py-2 text-sm text-[#2563eb] focus:border-[#2563eb] focus:outline-none transition-all resize-y"
                 />
               </div>
             </div>
 
             {/* Brand Taglines Fields */}
-            <div className="space-y-4 pt-4 border-t border-[#d6e8dc]">
-              <span className="block text-[11px] font-mono uppercase tracking-wider text-[#526a61] font-semibold">
+            <div className="space-y-4 pt-4 border-t border-[#dbeafe]">
+              <span className="block text-[11px] font-mono uppercase tracking-wider text-[#64748b] font-semibold">
                 Brand Taglines
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#526a61]">Tagline Line 1</label>
+                  <label className="block text-xs font-semibold text-[#64748b]">Tagline Line 1</label>
                   <input
                     type="text"
                     value={form.brandTagline1}
                     onChange={(e) => handleInputChange("brandTagline1", e.target.value)}
-                    className="w-full rounded-xl border border-[#d6e8dc] bg-[#f4fbf7] px-3.5 py-2 text-sm text-[#1f4d3d] focus:border-[#1f4d3d] focus:outline-none transition-all"
+                    className="w-full rounded-xl border border-[#dbeafe] bg-[#f5f9ff] px-3.5 py-2 text-sm text-[#2563eb] focus:border-[#2563eb] focus:outline-none transition-all"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#526a61]">Tagline Line 2</label>
+                  <label className="block text-xs font-semibold text-[#64748b]">Tagline Line 2</label>
                   <input
                     type="text"
                     value={form.brandTagline2}
                     onChange={(e) => handleInputChange("brandTagline2", e.target.value)}
-                    className="w-full rounded-xl border border-[#d6e8dc] bg-[#f4fbf7] px-3.5 py-2 text-sm text-[#1f4d3d] focus:border-[#1f4d3d] focus:outline-none transition-all"
+                    className="w-full rounded-xl border border-[#dbeafe] bg-[#f5f9ff] px-3.5 py-2 text-sm text-[#2563eb] focus:border-[#2563eb] focus:outline-none transition-all"
                   />
                 </div>
               </div>
@@ -288,7 +288,7 @@ function AdminContentManager() {
             <button
               type="submit"
               disabled={isSaving}
-              className="inline-flex items-center gap-2 rounded-full bg-[#1f4d3d] px-7 py-2.5 text-sm font-semibold text-white shadow-xs transition-all hover:bg-[#16392d] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full bg-[#2563eb] px-7 py-2.5 text-sm font-semibold text-white shadow-xs transition-all hover:bg-[#1e40af] disabled:opacity-50"
             >
               {isSaving ? (
                 <>

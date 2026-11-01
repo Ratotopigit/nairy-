@@ -82,7 +82,7 @@ export default function ProviderNavbar() {
               >
                 {item.label}
                 <span
-                  className={`pointer-events-none absolute bottom-0 left-0 h-[2.5px] rounded-full bg-[#1f4d3d] transition-[width] duration-200 ease-out motion-reduce:transition-none ${
+                  className={`pointer-events-none absolute bottom-0 left-0 h-[2.5px] rounded-full bg-[#2563eb] transition-[width] duration-200 ease-out motion-reduce:transition-none ${
                     active ? "w-full" : "w-0 group-hover:w-full"
                   }`}
                 />
@@ -128,7 +128,7 @@ export default function ProviderNavbar() {
                     aria-current={active ? "page" : undefined}
                     className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm transition-colors duration-150 ${
                       active
-                        ? "bg-[#1f4d3d] text-white font-medium shadow-xs"
+                        ? "bg-[#2563eb] text-white font-medium shadow-xs"
                         : "text-muted-foreground hover:bg-card hover:text-foreground"
                     }`}
                   >

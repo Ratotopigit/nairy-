@@ -15,7 +15,7 @@ import { CheckoutConfirmDialog } from "@/components/provider/CheckoutConfirmDial
  * about features the product doesn't have.
  */
 
-const GREEN = "#1a4a3a";
+const GREEN = "#2563eb";
 
 const ICONS: Record<CheckoutPlan, ComponentType<{ className?: string }>> = { monthly: Gift, annual: Crown, two_year: Building2 };
 
@@ -170,7 +170,7 @@ export default function BillingPage() {
             type="button"
             onClick={() => void openPortal()}
             disabled={openingPortal}
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-[#cfdccf] bg-white px-4 text-sm font-semibold transition-opacity disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-[#c7d7ee] bg-white px-4 text-sm font-semibold transition-opacity disabled:cursor-wait disabled:opacity-60"
             style={{ color: GREEN }}
           >
             <CreditCard className="size-4" />
@@ -180,7 +180,7 @@ export default function BillingPage() {
       </div>
 
       {returned === "success" ? (
-        <p role="status" className="mt-4 rounded-2xl border border-[#cfe3cf] bg-[#e8f4e8] px-4 py-3 text-sm" style={{ color: GREEN }}>
+        <p role="status" className="mt-4 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-sm" style={{ color: GREEN }}>
           {paid
             ? "Payment received. Thank you, your plan is active."
             : gaveUpWaiting
@@ -199,7 +199,7 @@ export default function BillingPage() {
         </p>
       ) : null}
 
-      <div className="mt-6 rounded-[28px] bg-[#dff0df] px-4 pb-4 pt-7 sm:p-6 sm:pt-9">
+      <div className="mt-6 rounded-[28px] bg-[#dbeafe] px-4 pb-4 pt-7 sm:p-6 sm:pt-9">
         {billingEnabled && !currentPlan ? (
           <div className="mx-auto mb-8 max-w-2xl text-center sm:mb-10">
             {showTrial ? (
@@ -213,7 +213,7 @@ export default function BillingPage() {
                 <h2 className="mt-3 text-balance font-serif text-[28px] font-bold leading-[1.12] tracking-[-0.02em] sm:text-[40px]" style={{ color: GREEN }}>
                   Start your 7-day Webinar Stack trial for just $1
                 </h2>
-                <p className="mx-auto mt-3 max-w-xl text-pretty text-sm leading-6 text-[#1d2a27] sm:text-base">
+                <p className="mx-auto mt-3 max-w-xl text-pretty text-sm leading-6 text-[#0f1f3a] sm:text-base">
                   All three plans start at {INTRO_PRICE} for your first seven days. After that, your plan renews automatically at the
                   price shown until you cancel.
                 </p>
@@ -223,7 +223,7 @@ export default function BillingPage() {
                 <h2 className="text-balance font-serif text-[28px] font-bold leading-[1.12] tracking-[-0.02em] sm:text-[40px]" style={{ color: GREEN }}>
                   Welcome back to Webinar Stack
                 </h2>
-                <p className="mx-auto mt-3 max-w-xl text-pretty text-sm leading-6 text-[#1d2a27] sm:text-base">
+                <p className="mx-auto mt-3 max-w-xl text-pretty text-sm leading-6 text-[#0f1f3a] sm:text-base">
                   The {INTRO_PRICE} trial is for first-time subscribers, so your plan starts at its regular price today and renews
                   automatically until you cancel.
                 </p>
@@ -243,7 +243,7 @@ export default function BillingPage() {
               <div
                 key={plan.id}
                 className={`relative flex flex-col rounded-3xl bg-white p-5 transition-transform duration-200 hover:-translate-y-0.5 ${
-                  highlight ? "border-2 shadow-[0_24px_50px_-28px_rgba(26,74,58,0.55)] lg:-my-2" : "border border-white shadow-[0_18px_40px_-34px_rgba(26,74,58,0.5)]"
+                  highlight ? "border-2 shadow-[0_24px_50px_-28px_rgba(37, 99, 235,0.55)] lg:-my-2" : "border border-white shadow-[0_18px_40px_-34px_rgba(37, 99, 235,0.5)]"
                 }`}
                 style={highlight ? { borderColor: GREEN } : undefined}
               >
@@ -257,7 +257,7 @@ export default function BillingPage() {
                 ) : null}
 
                 <div className="flex items-center gap-3">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#e3f1e3]" style={{ color: GREEN }}>
+                  <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#dbeafe]" style={{ color: GREEN }}>
                     <plan.Icon className="size-5" />
                   </span>
                   <div className="min-w-0">
@@ -269,12 +269,12 @@ export default function BillingPage() {
                 </div>
 
                 {trial ? (
-                  <div className="mt-4 rounded-2xl border border-[#cfe3cf] bg-[#eef7ee] px-4 py-3.5">
+                  <div className="mt-4 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3.5">
                     <p className="flex flex-wrap items-baseline gap-x-2" style={{ color: GREEN }}>
                       <span className="font-serif text-[40px] font-bold leading-none tracking-[-0.03em]">{INTRO_PRICE}</span>
                       <span className="text-[15px] font-bold leading-tight">for your first {INTRO_DAYS} days</span>
                     </p>
-                    <p className="mt-2 text-[13px] font-semibold leading-snug text-[#1d2a27]">
+                    <p className="mt-2 text-[13px] font-semibold leading-snug text-[#0f1f3a]">
                       Then {plan.price} {plan.renews}
                     </p>
                     <p className="text-xs leading-snug text-muted-foreground">Renews automatically until you cancel</p>
@@ -286,16 +286,16 @@ export default function BillingPage() {
                   <span className={`font-serif font-bold tracking-[-0.03em] ${trial ? "text-3xl" : "text-4xl"}`}>{plan.perMonth}</span>
                   <span className="font-serif text-base font-bold">/month</span>
                   {plan.badge ? (
-                    <span className="ml-1 inline-flex self-center rounded-full bg-[#dff0df] px-2.5 py-0.5 text-[11px] font-semibold" style={{ color: GREEN }}>
+                    <span className="ml-1 inline-flex self-center rounded-full bg-[#dbeafe] px-2.5 py-0.5 text-[11px] font-semibold" style={{ color: GREEN }}>
                       {plan.badge}
                     </span>
                   ) : null}
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">{plan.billedAs}</p>
 
-                <ul className="mt-4 flex-1 space-y-2 border-t border-[#e6ece6] pt-4">
+                <ul className="mt-4 flex-1 space-y-2 border-t border-[#e2e8f0] pt-4">
                   {PLAN_FEATURES.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2.5 text-[13px] leading-snug text-[#1d2a27]">
+                    <li key={feature} className="flex items-center gap-2.5 text-[13px] leading-snug text-[#0f1f3a]">
                       <Check className="size-3.5 shrink-0" style={{ color: GREEN }} strokeWidth={2.5} />
                       <span>{feature}</span>
                     </li>
@@ -307,7 +307,7 @@ export default function BillingPage() {
                   disabled={locked}
                   onClick={() => openConfirm(plan.id)}
                   className={`mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm font-semibold transition-opacity disabled:cursor-not-allowed ${
-                    plan.popular ? "text-white" : "border border-[#cfdccf] bg-white"
+                    plan.popular ? "text-white" : "border border-[#c7d7ee] bg-white"
                   } ${locked && !isCurrent ? "opacity-60" : ""}`}
                   style={plan.popular ? { background: GREEN } : { color: GREEN }}
                   title={billingEnabled ? undefined : "Card payments aren't switched on yet"}
@@ -325,7 +325,7 @@ export default function BillingPage() {
           })}
         </div>
 
-        <div className="mt-6 flex flex-col gap-4 rounded-[24px] border border-[#cfe3cf] bg-[#e8f4e8] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+        <div className="mt-6 flex flex-col gap-4 rounded-[24px] border border-[#bfdbfe] bg-[#eff6ff] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
           <div className="flex items-center gap-4">
             <span className="grid size-12 shrink-0 place-items-center rounded-full text-white" style={{ background: GREEN }}>
               <CreditCard className="size-5" />
@@ -341,7 +341,7 @@ export default function BillingPage() {
                     : "You pay on Stripe's own page, so your card details never touch our servers. Have a promo code? Enter it at checkout."
                   : "You'll add and manage your card here. Until then, nothing is charged and nothing is locked."}
               </p>
-              {billingEnabled ? <p className="mt-1.5 text-sm font-medium text-[#1d2a27]">{PAYMENT_TERMS}</p> : null}
+              {billingEnabled ? <p className="mt-1.5 text-sm font-medium text-[#0f1f3a]">{PAYMENT_TERMS}</p> : null}
               {billingEnabled ? (
                 <a
                   href={TERMS_URL}
