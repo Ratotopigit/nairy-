@@ -566,6 +566,10 @@
     filter 0.15s ease;
 }
 
+.wp a.wp-btn {
+  color: var(--accent-ink);
+}
+
 .wp-btn:hover:not(:disabled) {
   filter: brightness(1.08);
 }

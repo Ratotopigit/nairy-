@@ -8,11 +8,14 @@ export const INPUT =
 export function Field({
   label,
   hint,
+  hintId,
   right,
   children,
 }: {
   label: string;
   hint?: string;
+  /** Lets an invalid input point at the hint (aria-describedby) when it holds the error. */
+  hintId?: string;
   right?: ReactNode;
   children: ReactNode;
 }) {
@@ -23,7 +26,7 @@ export function Field({
         {right}
       </span>
       <div className="mt-1.5">{children}</div>
-      {hint ? <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{hint}</span> : null}
+      {hint ? <span id={hintId} className="mt-1 block text-[11px] leading-4 text-muted-foreground">{hint}</span> : null}
     </label>
   );
 }

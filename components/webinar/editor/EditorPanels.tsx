@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Check, Plus, RotateCcw, X } from "lucide-react";
 import { Divider, Field, INPUT, Section } from "@/components/webinar/editor/controls";
 import { ImageSlot } from "@/components/webinar/editor/ImageSlot";
@@ -64,6 +64,7 @@ type ContentProps = PanelProps & {
 };
 
 export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, joinInvalid, joinState, timezone }: ContentProps) {
+  const joinHintId = useId();
   return (
     <div className="space-y-7">
       <Section title="Your webinar">
@@ -73,6 +74,7 @@ export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, 
         <Field label="Short description" right={<Counter value={w.subtitle} max={WEBINAR_LIMITS.subtitle} />}>
           <textarea value={w.subtitle} onChange={(e) => update("subtitle", e.target.value)} maxLength={WEBINAR_LIMITS.subtitle} rows={3} className={`${INPUT} resize-none`} />
         </Field>
+        {w.delivery_type !== "automated" ? (
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
           <Field label="Date and time" hint={`In your timezone (${timezone}). Visitors see it in theirs.`}>
             <input
@@ -92,6 +94,7 @@ export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, 
             </select>
           </Field>
         </div>
+        ) : null}
       </Section>
 
       <Divider />
@@ -151,16 +154,24 @@ export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, 
         <Field label="Button text">
           <input value={w.cta_label} onChange={(e) => update("cta_label", e.target.value)} maxLength={40} className={INPUT} />
         </Field>
-        <Field label="Thank-you message" hint="Shown after someone registers, under “You're registered!”.">
-          <textarea value={w.thank_you_message} onChange={(e) => update("thank_you_message", e.target.value)} rows={2} maxLength={300} className={`${INPUT} resize-none`} />
-        </Field>
       </Section>
 
       <Divider />
 
-      <Section title="Private to you" hint="Visitors never see these. Only people who register get the session link, in their confirmation email, reminders and calendar invite.">
+      <Section
+        title="Private to you"
+        hint={
+          w.delivery_type === "automated"
+            ? "Visitors never see this."
+            : w.access_type === "paid"
+            ? "Visitors never see these. Buyers don't get the session link from us: send it from your checkout confirmation."
+            : "Visitors never see these. Only people who register get the session link, in their confirmation email, reminders and calendar invite."
+        }
+      >
+        {w.delivery_type !== "automated" ? (
         <Field
           label="Session link (Zoom, Meet, Teams)"
+          hintId={joinHintId}
           hint={
             joinInvalid
               ? "That doesn't look like a link. It should start with https://"
@@ -178,9 +189,11 @@ export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, 
             inputMode="url"
             placeholder="https://zoom.us/j/…"
             aria-invalid={joinInvalid}
+            aria-describedby={joinInvalid ? joinHintId : undefined}
             className={`${INPUT} ${joinInvalid ? "border-red-300" : ""}`}
           />
         </Field>
+        ) : null}
         <Field label="Notes for you" hint="What this webinar is for. It also helps when you @mention it in Webinar Chat.">
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={WEBINAR_LIMITS.notes} rows={2} className={`${INPUT} resize-none`} />
         </Field>
@@ -451,11 +464,13 @@ export function ImagesPanel({ w, update, onFind, onSuggest, suggesting, onError 
 
 // ── Layout ────────────────────────────────────────────────────────────────
 
-export function LayoutPanel({ w, update, onBrowse }: PanelProps & { onBrowse: () => void }): ReactNode {
+/** `thanks` = the thank-you page step: only its choices. Otherwise the registration page's template. */
+export function LayoutPanel({ w, update, onBrowse, thanks = false }: PanelProps & { onBrowse?: () => void; thanks?: boolean }): ReactNode {
   const t = getTemplate(w.template_id);
   const siblings = templatesInCategory(t.category);
   return (
     <div className="space-y-6">
+      {thanks ? null : (
       <Section title="Template" hint="Switching never loses your text, images, brand or colours.">
         <div className="rounded-2xl border border-border bg-card/60 p-4">
           <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{t.category}</p>
@@ -466,13 +481,15 @@ export function LayoutPanel({ w, update, onBrowse }: PanelProps & { onBrowse: ()
           </button>
         </div>
       </Section>
+      )}
 
+      {!thanks ? null : (
       <Section title="Thank-you page" hint="What people see right after they register. It works with every template.">
         <div className="grid gap-2">
           {(
             [
-              { id: "", name: "Simple confirmation", blurb: "A short “You're registered” card with calendar buttons." },
-              { id: "training", name: "Midnight Training thank-you page", blurb: "A full page: seat confirmed, what you'll learn, calendar, join link and an optional offer." },
+              { id: "", name: "Simple confirmation", blurb: w.delivery_type === "automated" ? "A short “You're registered” card with your video." : "A short “You're registered” card with calendar buttons." },
+              { id: "training", name: "Midnight Training thank-you page", blurb: w.delivery_type === "automated" ? "A full page: your video, what you'll learn and an optional offer." : "A full page: seat confirmed, what you'll learn, calendar, join link and an optional offer." },
             ] as const
           ).map((o) => {
             const selected = w.thank_you_template === o.id;
@@ -494,7 +511,9 @@ export function LayoutPanel({ w, update, onBrowse }: PanelProps & { onBrowse: ()
           })}
         </div>
       </Section>
+      )}
 
+      {thanks ? null : (
       <Section title={`More in ${t.category}`} hint="Different compositions, in colours chosen for this kind of business.">
         <div className="grid gap-2">
           {siblings.map((s) => {
@@ -523,18 +542,22 @@ export function LayoutPanel({ w, update, onBrowse }: PanelProps & { onBrowse: ()
           })}
         </div>
       </Section>
+      )}
     </div>
   );
 }
 
 // ── Page text (Training templates) ────────────────────────────────────────
 
-/** Every editable line of the Training page and its thank-you page, grouped by where it appears. */
-export function TextPanel({ w, update }: PanelProps): ReactNode {
+/**
+ * Every editable line of the Training page (or, with `thanks`, of its thank-you
+ * page), grouped by where it appears. The testimonial and footer show on both
+ * pages: they are edited with the registration page when it is a Training one.
+ */
+export function TextPanel({ w, update, thanks = false }: PanelProps & { thanks?: boolean }): ReactNode {
   const onPage = getTemplate(w.template_id).layout === "training";
-  const onThanks = w.thank_you_template === "training";
   const groups = COPY_GROUPS.filter((g) =>
-    g.id === "proof" || g.id === "footer" ? true : g.id === "thanks" || g.id === "offer" ? onThanks : onPage,
+    g.id === "proof" || g.id === "footer" ? (thanks ? !onPage : true) : g.id === "thanks" || g.id === "offer" ? thanks : !thanks,
   );
   return (
     <div className="space-y-6">

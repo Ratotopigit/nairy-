@@ -97,7 +97,7 @@ function PublicRegistration() {
       <RegistrationPage
         webinar={webinar}
         mode="live"
-        onRegister={(name, email) => registerForWebinar(webinar.id, name, email)}
+        onRegister={(name, email) => registerForWebinar(webinar.id, name, email, webinar.delivery_type)}
       />
     </div>
   );

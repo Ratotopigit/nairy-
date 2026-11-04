@@ -3,8 +3,7 @@
 import { MotionConfig } from "framer-motion";
 import { usePathname } from "next/navigation";
 
-import ProviderNavbar from "@/components/provider/ProviderNavbar";
-import TrialPopup from "@/components/provider/TrialPopup";
+import ProviderSidebar from "@/components/provider/ProviderSidebar";
 import AuthGuard from "@/components/auth/AuthGuard";
 import "../globals.css";
 
@@ -23,15 +22,14 @@ export default function ProviderLayout({
   return (
     <AuthGuard>
     <MotionConfig reducedMotion="user">
-    <div className="provider-page-canvas flex min-h-screen flex-col text-foreground overflow-x-hidden">
-      <ProviderNavbar />
-      <TrialPopup />
+    <div className="provider-page-canvas flex min-h-screen flex-col md:flex-row text-foreground overflow-x-clip">
+      <ProviderSidebar />
 
       <main
         className={
           isBuilder
-            ? "min-h-0 w-full flex-1 overflow-x-hidden"
-            : "mx-auto w-full max-w-[1560px] px-3.5 sm:px-6 md:px-8 lg:px-10 pb-16 pt-4 sm:pt-6 overflow-x-hidden"
+            ? "min-h-0 min-w-0 w-full flex-1 overflow-x-hidden md:h-dvh md:[&_.brief-builder]:!h-dvh md:[&_.deck-builder]:!h-dvh"
+            : "mx-auto min-w-0 w-full max-w-[1560px] md:flex-1 px-3.5 sm:px-6 md:px-8 lg:px-10 pb-16 pt-4 sm:pt-6 overflow-x-clip"
         }
       >
         {children}

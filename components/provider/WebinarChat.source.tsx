@@ -1623,7 +1623,7 @@ export default function PresentationChat() {
 
       {/* Main Chat Interface */}
       <section className="flex flex-1 flex-col min-w-0 bg-card relative">
-        {/* Chat toolbar. Product branding lives in the global ProviderNavbar,
+        {/* Chat toolbar. Product branding lives in the global ProviderSidebar,
             so this bar carries chat-specific controls only. */}
         <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-3 bg-card/80 px-3 backdrop-blur-md sm:px-5">
           <button

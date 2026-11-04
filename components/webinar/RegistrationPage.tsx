@@ -12,6 +12,10 @@
  *   live      "Happening now" + form (late joiners get the link by email)
  *   ended     "This session has ended", form closed
  *   closed    a week after the end: a short "finished" notice
+ *
+ * A paid webinar has no form and is never "done": its panel links to checkout,
+ * because a registrant would be emailed the private join link. An automated
+ * webinar has no session, and shows its video once someone has signed up.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import "@/components/webinar/registration.css";
@@ -30,7 +34,7 @@ import {
   TrainingLayout,
   TrainingThanksPage,
 } from "@/components/webinar/page-layouts";
-import { BrandMark, Headline, PageProvider, type FormState, type PageState } from "@/components/webinar/page-parts";
+import { BrandMark, Headline, PageProvider, ctaText, type FormState, type PageState } from "@/components/webinar/page-parts";
 import { FONT_PAIRS } from "@/lib/webinar-fonts";
 import { getTemplate, resolveFontPairId, resolvePalette } from "@/lib/webinar-templates";
 import { isValidEmail, normalizeEmail, sessionEnd, sessionPhase, type RegistrationResult, type SessionPhase, type Webinar } from "@/lib/webinars";
@@ -112,12 +116,37 @@ const LAYOUTS = {
   training: TrainingLayout,
 } as const;
 
+/** On-demand sign-ups, per webinar, so a returning visitor on this browser goes straight to the video. */
+const watcherKey = (id: string) => `webinar-watcher:${id}`;
+
+function rememberWatcher(id: string) {
+  try {
+    window.localStorage.setItem(watcherKey(id), "1");
+  } catch {
+    // Blocked storage only means signing up again next time.
+  }
+}
+
+function isRememberedWatcher(id: string): boolean {
+  try {
+    return window.localStorage.getItem(watcherKey(id)) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false, startDone = false, onDoneChange }: Props) {
   // Signed up. A preview can flip screens from outside (its Sign-up / Thank-you switch).
-  const [done, setDone] = useState(startDone);
+  const [signedUp, setDone] = useState(startDone);
+  const paid = w.access_type === "paid";
+  const automated = w.delivery_type === "automated";
+  const done = signedUp && !paid;
   useEffect(() => {
     setDone(startDone);
   }, [startDone]);
+  useEffect(() => {
+    if (mode === "live" && automated && isRememberedWatcher(w.id)) setDone(true);
+  }, [mode, automated, w.id]);
   useEffect(() => {
     onDoneChange?.(done);
   }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -132,7 +161,7 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false,
   );
   const font = FONT_PAIRS[resolveFontPairId(t, w.font_pair)];
 
-  const hasSession = Boolean(w.next_session_at);
+  const hasSession = !automated && Boolean(w.next_session_at);
   const now = useNow(hasSession && !frozen);
   const mounted = now !== null;
   // Before mount, assume upcoming so the prerendered layout doesn't jump.
@@ -175,6 +204,7 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false,
   const submit = useCallback(
     async (event: FormEvent) => {
       event.preventDefault();
+      if (paid) return; // No layout renders a form for paid; a registration here would email the join link.
       setFormError(null);
       const nameOk = checkName(name);
       const emailOk = checkEmail(email);
@@ -187,6 +217,7 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false,
       try {
         const result = await onRegister?.(name, email);
         setDone(true);
+        if (automated) rememberWatcher(w.id);
         // The attendee's own join link arrives a moment later; the success
         // screen is already showing and simply gains it in the calendar links.
         if (result && "joinUrl" in result) {
@@ -199,7 +230,7 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false,
         if (alive.current) setBusy(false);
       }
     },
-    [name, email, mode, onRegister, checkName, checkEmail],
+    [name, email, mode, onRegister, checkName, checkEmail, paid, automated, w.id],
   );
 
   const form: FormState = {
@@ -260,6 +291,7 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false,
     mode,
     phase,
     mounted,
+    frozen,
     countdown,
     when,
     brandName: w.brand_name.trim(),
@@ -346,7 +378,7 @@ export function RegistrationPage({ webinar: w, mode, onRegister, frozen = false,
       {mode === "live" && !done && open && !formVisible ? (
         <div className="wp-sticky">
           <button type="button" className="wp-btn" onClick={jumpToForm}>
-            {w.cta_label || "Register now"}
+            {ctaText(w)}
           </button>
         </div>
       ) : null}

@@ -1,398 +1,139 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  ArrowRight,
-  Brain,
-  ChevronRight,
-  FileText,
-  Image as ImageIcon,
-  Layers3,
-  Megaphone,
-  MessageSquare,
-  UploadCloud,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { auth } from "@/lib/firebase/config";
+import { listWebinars, sessionPhase, type Webinar } from "@/lib/webinars";
+import { PROVIDER_STEPS } from "@/lib/provider-steps";
 import { useHomeContent } from "@/lib/home-settings";
 import CustomYouTubePlayer from "@/components/provider/CustomYouTubePlayer";
 
-const HOW_IT_WORKS_STEPS = [
-  {
-    title: "Upload Context",
-    description:
-      "Add your brand assets, PDFs, logos and key information about your business.",
-    icon: UploadCloud,
-    href: "/provider/webinar-upload",
-  },
-  {
-    title: "Brainstorm with AI",
-    description:
-      "Get strategic ideas, buyer personas, offer concepts and webinar plans powered by AI.",
-    icon: Brain,
-    href: "/provider/webinar-chat",
-  },
-  {
-    title: "Create Content",
-    description:
-      "Build your offer, presentation deck, scripts and speaker notes with AI assistance.",
-    icon: FileText,
-    href: "/provider/webinar-content",
-  },
-  {
-    title: "Present & Convert",
-    description:
-      "Deliver your webinar with confidence and reach your audience.",
-    icon: Megaphone,
-    href: "/provider/webinar-content",
-  },
-];
+type Load = { state: "loading" } | { state: "error" } | { state: "ready"; latest: Webinar | null };
+
+const focus =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+const primaryBtn = `inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] ${focus}`;
 
 export default function ProviderHomePage() {
-  const { settings: homeContent, videoId } = useHomeContent();
+  const { videoId } = useHomeContent();
+  const [load, setLoad] = useState<Load>({ state: "loading" });
+  const [firstName, setFirstName] = useState("");
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (!user) return;
+      setFirstName(user.displayName?.trim().split(/\s+/)[0] ?? "");
+      try {
+        const rows = await listWebinars(user.uid);
+        setLoad({ state: "ready", latest: rows[0] ?? null });
+      } catch {
+        setLoad({ state: "error" });
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const latest = load.state === "ready" ? load.latest : null;
+  const label = latest ? latest.name || latest.title || "Untitled webinar" : "";
+  const editHref = latest ? `/provider/webinars/edit?id=${latest.id}` : "";
+
+  let heading = "Create your first webinar";
+  let body = "Start here. Name it, pick a format, and build your registration page.";
+  let href = "/provider/webinars?new=1";
+  let cta = "Create webinar";
+  if (latest?.status === "draft") {
+    heading = `Finish ${label}`;
+    body = "Your webinar is still a draft. Pick up where you left off.";
+    href = editHref;
+    cta = "Continue editing";
+  } else if (latest) {
+    heading = label;
+    const phase = sessionPhase(latest);
+    body = phase === "ended" || phase === "closed" ? "This session has ended. Set a new date to run it again." : "Your webinar is live.";
+    href = editHref;
+    cta = "Open webinar";
+  }
 
   return (
-    <div className="w-full max-w-[1360px] mx-auto">
-      {/* Main Studio Section: White Div on Left + Module Cards on Right */}
-      <div className="flex flex-col xl:flex-row items-stretch gap-4">
-        {/* Left: Video / Studio Div */}
-        <div className="relative w-full xl:w-[630px] h-[220px] sm:h-[300px] md:h-[350px] xl:h-[390px] shrink-0 rounded-2xl sm:rounded-3xl border border-border bg-card shadow-sm transition-all overflow-hidden">
-          {videoId ? (
-            <CustomYouTubePlayer videoId={videoId} autoplay={true} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-sm font-medium text-muted-foreground">
-              No video is Connected
-            </div>
-          )}
-        </div>
+    <div className="mx-auto w-full max-w-4xl space-y-8">
+      <header>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+          {firstName ? `Welcome, ${firstName}` : "Welcome"}
+        </h1>
+        <p className="mt-1.5 text-sm text-muted-foreground sm:text-base">
+          Follow the steps below, starting with your webinar.
+        </p>
+      </header>
 
-        {/* Right: Module Cards Grid (Height matches 390px on XL) */}
-        <div className="flex-1 w-full min-w-0 h-auto xl:h-[390px] grid grid-cols-1 sm:grid-cols-2 xl:grid-rows-2 gap-3.5">
-          {/* Webinar Chat */}
-          <div className="relative group/chat flex flex-col min-h-0 h-full">
-            {/* Soft, faded emerald ambient lighting below */}
-            <div className="pointer-events-none absolute -bottom-3 inset-x-6 h-8 rounded-full bg-blue-400/25 blur-xl opacity-0 transition-opacity duration-500 ease-out group-hover/chat:opacity-100" />
-            <Link
-              href="/provider/webinar-chat"
-              className="group relative z-10 flex-1 overflow-hidden rounded-2xl border border-[#dbeafe] bg-[#f5f9ff] p-4 flex flex-col justify-between transition-all duration-500 ease-out hover:-translate-y-3 hover:-translate-x-1.5 hover:rotate-[-1.5deg] hover:border-[#bfd7fe] hover:shadow-[0_20px_35px_-8px_rgba(37,99,235,0.25)]"
-            >
-              {/* Soft mint abstract wave */}
-              <div className="pointer-events-none absolute -bottom-6 -right-6 h-28 w-28 rounded-full bg-blue-200/40 blur-xl" />
-              <svg
-                aria-hidden="true"
-                className="pointer-events-none absolute bottom-0 right-0 h-20 w-24 text-blue-200/35"
-                viewBox="0 0 100 100"
-                fill="currentColor"
-              >
-                <path d="M10,100 C40,90 60,60 100,35 L100,100 Z" />
-              </svg>
+      {videoId && (
+        <section aria-labelledby="video-heading">
+          <h2 id="video-heading" className="text-lg font-bold tracking-tight text-foreground">
+            Welcome video
+          </h2>
+          <div className="mt-3 aspect-video w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <CustomYouTubePlayer videoId={videoId} autoplay={false} />
+          </div>
+        </section>
+      )}
 
-              {/* Header with Icon & Dot Matrix */}
-              <div className="relative z-10 flex items-start justify-between">
-                <div className="grid size-9 place-items-center rounded-xl border border-[#c3dafe] bg-[#dbeafe] text-[#2563eb] transition-all duration-300 group-hover:scale-110 group-hover:rotate-[-6deg] group-hover:bg-[#c7ddfe] group-hover:border-[#93c5fd] group-hover:shadow-sm">
-                  <MessageSquare className="size-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6" />
-                </div>
-                {/* 2x3 subtle dot pattern */}
-                <div className="flex gap-1 opacity-30">
-                  <div className="flex flex-col gap-1">
-                    <span className="size-1 rounded-full bg-[#2563eb]" />
-                    <span className="size-1 rounded-full bg-[#2563eb]" />
-                    <span className="size-1 rounded-full bg-[#2563eb]" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="size-1 rounded-full bg-[#2563eb]" />
-                    <span className="size-1 rounded-full bg-[#2563eb]" />
-                    <span className="size-1 rounded-full bg-[#2563eb]" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Text content */}
-              <div className="relative z-10 mt-2">
-                <h2 className="text-[15px] font-bold tracking-tight text-[#2563eb]">
-                  Webinar Chat
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-[#64748b]">
-                  Brainstorm buyer personas, offers, and presentation strategy through an AI chat.
-                </p>
-              </div>
-
-              {/* Action circle */}
-              <div className="relative z-10 mt-auto pt-2 shrink-0">
-                <div className="grid size-6 place-items-center rounded-full bg-[#e0ecff] text-[#2563eb] transition-all duration-300 group-hover:bg-[#2563eb] group-hover:text-white group-hover:scale-115 group-hover:translate-x-1">
-                  <ArrowRight className="size-3" />
-                </div>
-              </div>
+      <section aria-labelledby="next-step" className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7">
+        <p id="next-step" className="text-xs font-semibold uppercase tracking-wider text-[#2563eb]">
+          Your next step
+        </p>
+        {load.state === "loading" ? (
+          <div className="mt-3 min-h-[116px] space-y-3" aria-busy="true">
+            <div className="h-7 w-2/3 rounded-lg bg-secondary" />
+            <div className="h-4 w-1/2 rounded-lg bg-secondary" />
+            <div className="h-10 w-40 rounded-xl bg-secondary" />
+          </div>
+        ) : (
+          <div className="mt-3 min-h-[116px]">
+            <h2 className="break-words text-xl font-bold tracking-tight text-foreground sm:text-2xl">{heading}</h2>
+            <p className="mt-1.5 text-sm text-muted-foreground">{body}</p>
+            {load.state === "error" && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                We could not load your webinars just now, so this may not be up to date.
+              </p>
+            )}
+            <Link href={href} className={`${primaryBtn} mt-4`}>
+              {cta}
+              <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </div>
+        )}
+      </section>
 
-          {/* Webinar Offer */}
-          <div className="relative group/offer flex flex-col min-h-0 h-full">
-            {/* Soft, faded warm amber ambient lighting below */}
-            <div className="pointer-events-none absolute -bottom-3 inset-x-6 h-8 rounded-full bg-amber-400/25 blur-xl opacity-0 transition-opacity duration-500 ease-out group-hover/offer:opacity-100" />
-            <Link
-              href="/provider/webinar-offer"
-              className="group relative z-10 flex-1 overflow-hidden rounded-2xl border border-[#eee7da] bg-[#f8fafc] p-4 flex flex-col justify-between transition-all duration-500 ease-out hover:-translate-y-3 hover:translate-x-1.5 hover:rotate-[1.5deg] hover:border-[#dfd3c0] hover:shadow-[0_20px_35px_-8px_rgba(245,158,11,0.25)]"
-            >
-              {/* Soft warm tan wave */}
-              <div className="pointer-events-none absolute -bottom-6 -right-6 h-28 w-28 rounded-full bg-amber-200/40 blur-xl" />
-              <svg
-                aria-hidden="true"
-                className="pointer-events-none absolute bottom-0 right-0 h-20 w-24 text-amber-200/40"
-                viewBox="0 0 100 100"
-                fill="currentColor"
-              >
-                <path d="M0,100 C30,90 55,55 100,30 L100,100 Z" />
-              </svg>
-
-              <div className="relative z-10 flex items-start justify-between">
-                <div className="grid size-9 place-items-center rounded-xl bg-[#faead4] text-[#9a6a18] transition-all duration-300 group-hover:scale-110 group-hover:rotate-[6deg] group-hover:bg-[#f5dfc3] group-hover:shadow-sm">
-                  <Layers3 className="size-4 transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-0.5" />
-                </div>
-              </div>
-
-              <div className="relative z-10 mt-2">
-                <h2 className="text-[15px] font-bold tracking-tight text-[#2563eb]">
-                  Webinar Offer
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-[#64748b]">
-                  Shape a direct-response offer powered by your buyer blueprint and uploads.
-                </p>
-              </div>
-
-              <div className="relative z-10 mt-auto pt-2 shrink-0">
-                <div className="grid size-6 place-items-center rounded-full bg-[#f3ede1] text-[#9a6a18] transition-all duration-300 group-hover:bg-[#9a6a18] group-hover:text-white group-hover:scale-115 group-hover:translate-x-1">
-                  <ArrowRight className="size-3" />
-                </div>
-              </div>
-            </Link>
-          </div>
-
-          {/* Webinar Content (Dark Green Featured Card) */}
-          <div className="relative group/content flex flex-col min-h-0 h-full hover:z-20">
-            {/* Soft, faded emerald ambient lighting below */}
-            <div className="pointer-events-none absolute -bottom-3 inset-x-6 h-9 rounded-full bg-blue-600/30 blur-xl opacity-0 transition-opacity duration-500 ease-out group-hover/content:opacity-100" />
-            <Link
-              href="/provider/webinar-content"
-              className="group relative z-10 flex-1 rounded-2xl border border-[#1e4fbf] bg-[#2563eb] p-4 flex flex-col justify-between text-white shadow-sm transition-all duration-500 ease-out hover:-translate-y-3 hover:-translate-x-1.5 hover:rotate-[-1.5deg] hover:border-[#3b82f6] hover:shadow-[0_22px_42px_-6px_rgba(37, 99, 235,0.5)]"
-            >
-              {/* Top row with icon & slide mockup */}
-              <div className="relative z-10 flex items-start justify-between gap-3">
-                <div className="grid size-9 place-items-center rounded-xl border border-[#3b7ce0] bg-[#2257c9] text-white transition-all duration-300 group-hover:scale-110 group-hover:rotate-[-6deg] group-hover:bg-[#2f6fdf] group-hover:border-blue-400/50 group-hover:shadow-md">
-                  <FileText className="size-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 text-blue-100" />
-                </div>
-
-                {/* 3D stacked presentation slide illustration with 'Spread & Fan Out' hover animation */}
-                <div className="relative shrink-0 pointer-events-none hidden sm:block w-20 sm:w-24 h-9 sm:h-10 mr-2 mt-1 sm:mr-2.5 sm:mt-1">
-                  {/* Card 1: Deepest back slide - fans out furthest in an arc */}
-                  <div className="absolute inset-0 translate-x-1.5 -translate-y-1 rotate-[5deg] rounded-lg border border-white/10 bg-white/5 backdrop-blur-sm p-1.5 flex flex-col justify-between overflow-hidden opacity-60 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:-translate-y-3 group-hover:translate-x-3.5 group-hover:rotate-[14deg] group-hover:opacity-90 group-hover:border-white/20 group-hover:bg-white/10 group-hover:shadow-md">
-                    <div className="flex items-center gap-1">
-                      <div className="size-2 rounded-sm bg-blue-400/50 shrink-0" />
-                      <div className="h-1 w-7 rounded-full bg-white/35" />
-                    </div>
-                    <div className="space-y-0.5">
-                      <div className="h-0.5 w-10 rounded-full bg-white/25" />
-                      <div className="h-0.5 w-6 rounded-full bg-white/20" />
-                    </div>
-                  </div>
-
-                  {/* Card 2: Middle slide - fans out to intermediate position */}
-                  <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 rotate-[2.5deg] rounded-lg border border-white/15 bg-white/10 backdrop-blur-sm px-1.5 py-1 flex items-center gap-1.5 overflow-hidden opacity-75 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:-translate-y-1.5 group-hover:translate-x-2 group-hover:rotate-[7deg] group-hover:opacity-95 group-hover:border-white/25 group-hover:bg-white/15 group-hover:shadow-md">
-                    <div className="size-3.5 rounded-sm bg-blue-400/40 border border-white/15 shrink-0" />
-                    <div className="flex-1 space-y-1">
-                      <div className="h-1 w-9 rounded-full bg-white/50" />
-                      <div className="h-0.5 w-6 rounded-full bg-white/30" />
-                    </div>
-                  </div>
-
-                  {/* Card 3: Front slide with image icon & text lines */}
-                  <div className="absolute inset-0 rounded-lg border border-white/20 bg-white/15 px-2 py-1 backdrop-blur-md shadow-md flex items-center gap-1.5 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:-translate-y-0.5 group-hover:-rotate-[2deg] group-hover:border-white/30 group-hover:bg-white/20 group-hover:shadow-lg">
-                    <div className="size-5 rounded bg-blue-900/80 border border-white/20 flex items-center justify-center text-blue-300 shrink-0 transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110">
-                      <ImageIcon className="size-2.5" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="h-1 w-3/4 rounded-full bg-white/70" />
-                      <div className="h-1 w-full rounded-full bg-white/45" />
-                      <div className="h-1 w-1/2 rounded-full bg-white/35" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Text content */}
-              <div className="relative z-10 mt-2">
-                <h2 className="text-[15px] font-bold tracking-tight text-white">
-                  Webinar Content
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-[#c4dafa]">
-                  Generate and edit webinar decks, sales slides, and pitch presentations.
-                </p>
-              </div>
-
-              {/* Action circle */}
-              <div className="relative z-10 mt-auto pt-2 shrink-0">
-                <div className="grid size-6 place-items-center rounded-full bg-white/15 text-white transition-all duration-300 group-hover:bg-white group-hover:text-[#2563eb] group-hover:scale-115 group-hover:translate-x-1">
-                  <ArrowRight className="size-3" />
-                </div>
-              </div>
-            </Link>
-          </div>
-
-          {/* Webinar Upload */}
-          <div className="relative group/upload flex flex-col min-h-0 h-full">
-            {/* Soft, faded teal/mint ambient lighting below */}
-            <div className="pointer-events-none absolute -bottom-3 inset-x-6 h-8 rounded-full bg-sky-400/25 blur-xl opacity-0 transition-opacity duration-500 ease-out group-hover/upload:opacity-100" />
-            <Link
-              href="/provider/webinar-upload"
-              className="group relative z-10 flex-1 overflow-hidden rounded-2xl border border-[#dbeafe] bg-[#f5f9ff] p-4 flex flex-col justify-between transition-all duration-500 ease-out hover:-translate-y-3 hover:translate-x-1.5 hover:rotate-[1.5deg] hover:border-[#bfd7fe] hover:shadow-[0_20px_35px_-8px_rgba(14,165,233,0.25)]"
-            >
-              <div className="pointer-events-none absolute -bottom-6 -right-6 h-28 w-28 rounded-full bg-blue-200/40 blur-xl" />
-              <svg
-                aria-hidden="true"
-                className="pointer-events-none absolute bottom-0 right-0 h-20 w-24 text-blue-200/35"
-                viewBox="0 0 100 100"
-                fill="currentColor"
-              >
-                <path d="M10,100 C40,90 60,60 100,35 L100,100 Z" />
-              </svg>
-
-              <div className="relative z-10 flex items-start justify-between">
-                <div className="grid size-9 place-items-center rounded-xl border border-[#c3dafe] bg-[#dbeafe] text-[#2563eb] transition-all duration-300 group-hover:scale-110 group-hover:rotate-[6deg] group-hover:bg-[#c7ddfe] group-hover:border-[#93c5fd] group-hover:shadow-sm">
-                  <UploadCloud className="size-4 transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-1" />
-                </div>
-              </div>
-
-              <div className="relative z-10 mt-2">
-                <h2 className="text-[15px] font-bold tracking-tight text-[#2563eb]">
-                  Webinar Upload
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-[#64748b]">
-                  Upload logos, brand photos, briefs, and PDFs so every AI module has context.
-                </p>
-              </div>
-
-              <div className="relative z-10 mt-auto pt-2 shrink-0">
-                <div className="grid size-6 place-items-center rounded-full bg-[#e0ecff] text-[#2563eb] transition-all duration-300 group-hover:bg-[#2563eb] group-hover:text-white group-hover:scale-115 group-hover:translate-x-1">
-                  <ArrowRight className="size-3" />
-                </div>
-              </div>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Middle Banners Row (Brought UP): Context Highlight Card + Brand Tagline Card */}
-      <div className="mt-4 sm:mt-6 grid grid-cols-1 lg:grid-cols-[1.1fr_1.9fr] gap-4 items-stretch">
-        {/* Left Card: Context Highlight */}
-        <Link
-          href={homeContent.actionHref || "/provider/webinar-upload"}
-          className="group relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#1e4fbf] bg-gradient-to-br from-[#2563eb] via-[#1e3a8a] to-[#1e3a8a] p-5 sm:p-7 text-white flex flex-col justify-between shadow-sm transition-all duration-300 hover:shadow-md hover:border-[#3b82f6]"
-        >
-          {/* Subtle decorative leaf / ambient graphic */}
-          <div className="pointer-events-none absolute -left-6 -bottom-6 w-36 h-36 rounded-full bg-blue-500/15 blur-2xl" />
-          <img
-            src="/assets/leaf-watermark 2.png"
-            alt=""
-            className="pointer-events-none absolute -left-3 -bottom-4 w-24 sm:w-28 h-auto opacity-15 select-none object-contain"
-          />
-
-          <div className="relative z-10">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] font-semibold text-blue-300/90">
-              {homeContent.tagline}
-            </span>
-            <h2 className="mt-2 text-lg sm:text-xl xl:text-2xl font-bold tracking-tight text-white leading-tight">
-              {homeContent.titleLine1}
-              <br />
-              {homeContent.titleLine2}
-            </h2>
-            <p className="mt-2 sm:mt-2.5 max-w-sm text-xs text-[#c4dafa] leading-relaxed">
-              {homeContent.description}
-            </p>
-          </div>
-
-          <div className="relative z-10 mt-4 sm:mt-5 flex justify-end">
-            <div className="grid size-8 sm:size-9 place-items-center rounded-full bg-white/15 text-white transition-all duration-300 group-hover:bg-white group-hover:text-[#2563eb] group-hover:scale-110 shadow-sm">
-              <ArrowRight className="size-3.5 sm:size-4" />
-            </div>
-          </div>
-        </Link>
-
-        {/* Right Card: Brand Tagline */}
-        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-border bg-card p-6 sm:p-7 shadow-sm flex items-center justify-center min-h-[140px] sm:min-h-[170px]">
-          <div className="relative z-10 flex flex-col items-center text-center">
-            <span className="block font-serif italic font-bold text-xl sm:text-2xl md:text-3xl text-[#2563eb] tracking-tight leading-tight">
-              {homeContent.brandTagline1 || "Better Webinars."}
-            </span>
-            <span className="block font-serif italic font-bold text-xl sm:text-2xl md:text-3xl text-[#2563eb] tracking-tight leading-tight">
-              {homeContent.brandTagline2 || "Bigger Impact."}
-            </span>
-            <svg
-              aria-hidden="true"
-              className="w-28 sm:w-36 md:w-44 h-3 text-blue-600 mt-1.5"
-              viewBox="0 0 100 12"
-              fill="none"
-            >
-              <path
-                d="M 2 7 Q 50 1, 98 7"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-
-          {/* Leaf Watermark */}
-          <img
-            src="/assets/leaf-watermark.png"
-            alt=""
-            className="pointer-events-none absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 w-16 sm:w-24 md:w-28 h-auto opacity-25 sm:opacity-35 select-none object-contain"
-          />
-        </div>
-      </div>
-
-      {/* How It Works Section (Brought BELOW the two banners) */}
-      <section className="mt-4 sm:mt-6 rounded-2xl sm:rounded-3xl border border-border bg-card p-5 sm:p-7 shadow-sm">
-        <div className="flex flex-col xl:flex-row items-stretch gap-6 xl:gap-8">
-          {/* Left Column: Heading & Subtitle */}
-          <div className="xl:w-64 shrink-0 flex flex-col justify-center xl:border-r xl:border-border/80 xl:pr-6">
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#2563eb] leading-tight">
-              From idea to impact in 4 simple steps.
-            </h2>
-            <p className="mt-2 sm:mt-2.5 text-xs text-[#64748b] leading-relaxed">
-              Let AI handle the heavy lifting while you focus on your audience.
-            </p>
-          </div>
-
-          {/* Right Flow: 4 Step Items */}
-          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 items-start">
-            {HOW_IT_WORKS_STEPS.map((stepItem, idx) => {
-              const StepIcon = stepItem.icon;
-              const isLast = idx === HOW_IT_WORKS_STEPS.length - 1;
-
-              return (
-                <div key={stepItem.title} className="relative flex flex-col justify-between h-full">
-                  <div>
-                    {/* Top Row: Icon + Chevron Arrow */}
-                    <div className="flex items-center justify-between">
-                      <div className="grid size-9 place-items-center rounded-xl border border-[#c3dafe] bg-[#dbeafe] text-[#2563eb] shadow-xs">
-                        <StepIcon className="size-4.5" />
-                      </div>
-                      {!isLast && (
-                        <ChevronRight className="size-4 text-muted-foreground/40 hidden xl:block" />
-                      )}
-                    </div>
-
-                    {/* Step Title & Description */}
-                    <h3 className="mt-3 text-sm font-bold tracking-tight text-[#2563eb]">
-                      {stepItem.title}
-                    </h3>
-                    <p className="mt-1 text-xs text-[#64748b] leading-relaxed">
-                      {stepItem.description}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <section aria-labelledby="steps-heading">
+        <h2 id="steps-heading" className="text-lg font-bold tracking-tight text-foreground">
+          Your five steps
+        </h2>
+        <ol className="mt-3 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          {PROVIDER_STEPS.map((step) => {
+            const Icon = step.icon;
+            return (
+              <li key={step.number}>
+                <Link
+                  href={step.href}
+                  className={`group flex items-center gap-4 p-4 transition-colors hover:bg-secondary/60 sm:p-5 ${focus} focus-visible:ring-inset focus-visible:ring-offset-0`}
+                >
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#2563eb] text-sm font-bold text-white">
+                    {step.number}
+                  </span>
+                  <Icon className="hidden size-5 shrink-0 text-[#2563eb] sm:block" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-foreground">{step.label}</span>
+                    <span className="mt-0.5 block text-sm text-muted-foreground">{step.description}</span>
+                  </span>
+                  <ArrowRight
+                    className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[#2563eb]"
+                    aria-hidden="true"
+                  />
+                </Link>
+              </li>
+            );
+          })}
+        </ol>
       </section>
     </div>
   );

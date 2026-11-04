@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 
 function SlideStudioSkeleton() {
   return (
-    <div className="flex h-[calc(100vh-66px)] w-full flex-col overflow-hidden bg-background">
+    <div className="flex h-[calc(100vh-66px)] md:h-dvh w-full flex-col overflow-hidden bg-background">
       {/* Top toolbar */}
       <div className="flex h-12 w-full items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-3">

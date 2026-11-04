@@ -685,6 +685,19 @@ const FEATURED_TEMPLATES: WebinarTemplate[] = [
     kicker: "Free live training",
     featured: true,
   },
+  {
+    id: "featured-gold-standard",
+    name: "Gold Standard",
+    description: "A bright, centred page with a big navy headline, an elegant serif and a gold button.",
+    category: "Coaching",
+    tags: ["coach", "speaker", "agency", "consultant", "high ticket", "most liked", "popular", "navy", "gold", "light", "clean", "centred"],
+    layout: "minimal",
+    seed: { bg: "#F6F9FC", ink: "#0B2545", brand: "#0B4F7A", accent: "#F5B83D" },
+    fonts: "playfair-bold",
+    look: { ...BASE_LOOK.minimal, pill: false, radius: 12 },
+    kicker: "Free live webinar",
+    featured: true,
+  },
 ];
 
 export const WEBINAR_TEMPLATES: WebinarTemplate[] = [...FEATURED_TEMPLATES, ...buildTemplates()];

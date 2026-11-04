@@ -8,7 +8,8 @@
 import { createContext, useContext, useId, useState, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from "react";
 import { CalendarPlus, Check } from "lucide-react";
 import { downloadIcs, googleCalendarUrl, outlookCalendarUrl, type CalendarEvent } from "@/lib/calendar";
-import { WEBINAR_LIMITS, calendarEvent, type SessionPhase, type Webinar } from "@/lib/webinars";
+import { videoEmbedUrl } from "@/lib/webinar-access";
+import { DEFAULT_CTA_LABEL, DEFAULT_THANKS, WEBINAR_LIMITS, calendarEvent, isValidPaymentUrl, type SessionPhase, type Webinar } from "@/lib/webinars";
 import type { WebinarTemplate } from "@/lib/webinar-templates";
 
 // ── Shared state ──────────────────────────────────────────────────────────
@@ -40,6 +41,8 @@ export type PageState = {
   mode: "live" | "preview";
   phase: SessionPhase;
   mounted: boolean;
+  /** Gallery thumbnail: nothing live, such as a video player, is loaded. */
+  frozen: boolean;
   countdown: { days: number; hours: number; minutes: number; seconds: number };
   when: { date: string; time: string; short: string; weekday: string; day: string; month: string } | null;
   brandName: string;
@@ -59,6 +62,20 @@ export function usePage(): PageState {
   const ctx = useContext(PageContext);
   if (!ctx) throw new Error("usePage must be used inside PageProvider");
   return ctx;
+}
+
+/** The main button's words. A paid button buys, so the stock "Register now" doesn't fit it. */
+export function ctaText(w: Webinar): string {
+  if (w.access_type !== "paid") return w.cta_label || "Register now";
+  const label = w.cta_label && w.cta_label !== DEFAULT_CTA_LABEL ? w.cta_label : "Get your ticket";
+  const price = w.ticket_price.trim();
+  return price ? `${label} · ${price}` : label;
+}
+
+/** The host's thank-you message. The stock one says "see you at the session", which doesn't apply to on-demand. */
+export function thanksMessage(w: Webinar): string {
+  const message = w.thank_you_message.trim();
+  return w.delivery_type === "automated" && message === DEFAULT_THANKS ? "" : message;
 }
 
 export function initials(name: string): string {
@@ -163,8 +180,10 @@ export function DateMark() {
 // ── Text pieces ───────────────────────────────────────────────────────────
 
 export function Kicker({ children }: { children?: ReactNode }) {
-  const { t, phase } = usePage();
-  return <p className="wp-kicker">{children ?? (phase === "live" ? "Live now" : t.kicker)}</p>;
+  const { t, phase, w } = usePage();
+  // Template kickers say "Free live workshop" and the like, so they only suit free live webinars.
+  const stock = w.delivery_type === "automated" ? "On-demand webinar" : w.access_type === "paid" ? "Live webinar" : t.kicker;
+  return <p className="wp-kicker">{children ?? (phase === "live" ? "Live now" : stock)}</p>;
 }
 
 export function Headline({ className = "" }: { className?: string }) {
@@ -261,8 +280,15 @@ export function Footer() {
 // ── Session: countdown + date ─────────────────────────────────────────────
 
 export function SessionBlock() {
-  const { phase, mounted, countdown, when } = usePage();
+  const { phase, mounted, countdown, when, w } = usePage();
   const pad = (n: number) => String(n).padStart(2, "0");
+  if (w.delivery_type === "automated") {
+    return (
+      <div className="wp-session">
+        <p className="wp-label">On demand</p>
+      </div>
+    );
+  }
   return (
     <div className="wp-session">
       {phase === "upcoming" ? (
@@ -309,7 +335,8 @@ export function SessionBlock() {
 
 /** The one-line date for mastheads and hero copy. */
 export function WhenLine({ short = false }: { short?: boolean }) {
-  const { phase, when, mounted } = usePage();
+  const { phase, when, mounted, w } = usePage();
+  if (w.delivery_type === "automated") return <>On demand</>;
   if (phase === "none") return <>Date to be announced</>;
   if (phase === "live") return <>Live now</>;
   if (phase === "ended") return <>Session ended</>;
@@ -330,11 +357,35 @@ type PanelProps = {
   bare?: boolean;
 };
 
-export function RegisterPanel({ title = "Reserve your seat", float, className = "", compact, bare }: PanelProps) {
+/** A link to the host's checkout. Never a form: a registrant is emailed the private join link. */
+function PaidCta() {
+  const { w } = usePage();
+  const valid = isValidPaymentUrl(w.payment_url);
+  return (
+    <div className="wp-form">
+      {valid ? (
+        <a className="wp-btn" href={new URL(w.payment_url).href} target="_blank" rel="noopener noreferrer">
+          {ctaText(w)}
+        </a>
+      ) : (
+        <button type="button" className="wp-btn" disabled style={{ cursor: "not-allowed" }}>
+          {ctaText(w)}
+        </button>
+      )}
+      <p className="wp-fine">{valid ? "You'll pay on the host's checkout page and get access through it." : "Tickets aren't on sale yet."}</p>
+    </div>
+  );
+}
+
+export function RegisterPanel({ title: titleProp = "Reserve your seat", float, className = "", compact, bare }: PanelProps) {
   const { form, phase, w, t } = usePage();
   const nameId = useId();
   const emailId = useId();
   const closed = phase === "ended";
+  const paid = w.access_type === "paid";
+  const automated = w.delivery_type === "automated";
+  // Layouts pass seat wording, which only a live free session has.
+  const title = titleProp && paid ? "Get your ticket" : titleProp && automated ? "Watch on demand" : titleProp;
   return (
     <div ref={form.panelRef} className={`wp-panel ${className}`} data-float={float ? "" : undefined} data-bare={bare ? "" : undefined} id="register">
       {closed ? (
@@ -352,6 +403,7 @@ export function RegisterPanel({ title = "Reserve your seat", float, className = 
               {compact ? null : <SessionBlock />}
             </div>
           ) : null}
+          {paid ? <PaidCta /> : (
           <form className="wp-form" onSubmit={form.submit} noValidate aria-label="Register for this webinar">
             <div className="wp-field">
               <label htmlFor={nameId}>Full name</label>
@@ -406,11 +458,14 @@ export function RegisterPanel({ title = "Reserve your seat", float, className = 
               {form.busy ? "Registering…" : w.cta_label || "Register now"}
             </button>
             <p className="wp-fine">
-              {phase === "live"
-                ? "Free. We'll email you the link to join right away."
-                : "Free. We'll email you the details and a calendar reminder."}
+              {automated
+                ? "Free. Watch right after you sign up."
+                : phase === "live"
+                  ? "Free. We'll email you the link to join right away."
+                  : "Free. We'll email you the details and a calendar reminder."}
             </p>
           </form>
+          )}
         </>
       )}
       <span className="wp-sr" aria-hidden="true" data-template={t.id} />
@@ -444,10 +499,33 @@ export function CalendarButtons({ event }: { event: CalendarEvent }) {
   );
 }
 
+/** The player for a free automated webinar, built only from the id parsed out of the host's link. */
+export function VideoPlayer() {
+  const { w, frozen } = usePage();
+  const embed = videoEmbedUrl(w.video_url);
+  if (!embed) return <p>The video for this webinar isn&apos;t available yet.</p>;
+  return (
+    <div className="wp-media" style={{ aspectRatio: "16 / 9" }}>
+      {frozen ? null : (
+        <iframe
+          src={embed}
+          title={w.title || "Webinar video"}
+          allow="encrypted-media; picture-in-picture; fullscreen"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
+        />
+      )}
+    </div>
+  );
+}
+
 function Success() {
   const { form, w, when, phase, joinUrl, mode } = usePage();
   const event = calendarEvent(w, joinUrl);
   const showCalendar = Boolean(event) && phase !== "ended";
+  const automated = w.delivery_type === "automated";
+  const message = thanksMessage(w);
   return (
     <div className="wp-success" role="status">
       <span className="wp-success-mark" aria-hidden="true">
@@ -455,8 +533,8 @@ function Success() {
       </span>
       <h3>You&apos;re registered!</h3>
       <div className="wp-success-copy">
-        <p>Check your email for your webinar details.</p>
-        {w.thank_you_message.trim() ? <p>{w.thank_you_message}</p> : null}
+        {automated ? null : <p>Check your email for your webinar details.</p>}
+        {message ? <p>{w.thank_you_message}</p> : null}
         {when && phase !== "none" ? (
           <p>
             <strong>{w.title}</strong>
@@ -465,6 +543,7 @@ function Success() {
           </p>
         ) : null}
       </div>
+      {automated ? <VideoPlayer /> : null}
       {showCalendar && event ? (
         <div className="wp-cal">
           <p className="wp-label">Add to your calendar</p>

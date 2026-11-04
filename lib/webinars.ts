@@ -34,6 +34,9 @@ import { isHex } from "@/lib/color";
 import type { CalendarEvent } from "@/lib/calendar";
 import { DEFAULT_TEMPLATE_ID, isFontPairId } from "@/lib/webinar-templates";
 import { cleanCopy, type CopyKey } from "@/lib/training-copy";
+import { coerceAccess, type AccessType, type DeliveryType } from "@/lib/webinar-access";
+
+export { isValidPaymentUrl, isValidVideoUrl } from "@/lib/webinar-access";
 
 export type WebinarStatus = "draft" | "published";
 
@@ -98,6 +101,16 @@ export type Webinar = {
    * send each owner's morning registration summary at THEIR 7am.
    */
   owner_timezone: string;
+  /** "paid" = no sign-up form on the page; visitors go to payment_url. */
+  access_type: AccessType;
+  /** Display text only, e.g. "$49". */
+  ticket_price: string;
+  /** The host's own checkout link (Stripe, PayPal...). */
+  payment_url: string;
+  /** "automated" = on demand: no date, no end. */
+  delivery_type: DeliveryType;
+  /** YouTube or Vimeo link, shown after sign-up on free automated webinars. Never saved for paid ones. */
+  video_url: string;
   created_at: string;
   updated_at: string;
 };
@@ -125,6 +138,8 @@ export const WEBINAR_LIMITS = {
   email: 254,
 } as const;
 
+export const DEFAULT_CTA_LABEL = "Register now";
+export const DEFAULT_THANKS = "You're in. We'll see you at the session.";
 export const DEFAULT_DURATION = 60;
 export const DURATION_OPTIONS = [30, 45, 60, 90, 120, 180, 240] as const;
 
@@ -165,7 +180,7 @@ export function emptyWebinar(ownerId: string): Omit<Webinar, "id"> {
     portrait_focus_x: 50,
     portrait_focus_y: 35,
     social_proof: "",
-    cta_label: "Register now",
+    cta_label: DEFAULT_CTA_LABEL,
     next_session_at: "",
     duration_minutes: DEFAULT_DURATION,
     template_id: DEFAULT_TEMPLATE_ID,
@@ -175,10 +190,11 @@ export function emptyWebinar(ownerId: string): Omit<Webinar, "id"> {
     theme_accent: "",
     font_pair: "",
     public_path: "",
-    thank_you_message: "You're in. We'll see you at the session.",
+    thank_you_message: DEFAULT_THANKS,
     thank_you_template: "",
     page_copy: {},
     owner_timezone: browserTimezone(),
+    ...coerceAccess({}),
     created_at: now,
     updated_at: now,
   };
@@ -236,6 +252,7 @@ function toWebinar(id: string, data: Record<string, unknown>): Webinar {
     thank_you_template: data.thank_you_template === "training" ? "training" : "",
     page_copy: cleanCopy(data.page_copy),
     owner_timezone: str("owner_timezone"),
+    ...coerceAccess(data),
     created_at: str("created_at"),
     updated_at: str("updated_at"),
   };
@@ -264,9 +281,18 @@ export async function getWebinar(webinarId: string): Promise<Webinar | null> {
  * `name` is the host's own label ("October AI masterclass") and also starts
  * as the public headline, which they can then change independently.
  */
-export async function createWebinar(ownerId: string, input: { name: string; notes?: string }): Promise<string> {
+export async function createWebinar(
+  ownerId: string,
+  input: { name: string; notes?: string; access_type?: AccessType; delivery_type?: DeliveryType },
+): Promise<string> {
   const name = input.name.trim().slice(0, WEBINAR_LIMITS.name) || "Untitled webinar";
-  const ref = await addDoc(collection(db, "webinars"), { ...emptyWebinar(ownerId), name, title: name.slice(0, WEBINAR_LIMITS.title) });
+  const ref = await addDoc(collection(db, "webinars"), {
+    ...emptyWebinar(ownerId),
+    name,
+    title: name.slice(0, WEBINAR_LIMITS.title),
+    access_type: input.access_type ?? "free",
+    delivery_type: input.delivery_type ?? "live",
+  });
   if (input.notes?.trim()) {
     // Best effort: the webinar exists either way, and notes can be added later.
     await savePrivate(ref.id, { join_url: "", notes: input.notes }).catch(() => {});
@@ -278,10 +304,14 @@ export async function createWebinar(ownerId: string, input: { name: string; note
  * `hostName` is the account holder's name, used for the readable link.
  * `closes_at` is a real Timestamp so the security rules can refuse
  * registrations once the session is over (rules cannot parse ISO strings).
+ * A paid webinar is written as already closed, so the rules refuse a sign-up
+ * made around the page: a registrant would be emailed the private join link.
  */
 export async function saveWebinar(webinar: Webinar, hostName = ""): Promise<void> {
   const { id, ...rest } = webinar;
   const end = sessionEnd(webinar);
+  const paid = rest.access_type === "paid";
+  const published = rest.status === "published";
   // updateDoc, not setDoc(merge): a merge keeps old keys inside maps, so a text
   // field the host reset (page_copy) would come back on the next load. The
   // webinar always exists by the time it is edited (createWebinar adds it).
@@ -292,7 +322,12 @@ export async function saveWebinar(webinar: Webinar, hostName = ""): Promise<void
       bullets: rest.bullets.map((b) => b.trim()).filter(Boolean).slice(0, WEBINAR_LIMITS.bullets),
       owner_timezone: browserTimezone(),
       public_path: publicPath(webinar, hostName),
-      closes_at: end ? Timestamp.fromDate(end) : null,
+      closes_at: paid ? Timestamp.fromMillis(0) : end ? Timestamp.fromDate(end) : null,
+      // shortcut: video_url is public on published free webinars, upgrade to a gated watch page if hosts need it private
+      // A draft is owner-only and sends nothing, so it keeps both of these for switching back.
+      video_url: paid && published ? "" : rest.video_url,
+      // The n8n confirmation and reminder emails go by this date alone.
+      next_session_at: rest.delivery_type === "automated" && published ? "" : rest.next_session_at,
       updated_at: new Date().toISOString(),
     },
   );
@@ -320,21 +355,27 @@ export async function deleteWebinar(webinarId: string): Promise<void> {
  *   live      during the session: "live now", registration still open
  *   ended     up to ENDED_PAGE_DAYS after the end: the page says it's over
  *   closed    after that: the public page is gone; the host sees it in History
+ *
+ * An automated webinar has no session at all: always "none", whatever old date
+ * its document still holds, so it never shows as ended and never closes.
  */
 export type SessionPhase = "none" | "upcoming" | "live" | "ended" | "closed";
 
-export function sessionStart(webinar: Pick<Webinar, "next_session_at">): Date | null {
+type SessionFields = Pick<Webinar, "next_session_at"> & Partial<Pick<Webinar, "delivery_type">>;
+
+export function sessionStart(webinar: SessionFields): Date | null {
+  if (webinar.delivery_type === "automated") return null;
   const d = new Date(webinar.next_session_at);
   return webinar.next_session_at && !Number.isNaN(d.getTime()) ? d : null;
 }
 
-export function sessionEnd(webinar: Pick<Webinar, "next_session_at" | "duration_minutes">): Date | null {
+export function sessionEnd(webinar: SessionFields & Pick<Webinar, "duration_minutes">): Date | null {
   const start = sessionStart(webinar);
   return start ? new Date(start.getTime() + (webinar.duration_minutes || DEFAULT_DURATION) * 60_000) : null;
 }
 
 export function sessionPhase(
-  webinar: Pick<Webinar, "next_session_at" | "duration_minutes">,
+  webinar: SessionFields & Pick<Webinar, "duration_minutes">,
   now = Date.now(),
 ): SessionPhase {
   const start = sessionStart(webinar);
@@ -433,12 +474,14 @@ export type RegistrationResult = {
  * is saved, n8n is asked to send the confirmation email, exactly once per
  * registration (the workflow keys its log on webinar and registrant ids).
  */
-export async function registerForWebinar(webinarId: string, name: string, email: string): Promise<RegistrationResult> {
+export async function registerForWebinar(webinarId: string, name: string, email: string, delivery: DeliveryType = "live"): Promise<RegistrationResult> {
   const ref = await addDoc(collection(db, "webinars", webinarId, "registrants"), {
     name: name.trim().slice(0, WEBINAR_LIMITS.name),
     email: normalizeEmail(email),
     created_at: serverTimestamp(),
   });
+  // shortcut: automated gets no email because the n8n template would promise a date, send one once it reads delivery_type
+  if (delivery === "automated") return { registrantId: ref.id, joinUrl: Promise.resolve(null) };
   requestConfirmationEmail(webinarId, ref.id);
   return { registrantId: ref.id, joinUrl: fetchJoinInfo(webinarId, ref.id) };
 }

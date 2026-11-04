@@ -92,9 +92,16 @@ function Webinars() {
     return unsubscribe;
   }, []);
 
+  // The home page links here with ?new=1: open the dialog once, then drop the param.
+  useEffect(() => {
+    if (params.get("new") !== "1") return;
+    setDialogOpen(true);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const closeDialog = useCallback(() => setDialogOpen(false), []);
 
-  async function handleCreate(input: { name: string; notes: string }) {
+  async function handleCreate(input: Parameters<typeof createWebinar>[1]) {
     const user = auth.currentUser;
     if (!user) return;
     setCreating(true);
@@ -211,9 +218,9 @@ function Webinars() {
             [0, 1, 2].map((i) => <div key={i} className="h-[104px] animate-pulse rounded-2xl border border-border bg-card/70" />)
           ) : webinars.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border-strong bg-card/60 px-6 py-14 text-center">
-              <p className="font-medium">No webinars yet</p>
+              <p className="text-lg font-semibold tracking-[-0.02em]">Create your first webinar</p>
               <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-                Create one to get a registration page with a live countdown that you can share anywhere.
+                Name it, choose free or paid, then build its registration page and thank-you page.
               </p>
               <button
                 type="button"
@@ -256,7 +263,13 @@ function Webinars() {
                         <Users className="size-3.5" />
                         {count === undefined ? "…" : count === null ? "—" : `${count} registration${count === 1 ? "" : "s"}`}
                       </span>
-                      <span>{sessionSummary(webinar.next_session_at)}</span>
+                      <span>{webinar.delivery_type === "automated" ? "On demand" : sessionSummary(webinar.next_session_at)}</span>
+                      <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] text-foreground">
+                        {webinar.access_type === "paid" ? "Paid" : "Free"}
+                      </span>
+                      <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] text-foreground">
+                        {webinar.delivery_type === "automated" ? "Automated" : "Live"}
+                      </span>
                     </div>
                   </Link>
 

@@ -24,13 +24,17 @@ import {
   RegisterPanel,
   SessionBlock,
   Subtitle,
+  VideoPlayer,
   WhenLine,
+  ctaText,
   initials,
+  thanksMessage,
   usePage,
 } from "@/components/webinar/page-parts";
 import { ensureContrast, mix } from "@/lib/color";
 import { splitHeadline } from "@/lib/headline";
-import { copyLines, copyOf, safeUrl, type CopyKey } from "@/lib/training-copy";
+import { SAMPLE_COPY, copyLines, copyOf, safeUrl, type CopyKey } from "@/lib/training-copy";
+import { stockCopyOverride } from "@/lib/webinar-access";
 import { seedWithOverrides } from "@/lib/webinar-templates";
 import { calendarEvent } from "@/lib/webinars";
 
@@ -481,7 +485,12 @@ function useNightVars(): CSSProperties {
 /** The host's text for one field (their own, else the default; "" = hidden). */
 function useCopy() {
   const { w } = usePage();
-  return (key: CopyKey) => copyOf(w.page_copy, key);
+  return (key: CopyKey) => {
+    const own = w.page_copy[key];
+    // Previews fill page_copy with sample text, which counts as stock here.
+    const stock = own === undefined || own === SAMPLE_COPY[key];
+    return (stock ? stockCopyOverride(w, key) : undefined) ?? copyOf(w.page_copy, key);
+  };
 }
 
 /** The tail of a headline set in the highlight colour. */
@@ -504,7 +513,7 @@ function JumpButton() {
   const { w, form } = usePage();
   return (
     <button type="button" className="wp-btn wp-t-big" onClick={form.jump}>
-      {w.cta_label || "Register now"}
+      {ctaText(w)}
       <ArrowRight aria-hidden="true" />
     </button>
   );
@@ -594,7 +603,12 @@ function TrainingRegister() {
   const { w, phase, hostName, outcomes } = usePage();
   const c = useCopy();
   const open = phase !== "ended";
-  const minutes = w.duration_minutes;
+  const paid = w.access_type === "paid";
+  const automated = w.delivery_type === "automated";
+  // An on-demand video's length isn't known; duration_minutes only describes a live session.
+  const minutes = automated ? 0 : w.duration_minutes;
+  const cardKind = automated ? "on-demand training" : minutes ? `${minutes}-minute training` : "training";
+  const cardTitle = paid ? cardKind[0].toUpperCase() + cardKind.slice(1) : `Free ${cardKind}`;
   const trust = copyLines(c("trust_items"));
   const story = copyLines(c("story_body"));
   const foryou = copyLines(c("foryou_items"));
@@ -730,13 +744,13 @@ function TrainingRegister() {
           ) : null}
 
           <div className="wp-t-card">
-            <p className="wp-t-card-bar">{phase === "live" ? "Happening now" : "Free registration"}</p>
+            <p className="wp-t-card-bar">{phase === "live" ? "Happening now" : paid ? "Get your ticket" : automated ? "Watch on demand" : "Free registration"}</p>
             <div className="wp-t-card-in">
               <div className="wp-t-card-head">
                 <span className="wp-t-play" aria-hidden="true">
                   <CirclePlay />
                 </span>
-                <h2>{minutes ? `Free ${minutes}-minute training` : "Free training"}</h2>
+                <h2>{cardTitle}</h2>
                 <p className="wp-t-card-sub">
                   <WhenLine />
                 </p>
@@ -771,7 +785,9 @@ function TrainingThanks() {
   const { w, phase, when, joinUrl, mode, form, outcomes } = usePage();
   const c = useCopy();
   const event = calendarEvent(w, joinUrl);
-  const seeYou = phase === "live" ? "Join us now." : when ? `See you on ${when.weekday}.` : "See you there.";
+  const automated = w.delivery_type === "automated";
+  const message = thanksMessage(w);
+  const seeYou = automated ? "Watch it below." : phase === "live" ? "Join us now." : when ? `See you on ${when.weekday}.` : "See you there.";
   const tiles = copyLines(c("tile_texts"));
   const points = copyLines(c("offer_points"));
   const offerUrl = safeUrl(c("offer_url"));
@@ -792,7 +808,7 @@ function TrainingThanks() {
           </h1>
           <p className="wp-sub">
             {c("thanks_text")}
-            {w.thank_you_message.trim() ? ` ${w.thank_you_message.trim()}` : ""}
+            {message ? ` ${message}` : ""}
           </p>
           {c("thanks_chip") ? (
             <p className="wp-t-chips">
@@ -843,15 +859,17 @@ function TrainingThanks() {
             {c("step1_title") ? <h3>{c("step1_title")}</h3> : null}
             {c("step1_text") ? <p>{c("step1_text")}</p> : null}
             <div className="wp-t-card">
-              <p className="wp-t-card-bar">Your countdown, calendar &amp; link to join</p>
+              <p className="wp-t-card-bar">{automated ? "Your video" : <>Your countdown, calendar &amp; link to join</>}</p>
               <div className="wp-t-card-in">
-                <SessionBlock />
+                {automated ? <VideoPlayer /> : <SessionBlock />}
                 {event && phase !== "ended" ? <CalendarButtons event={event} /> : null}
                 {joinUrl ? <JoinLink url={joinUrl} /> : null}
               </div>
             </div>
           </div>
 
+          {/* Automated sign-ups get no email, so the inbox reminder must not show for them. */}
+          {automated && !c("offer_title") ? null : (
           <div className="wp-t-step">
             <span className="wp-t-num" data-gold="" aria-hidden="true">
               2
@@ -915,6 +933,7 @@ function TrainingThanks() {
               </div>
             )}
           </div>
+          )}
 
           <Testimonial />
           {mode === "preview" ? (

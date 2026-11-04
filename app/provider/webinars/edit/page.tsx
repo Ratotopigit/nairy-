@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Copy, Download, ExternalLink, Loader2, PencilLine, RotateCcw } from "lucide-react";
 import { auth } from "@/lib/firebase/config";
 import { TemplatePicker } from "@/components/webinar/TemplatePicker";
+import { SetupPanel } from "@/components/webinar/editor/SetupPanel";
 import { BrandPanel, ContentPanel, ImagesPanel, LayoutPanel, TextPanel } from "@/components/webinar/editor/EditorPanels";
 import { ImagePicker } from "@/components/webinar/editor/ImagePicker";
 import { PreviewPane, type Device, type Screen } from "@/components/webinar/editor/PreviewPane";
@@ -16,6 +17,8 @@ import {
   getPrivate,
   getWebinar,
   isValidJoinUrl,
+  isValidPaymentUrl,
+  isValidVideoUrl,
   listRegistrants,
   publicPath,
   registrantsCsv,
@@ -35,14 +38,20 @@ function hostName(): string {
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error";
-type PanelId = "content" | "text" | "brand" | "images" | "layout";
+type PanelId = "content" | "text" | "images" | "layout";
+
+const STEPS = [
+  { label: "Details", short: "Details" },
+  { label: "Registration page", short: "Register" },
+  { label: "Thank-you page", short: "Thank-you" },
+  { label: "Share & registrants", short: "Share" },
+];
 
 const PANELS: { id: PanelId; label: string }[] = [
+  { id: "layout", label: "Template" },
   { id: "content", label: "Content" },
   { id: "text", label: "Page text" },
-  { id: "brand", label: "Brand" },
   { id: "images", label: "Images" },
-  { id: "layout", label: "Layout" },
 ];
 
 function Editor() {
@@ -55,9 +64,9 @@ function Editor() {
   // "published", so the Live link is shown from it, not from the editor's state.
   const [storedStatus, setStoredStatus] = useState<"draft" | "published">("draft");
   const urgentSave = useRef(false);
-  // ?tab=registrants lets the morning summary email link straight to the list.
-  const [tab, setTab] = useState<"page" | "registrants">(params.get("tab") === "registrants" ? "registrants" : "page");
-  const [panel, setPanel] = useState<PanelId>("content");
+  // Steps 1-4. ?tab=registrants lets the morning summary email link straight to step 4.
+  const [step, setStepState] = useState(params.get("tab") === "registrants" ? 4 : 1);
+  const [panel, setPanel] = useState<PanelId>("layout");
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [screen, setScreen] = useState<Screen>("form");
   const [device, setDevice] = useState<Device>("desktop");
@@ -71,8 +80,11 @@ function Editor() {
   // Host's private notes ("what is this one for?"), saved with the join link.
   const [notes, setNotes] = useState("");
   const [joinState, setJoinState] = useState<SaveState>("idle");
-  const joinLoadedRef = useRef(false);
+  // What the private document holds, so loading it never writes and any real change does.
+  const savedPrivateRef = useRef({ join_url: "", notes: "" });
   const loadedRef = useRef(false);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const stepMovedRef = useRef(false);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   useEffect(() => {
@@ -111,6 +123,7 @@ function Editor() {
       }
       try {
         const saved = await getPrivate(found.id);
+        savedPrivateRef.current = { join_url: saved.join_url, notes: saved.notes };
         setJoinUrl(saved.join_url);
         setNotes(saved.notes);
       } catch (e) {
@@ -124,18 +137,25 @@ function Editor() {
 
   useEffect(() => {
     if (loadState !== "ready" || !webinar) return;
-    if (!joinLoadedRef.current) {
-      joinLoadedRef.current = true;
+    const last = savedPrivateRef.current;
+    const joinValid = isValidJoinUrl(joinUrl.trim());
+    // An automated webinar hides the link, so a bad one there can't be fixed and must not block notes.
+    if (!joinValid && webinar.delivery_type !== "automated") {
+      setJoinState("idle");
       return;
     }
-    if (!isValidJoinUrl(joinUrl.trim())) {
+    const next = { join_url: joinValid ? joinUrl.trim() : last.join_url, notes: notes.trim() };
+    if (next.join_url === last.join_url && next.notes === last.notes) {
       setJoinState("idle");
       return;
     }
     setJoinState("saving");
     const timer = window.setTimeout(() => {
-      savePrivate(webinar.id, { join_url: joinUrl, notes })
-        .then(() => setJoinState("saved"))
+      savePrivate(webinar.id, next)
+        .then(() => {
+          savedPrivateRef.current = next;
+          setJoinState("saved");
+        })
         .catch((e: unknown) => {
           console.error("private details save failed:", e);
           setJoinState("error");
@@ -171,7 +191,7 @@ function Editor() {
   }, [webinar]);
 
   useEffect(() => {
-    if (tab !== "registrants" || !webinar) return;
+    if (step !== 4 || !webinar) return;
     // No reset to null here: a revisit keeps the last list on screen while it refreshes.
     listRegistrants(webinar.id)
       .then(setRegistrants)
@@ -180,7 +200,13 @@ function Editor() {
         setRegistrants([]);
         setNotice("Registrants couldn't be loaded. Check your connection and try again.");
       });
-  }, [tab, webinar?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [step, webinar?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keyboard and screen-reader users land on the new step, not on a button it replaced.
+  useEffect(() => {
+    if (stepMovedRef.current) stepHeadingRef.current?.focus({ preventScroll: true });
+    stepMovedRef.current = true;
+  }, [step]);
 
   // A brand-new webinar still has placeholder text; the preview shows sample
   // copy in the template's category until the host writes their own.
@@ -209,15 +235,39 @@ function Editor() {
     );
   }
 
+  // The preview follows the step: the sign-up form, then the thank-you page.
+  const setStep = (n: number) => {
+    setStepState(n);
+    setScreen(n === 3 ? "thanks" : "form");
+    window.scrollTo({ top: 0 });
+  };
+
   const update = <K extends keyof Webinar>(key: K, value: Webinar[K]) =>
     setWebinar((current) => (current ? { ...current, [key]: value } : current));
 
   const published = webinar.status === "published";
   const template = getTemplate(webinar.template_id);
-  // The Training templates have many more editable lines; their own tab holds them.
-  const usesText = template.layout === "training" || webinar.thank_you_template === "training";
+  // The Training template has many more editable lines; their own tab holds them.
+  const usesText = template.layout === "training";
   const panels = PANELS.filter((p) => p.id !== "text" || usesText);
-  const activePanel = panels.some((p) => p.id === panel) ? panel : "content";
+  const activePanel = panels.some((p) => p.id === panel) ? panel : "layout";
+  const panelIndex = panels.findIndex((p) => p.id === activePanel);
+  const nextPanel = step === 2 ? panels[panelIndex + 1] : undefined;
+  const openPanel = (id: PanelId) => {
+    setPanel(id);
+    window.scrollTo({ top: 0 });
+  };
+  // Next and Back walk through the Registration page sections before changing step.
+  const goNext = () => {
+    if (nextPanel) return openPanel(nextPanel.id);
+    if (step === 1) setPanel(panels[0].id);
+    setStep(step + 1);
+  };
+  const goBack = () => {
+    if (step === 2 && panelIndex > 0) return openPanel(panels[panelIndex - 1].id);
+    if (step === 3) setPanel(panels[panels.length - 1].id);
+    setStep(step - 1);
+  };
   const phase = sessionPhase(webinar);
   // What the link will be after the next save, so it updates as they type.
   const shareUrl = registrationUrl({ id: webinar.id, public_path: publicPath(webinar, hostName()) });
@@ -231,6 +281,20 @@ function Editor() {
       setNotice("Write your own headline before publishing. The page is showing sample text.");
       setPanel("content");
       setMobileView("edit");
+      setStep(2);
+      return;
+    }
+    const w = webinar;
+    const missing =
+      w.access_type === "paid" && !isValidPaymentUrl(w.payment_url)
+        ? "Add a valid payment link (starting with https://) before publishing."
+        : w.delivery_type === "automated" && w.access_type !== "paid" && !isValidVideoUrl(w.video_url)
+          ? "Add a valid video link (starting with https://) before publishing."
+          : null;
+    if (!published && missing) {
+      setNotice(missing);
+      setMobileView("edit");
+      setStep(1);
       return;
     }
     setNotice(null);
@@ -338,7 +402,7 @@ function Editor() {
           <RotateCcw className="size-4 shrink-0" />
           <p className="min-w-0 flex-1">
             {phase === "closed" ? "This session finished over a week ago, so the public page is now hidden. " : "This session has ended and registration is closed. "}
-            Pick a new date in Content to run it again. The same link keeps working.
+            Pick a new date in the Registration page step to run it again. The same link keeps working.
           </p>
         </div>
       ) : null}
@@ -349,22 +413,27 @@ function Editor() {
         </p>
       ) : null}
 
-      {/* Tabs */}
-      <div className="mt-5 flex items-center gap-1 border-b border-border">
-        {(["page", "registrants"] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
-              tab === key ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {key === "page" ? "Registration page" : "Registrants"}
-          </button>
-        ))}
-        {tab === "page" ? (
-          <div className="ml-auto flex rounded-lg border border-border p-0.5 lg:hidden">
+      {/* Stepper */}
+      <div className="mt-5 flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-center">
+        <nav aria-label="Webinar steps" className="grid w-full min-w-0 grid-cols-4 gap-1 sm:flex-1">
+          {STEPS.map((st, i) => (
+            <button
+              key={st.label}
+              type="button"
+              onClick={() => setStep(i + 1)}
+              aria-current={step === i + 1 ? "step" : undefined}
+              className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-1.5 py-2 text-xs transition-colors sm:text-sm ${
+                step === i + 1 ? "bg-foreground font-medium text-background" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              <span className="shrink-0 font-semibold">{i + 1}</span>
+              <span className="truncate xl:hidden">{st.short}</span>
+              <span className="hidden truncate xl:inline">{st.label}</span>
+            </button>
+          ))}
+        </nav>
+        {step < 4 ? (
+          <div className="flex shrink-0 self-end rounded-lg border border-border p-0.5 sm:self-auto xl:hidden">
             {(["edit", "preview"] as const).map((v) => (
               <button
                 key={v}
@@ -379,56 +448,126 @@ function Editor() {
         ) : null}
       </div>
 
-      {tab === "page" ? (
-        <div className="mt-5 grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
-          {/* Editing panels */}
-          <div className={`min-w-0 ${mobileView === "preview" ? "hidden lg:block" : ""}`}>
-            <div role="tablist" aria-label="Editor sections" className="sticky top-0 z-10 -mx-1 mb-5 flex gap-1 rounded-xl border border-border bg-background/95 p-1 backdrop-blur">
-              {panels.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={activePanel === p.id}
-                  onClick={() => setPanel(p.id)}
-                  className={`flex-1 rounded-lg px-2 py-2 text-sm transition-colors ${
-                    activePanel === p.id ? "bg-foreground font-medium text-background" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+      <h2 ref={stepHeadingRef} tabIndex={-1} className="mt-5 text-lg font-semibold tracking-[-0.01em] outline-none">
+        {STEPS[step - 1].label}
+      </h2>
 
-            {activePanel === "content" ? (
-              <ContentPanel
-                {...panelProps}
-                joinUrl={joinUrl}
-                setJoinUrl={setJoinUrl}
-                notes={notes}
-                setNotes={setNotes}
-                joinInvalid={joinInvalid}
-                joinState={joinState}
-                timezone={timezone}
-              />
+      {step < 4 ? (
+        <div className="mt-4 grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+          {/* Editing column */}
+          <div className={`min-w-0 ${mobileView === "preview" ? "hidden xl:block" : ""}`}>
+            {step === 1 ? (
+              <div className="space-y-6">
+                <label className="block text-sm">
+                  <span className="font-medium">Webinar name</span>
+                  <span className="block text-xs text-muted-foreground">Only you see this name.</span>
+                  <input
+                    value={webinar.name}
+                    onChange={(e) => update("name", e.target.value)}
+                    maxLength={WEBINAR_LIMITS.name}
+                    placeholder="Name this webinar"
+                    className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm outline-none focus:border-foreground"
+                  />
+                </label>
+                <SetupPanel w={webinar} update={update} />
+                <BrandPanel {...panelProps} onError={setNotice} />
+              </div>
             ) : null}
-            {activePanel === "text" ? <TextPanel {...panelProps} /> : null}
-            {activePanel === "brand" ? <BrandPanel {...panelProps} onError={setNotice} /> : null}
-            {activePanel === "images" ? (
-              <ImagesPanel
-                {...panelProps}
-                onFind={() => setPhotoMode("search")}
-                onSuggest={() => setPhotoMode("suggest")}
-                suggesting={false}
-                onError={setNotice}
-              />
+
+            {step === 2 ? (
+              <>
+                <div role="tablist" aria-label="Registration page sections" className="sticky top-[65px] z-10 -mx-1 md:top-0 mb-5 flex gap-1 rounded-xl border border-border bg-background/95 p-1 backdrop-blur">
+                  {panels.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={activePanel === p.id}
+                      onClick={() => setPanel(p.id)}
+                      className={`flex-1 rounded-lg px-2 py-2 text-sm transition-colors ${
+                        activePanel === p.id ? "bg-foreground font-medium text-background" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                {activePanel === "content" ? (
+                  <ContentPanel
+                    {...panelProps}
+                    joinUrl={joinUrl}
+                    setJoinUrl={setJoinUrl}
+                    notes={notes}
+                    setNotes={setNotes}
+                    joinInvalid={joinInvalid}
+                    joinState={joinState}
+                    timezone={timezone}
+                  />
+                ) : null}
+                {activePanel === "text" ? <TextPanel {...panelProps} /> : null}
+                {activePanel === "images" ? (
+                  <ImagesPanel
+                    {...panelProps}
+                    onFind={() => setPhotoMode("search")}
+                    onSuggest={() => setPhotoMode("suggest")}
+                    suggesting={false}
+                    onError={setNotice}
+                  />
+                ) : null}
+                {activePanel === "layout" ? <LayoutPanel {...panelProps} onBrowse={() => setPickerOpen(true)} /> : null}
+              </>
             ) : null}
-            {activePanel === "layout" ? <LayoutPanel {...panelProps} onBrowse={() => setPickerOpen(true)} /> : null}
+
+            {step === 3 && webinar.access_type === "paid" ? (
+              <div className="rounded-2xl border border-border bg-card p-4 text-sm">
+                <p className="font-medium">Paid webinars have no thank-you page here</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Buyers go straight to your payment link, so nobody signs up on this page. What they see after paying, and how they get access, is set in your
+                  checkout (Stripe, PayPal or similar). The preview shows your public page.
+                </p>
+              </div>
+            ) : null}
+
+            {step === 3 && webinar.access_type !== "paid" ? (
+              <div className="space-y-6">
+                <label className="block text-sm">
+                  <span className="font-medium">Thank-you message</span>
+                  <span className="block text-xs text-muted-foreground">Shown after someone registers, under “You're registered!”.</span>
+                  <textarea
+                    value={webinar.thank_you_message}
+                    onChange={(e) => update("thank_you_message", e.target.value)}
+                    rows={2}
+                    maxLength={300}
+                    className="mt-2 w-full resize-none rounded-xl border border-border bg-card px-3 py-2.5 text-sm outline-none focus:border-foreground"
+                  />
+                </label>
+                <LayoutPanel {...panelProps} thanks />
+                {webinar.thank_you_template === "training" ? <TextPanel {...panelProps} thanks /> : null}
+              </div>
+            ) : null}
+
+            <div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-4">
+              <button
+                type="button"
+                onClick={goBack}
+                disabled={step === 1}
+                className="rounded-xl border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-secondary disabled:opacity-40"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                className="rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
+              >
+                Next: {nextPanel?.label ?? STEPS[step].label}
+              </button>
+            </div>
           </div>
 
           {/* Live preview: the exact component visitors get. */}
-          <div className={`min-w-0 ${mobileView === "edit" ? "hidden lg:block" : ""}`}>
-            <div className="lg:sticky lg:top-4">
+          <div className={`min-w-0 ${mobileView === "edit" ? "hidden xl:block" : ""}`}>
+            <div className="xl:sticky xl:top-4">
               <PreviewPane
                 webinar={shown}
                 device={device}
@@ -448,7 +587,7 @@ function Editor() {
             onPick={(templateId) => {
               // Content, brand, colours, fonts and images all stay; only the design changes.
               update("template_id", templateId);
-              // The Training page comes with its matching thank-you page; change it under Layout.
+              // The Training page comes with its matching thank-you page; change it in the Thank-you page step.
               if (getTemplate(templateId).layout === "training" && !webinar.thank_you_template) update("thank_you_template", "training");
               setPickerOpen(false);
             }}
@@ -475,7 +614,24 @@ function Editor() {
         </div>
       ) : (
         <div className="mt-5">
-          <div className="flex items-center justify-between gap-3">
+          <div className="rounded-2xl border border-border bg-card p-4 text-sm">
+            <p className="font-medium">{published && storedStatus === "published" ? "Your webinar is live" : "Not published yet"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {!published ? "Press Publish at the top, then this link starts working." : webinar.access_type === "paid" ? "Share this link to sell tickets." : "Share this link to get registrations."}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded-lg bg-secondary/60 px-3 py-2 text-xs">{shareUrl}</code>
+              <button
+                type="button"
+                onClick={() => void copyLink()}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs transition-colors hover:bg-secondary"
+              >
+                <Copy className="size-3.5" />
+                {copied ? "Copied" : "Copy link"}
+              </button>
+            </div>
+          </div>
+          <div className="mt-5 flex items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
               {registrants === null ? "Loading…" : `${registrants.length} registrant${registrants.length === 1 ? "" : "s"}`}
             </p>
@@ -497,7 +653,11 @@ function Editor() {
               </div>
             ) : registrants.length === 0 ? (
               <p className="px-5 py-12 text-center text-sm text-muted-foreground">
-                {published ? "No registrations yet. Share your link to start getting them." : "Publish this webinar to start taking registrations."}
+                {webinar.access_type === "paid"
+                  ? "Buyers don't appear here. You'll find them in your checkout (Stripe, PayPal or similar)."
+                  : published
+                    ? "No registrations yet. Share your link to start getting them."
+                    : "Publish this webinar to start taking registrations."}
               </p>
             ) : (
               <table className="w-full text-left text-sm">
@@ -519,6 +679,11 @@ function Editor() {
                 </tbody>
               </table>
             )}
+          </div>
+          <div className="mt-6 border-t border-border pt-4">
+            <button type="button" onClick={() => setStep(3)} className="rounded-xl border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-secondary">
+              Back
+            </button>
           </div>
         </div>
       )}

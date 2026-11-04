@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
-import { WEBINAR_LIMITS } from "@/lib/webinars";
+import { ACCESS_OPTIONS, ChoiceGroup, DELIVERY_OPTIONS } from "@/components/webinar/editor/SetupPanel";
+import { WEBINAR_LIMITS, type Webinar } from "@/lib/webinars";
 
 type Props = {
   open: boolean;
   busy: boolean;
   onClose: () => void;
-  onCreate: (input: { name: string; notes: string }) => void;
+  onCreate: (input: { name: string; notes: string; access_type: Webinar["access_type"]; delivery_type: Webinar["delivery_type"] }) => void;
 };
 
 /**
@@ -18,12 +19,16 @@ type Props = {
 export function NewWebinarDialog({ open, busy, onClose, onCreate }: Props) {
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
+  const [access, setAccess] = useState<Webinar["access_type"]>("free");
+  const [delivery, setDelivery] = useState<Webinar["delivery_type"]>("live");
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setName("");
     setNotes("");
+    setAccess("free");
+    setDelivery("live");
     const t = window.setTimeout(() => nameRef.current?.focus(), 50);
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
     window.addEventListener("keydown", onKey);
@@ -44,9 +49,9 @@ export function NewWebinarDialog({ open, busy, onClose, onCreate }: Props) {
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
-          if (name.trim()) onCreate({ name: name.trim(), notes: notes.trim() });
+          if (name.trim()) onCreate({ name: name.trim(), notes: notes.trim(), access_type: access, delivery_type: delivery });
         }}
-        className="w-full max-w-lg rounded-t-3xl border border-border bg-background p-6 shadow-2xl reg-rise sm:rounded-3xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-border bg-background p-6 shadow-2xl reg-rise sm:rounded-3xl"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -73,6 +78,11 @@ export function NewWebinarDialog({ open, busy, onClose, onCreate }: Props) {
             Shown in your dashboard and when you @mention it in Webinar Chat. It also starts as the page headline.
           </span>
         </label>
+
+        <div className="mt-4 space-y-4">
+          <ChoiceGroup legend="Free or paid" value={access} options={ACCESS_OPTIONS} onChange={setAccess} />
+          <ChoiceGroup legend="Live or automated" value={delivery} options={DELIVERY_OPTIONS} onChange={setDelivery} />
+        </div>
 
         <label className="mt-4 block">
           <span className="text-xs font-medium">

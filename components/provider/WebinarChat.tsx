@@ -5,7 +5,7 @@ import { Suspense } from "react";
 
 function ChatSkeleton() {
   return (
-    <div className="flex h-[calc(100vh-66px)] w-full overflow-hidden bg-background">
+    <div className="flex h-[calc(100vh-66px)] md:h-dvh w-full overflow-hidden bg-background">
       <div className="hidden md:flex w-80 flex-col border-r border-border p-4 space-y-4">
         <div className="h-9 w-full rounded-xl bg-muted/70 animate-pulse" />
         <div className="space-y-2 pt-2">
