@@ -19,7 +19,7 @@ import { extractPalette, prepareImageForStorage, type ExtractedPalette } from "@
 import { extractDocumentExcerpt } from "@/lib/workspace-context";
 import { loadWorkspaceMemory, saveWorkspaceMemory } from "@/lib/workspace-memory";
 import { auth, db, storage } from "@/lib/firebase/config";
-import { addDoc, collection, deleteDoc, doc, getDocs, query, where } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 type AssetRole = "logo" | "brand_photo" | "product" | "background" | "document" | "reference";
@@ -39,6 +39,9 @@ type Asset = {
   asset_type: "logo" | "photo" | "reference" | "document" | "video";
   asset_role?: AssetRole | null;
   palette?: ExtractedPalette | null;
+  /** Saved at upload so listing the files needs no Storage request per file. */
+  download_url?: string | null;
+  /** undefined while the link is still being found, "" when it could not be. */
   signedUrl?: string;
 };
 
@@ -163,12 +166,15 @@ export default function UploadsManager() {
   async function loadAssets() {
     const user = auth.currentUser;
     if (!user) return;
-    const memory = await loadWorkspaceMemory(user.uid);
-    setBrandBrief({
-      businessLine: typeof memory?.brand_profile?.business_line === "string" ? memory.brand_profile.business_line : "",
-      quoteBank: typeof memory?.brand_profile?.quote_bank === "string" ? memory.brand_profile.quote_bank : "",
-      usageNotes: typeof memory?.brand_profile?.usage_notes === "string" ? memory.brand_profile.usage_notes : "",
-    });
+    // The brand notes and the file list do not depend on each other, so they
+    // load together instead of one after the other.
+    const notes = loadWorkspaceMemory(user.uid).then((memory) =>
+      setBrandBrief({
+        businessLine: typeof memory?.brand_profile?.business_line === "string" ? memory.brand_profile.business_line : "",
+        quoteBank: typeof memory?.brand_profile?.quote_bank === "string" ? memory.brand_profile.quote_bank : "",
+        usageNotes: typeof memory?.brand_profile?.usage_notes === "string" ? memory.brand_profile.usage_notes : "",
+      }),
+    );
 
     try {
       const q = query(
@@ -187,22 +193,30 @@ export default function UploadsManager() {
         return timeB - timeA;
       });
 
-      const withUrls = await Promise.all(
-        rawAssets.map(async (asset) => {
-          try {
-            const fileRef = ref(storage, asset.storage_path);
-            const signedUrl = await getDownloadURL(fileRef);
-            return { ...asset, signedUrl };
-          } catch (urlErr) {
-            console.warn("Could not get download URL:", asset.storage_path, urlErr);
-            return asset;
-          }
-        })
+      // Show every file right away. Ones saved with their link need nothing
+      // more; the rest find it below.
+      setAssets(rawAssets.map((asset) => ({ ...asset, signedUrl: asset.download_url || undefined })));
+
+      // Older files have no saved link: find them all at once, fill each card
+      // in as its link arrives, and save the link so the next visit is instant.
+      await Promise.all(
+        rawAssets
+          .filter((asset) => !asset.download_url)
+          .map(async (asset) => {
+            let url = "";
+            try {
+              url = await getDownloadURL(ref(storage, asset.storage_path));
+              void updateDoc(doc(db, "workspace_assets", asset.id), { download_url: url }).catch(() => {});
+            } catch (urlErr) {
+              console.warn("Could not get download URL:", asset.storage_path, urlErr);
+            }
+            setAssets((current) => current.map((item) => (item.id === asset.id ? { ...item, signedUrl: url } : item)));
+          }),
       );
-      setAssets(withUrls);
     } catch (error: any) {
       console.error("Failed to load workspace assets:", error?.message || error);
     }
+    await notes;
   }
 
   async function saveBrandBrief(openContentMaker = false) {
@@ -277,6 +291,8 @@ export default function UploadsManager() {
 
           const fileRef = ref(storage, path);
           await uploadBytes(fileRef, blob, { contentType: mimeType });
+          // Kept on the record so the page can show the file without asking Storage again.
+          const downloadUrl = await getDownloadURL(fileRef).catch(() => null);
 
           try {
             await addDoc(collection(db, "workspace_assets"), {
@@ -288,6 +304,7 @@ export default function UploadsManager() {
               asset_type: typeFor(targetRole, file),
               asset_role: targetRole,
               palette,
+              download_url: downloadUrl,
               created_at: new Date().toISOString(),
             });
           } catch (rowError) {
@@ -521,8 +538,12 @@ export default function UploadsManager() {
                             <img
                               src={asset.signedUrl}
                               alt={asset.file_name}
+                              loading="lazy"
+                              decoding="async"
                               className="h-full w-full object-contain p-1.5"
                             />
+                          ) : asset.signedUrl === undefined && asset.mime_type.startsWith("image/") ? (
+                            <div className="size-full animate-pulse bg-secondary/60" />
                           ) : (
                             <div className="flex flex-col items-center justify-center gap-1 p-2 text-center">
                               <FileText className="size-7 text-muted-foreground" />

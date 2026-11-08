@@ -38,7 +38,7 @@ const isFirebaseConfigured = Boolean(
 
 
 const logo = "/assets/webinarstackai-logo.png";
-const girlImg = "/assets/login-img/girl.png";
+const girlImg = "/assets/login-img/girl.webp";
 const ideaImg = "/assets/login-img/idea.png";
 const pptImg = "/assets/login-img/ppt.png";
 const chartImg = "/assets/login-img/chart.png";

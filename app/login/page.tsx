@@ -39,7 +39,7 @@ const isFirebaseConfigured = Boolean(
 
 // Image paths served from public directory (not bundled into worker)
 const logo = "/assets/webinarstackai-logo.png";
-const girlImg = "/assets/login-img/girl.png";
+const girlImg = "/assets/login-img/girl.webp";
 const ideaImg = "/assets/login-img/idea.png";
 const pptImg = "/assets/login-img/ppt.png";
 const chartImg = "/assets/login-img/chart.png";
