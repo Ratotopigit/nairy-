@@ -11,8 +11,8 @@ export const ACCESS_OPTIONS = [
 ] as const;
 
 export const DELIVERY_OPTIONS = [
-  { value: "live", label: "Live", blurb: "You present at a set date and time." },
-  { value: "automated", label: "Automated (on-demand)", blurb: "People watch a recorded video whenever they like." },
+  { value: "live", label: "Live (you present at a set time)", blurb: "You pick a date and time and present it yourself." },
+  { value: "automated", label: "Recorded (watch any time)", blurb: "People watch your recorded video whenever they like." },
 ] as const;
 
 /** Radio buttons with a one-line explanation each. Used here and in the new-webinar dialog. */
@@ -30,19 +30,19 @@ export function ChoiceGroup<V extends string>({
   const name = useId();
   return (
     <fieldset>
-      <legend className="text-xs font-medium text-foreground">{legend}</legend>
-      <div className="mt-1.5 grid gap-2 sm:grid-cols-2">
+      <legend className="text-base font-semibold text-foreground">{legend}</legend>
+      <div className="mt-2 grid gap-2">
         {options.map((o) => (
           <label
             key={o.value}
-            className={`flex cursor-pointer gap-2.5 rounded-xl border p-3 transition-colors ${
-              value === o.value ? "border-primary bg-primary/5" : "border-border hover:bg-secondary"
+            className={`flex min-h-14 cursor-pointer gap-3 rounded-xl border-2 p-3.5 transition-colors ${
+              value === o.value ? "border-primary bg-primary/5" : "border-border-strong bg-card hover:bg-secondary"
             }`}
           >
-            <input type="radio" name={name} checked={value === o.value} onChange={() => onChange(o.value)} className="mt-0.5 size-4 shrink-0 accent-primary" />
+            <input type="radio" name={name} checked={value === o.value} onChange={() => onChange(o.value)} className="mt-0.5 size-5 shrink-0 accent-primary" />
             <span>
-              <span className="block text-sm font-medium">{o.label}</span>
-              <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">{o.blurb}</span>
+              <span className="block text-sm font-semibold">{o.label}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{o.blurb}</span>
             </span>
           </label>
         ))}
@@ -60,16 +60,13 @@ type Props = {
   update: <K extends keyof Webinar>(key: K, value: Webinar[K]) => void;
 };
 
-export function SetupPanel({ w, update }: Props) {
-  const paid = w.access_type === "paid";
-  const automated = w.delivery_type === "automated";
-  const paymentInvalid = Boolean(w.payment_url) && !isValidPaymentUrl(w.payment_url);
-  const videoInvalid = Boolean(w.video_url) && !isValidVideoUrl(w.video_url);
-  const paymentHintId = useId();
-  const videoHintId = useId();
+/**
+ * One click must not silently change a page people can already see: free/paid
+ * and live/recorded switches on a published webinar are confirmed or refused.
+ * Used here and in the Watch step. `refusal` shows the reason when refused.
+ */
+export function useSwitchGuard(w: Webinar) {
   const [refused, setRefused] = useState<string | null>(null);
-
-  /** One click must not silently change a page people can already see. */
   function allowSwitch(next: Pick<Webinar, "access_type" | "delivery_type">): boolean {
     setRefused(null);
     if (w.status !== "published") return true;
@@ -80,14 +77,58 @@ export function SetupPanel({ w, update }: Props) {
     }
     return window.confirm(check.confirm);
   }
+  const refusal = refused ? (
+    <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+      {refused}
+    </p>
+  ) : null;
+  return { allowSwitch, refusal };
+}
+
+/** A recorded webinar's video: the field for free ones, the checkout note for paid ones. */
+export function VideoLinkField({ w, update }: Props) {
+  const videoInvalid = Boolean(w.video_url) && !isValidVideoUrl(w.video_url);
+  const videoHintId = useId();
+  if (w.access_type === "paid") {
+    return <Note>The buyer gets the video through their checkout confirmation, so put it there. It is not shown or stored on your public page, and any video link you had is removed when you publish.</Note>;
+  }
+  return (
+    <>
+      <Field
+        label="Video link"
+        hintId={videoHintId}
+        hint={
+          videoInvalid
+            ? "Use a public YouTube or Vimeo video link, like https://www.youtube.com/watch?v=… or https://vimeo.com/123456"
+            : "YouTube or Vimeo. It plays right after someone signs up. The link can be found by anyone who looks at your page's data, so don't use it for private videos."
+        }
+      >
+        <input
+          value={w.video_url}
+          onChange={(e) => update("video_url", e.target.value.trim())}
+          maxLength={1000}
+          inputMode="url"
+          placeholder="https://www.youtube.com/watch?v=…"
+          aria-invalid={videoInvalid}
+          aria-describedby={videoInvalid ? videoHintId : undefined}
+          className={`${INPUT} ${videoInvalid ? "border-red-300" : ""}`}
+        />
+      </Field>
+      <Note>People who sign up are added to your registrants but get no email for now.</Note>
+    </>
+  );
+}
+
+export function SetupPanel({ w, update }: Props) {
+  const paid = w.access_type === "paid";
+  const automated = w.delivery_type === "automated";
+  const paymentInvalid = Boolean(w.payment_url) && !isValidPaymentUrl(w.payment_url);
+  const paymentHintId = useId();
+  const { allowSwitch, refusal } = useSwitchGuard(w);
 
   return (
     <div className="space-y-7">
-      {refused ? (
-        <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-          {refused}
-        </p>
-      ) : null}
+      {refusal}
       <Section title="Who can attend">
         <ChoiceGroup
           legend="Free or paid"
@@ -129,42 +170,14 @@ export function SetupPanel({ w, update }: Props) {
 
       <Section title="How it runs">
         <ChoiceGroup
-          legend="Live or automated"
+          legend="Live or recorded"
           value={w.delivery_type}
           options={DELIVERY_OPTIONS}
           onChange={(v) => {
             if (allowSwitch({ access_type: w.access_type, delivery_type: v })) update("delivery_type", v);
           }}
         />
-        {!automated ? (
-          <Note>Set the date and your session link in the Registration page step.</Note>
-        ) : paid ? (
-          <Note>The buyer gets the video through their checkout confirmation, so put it there. It is not shown or stored on your public page, and any video link you had is removed when you publish.</Note>
-        ) : (
-          <>
-            <Field
-              label="Video link"
-              hintId={videoHintId}
-              hint={
-                videoInvalid
-                  ? "Use a public YouTube or Vimeo video link, like https://www.youtube.com/watch?v=… or https://vimeo.com/123456"
-                  : "YouTube or Vimeo. It plays right after someone signs up. The link can be found by anyone who looks at your page's data, so don't use it for private videos."
-              }
-            >
-              <input
-                value={w.video_url}
-                onChange={(e) => update("video_url", e.target.value.trim())}
-                maxLength={1000}
-                inputMode="url"
-                placeholder="https://www.youtube.com/watch?v=…"
-                aria-invalid={videoInvalid}
-                aria-describedby={videoInvalid ? videoHintId : undefined}
-                className={`${INPUT} ${videoInvalid ? "border-red-300" : ""}`}
-              />
-            </Field>
-            <Note>People who sign up are added to your registrants but get no email for now.</Note>
-          </>
-        )}
+        {!automated ? <Note>You set the date and your meeting link in step 3, Watch room &amp; replay.</Note> : <VideoLinkField w={w} update={update} />}
         {automated ? <Note>Automated webinars have no date, countdown or reminders. Any date you had is removed when you publish.</Note> : null}
       </Section>
     </div>

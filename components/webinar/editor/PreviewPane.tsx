@@ -73,12 +73,12 @@ export function PreviewPane({ webinar, device, onDevice, screen, onScreen, publi
   const page = <RegistrationPage webinar={webinar} mode="preview" startDone={screen === "thanks" && !paid} onDoneChange={(done) => onScreen(done ? "thanks" : "form")} />;
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-      <div className="flex items-center gap-2 border-b border-border bg-secondary/60 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-secondary/60 px-3 py-2">
         <div role="tablist" aria-label="Preview size" className="flex rounded-lg border border-border bg-background p-0.5">
           {(
             [
               ["desktop", "Desktop", Monitor],
-              ["mobile", "Mobile", Smartphone],
+              ["mobile", "Phone", Smartphone],
             ] as const
           ).map(([key, label, Icon]) => (
             <button
@@ -87,11 +87,11 @@ export function PreviewPane({ webinar, device, onDevice, screen, onScreen, publi
               role="tab"
               aria-selected={device === key}
               onClick={() => onDevice(key)}
-              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ${
-                device === key ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+              className={`inline-flex min-h-10 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${
+                device === key ? "bg-[#2563eb] text-white" : "text-foreground hover:bg-secondary"
               }`}
             >
-              <Icon className="size-3.5" />
+              <Icon className="size-4" aria-hidden="true" />
               {label}
             </button>
           ))}
@@ -110,23 +110,23 @@ export function PreviewPane({ webinar, device, onDevice, screen, onScreen, publi
               role="tab"
               aria-selected={screen === key}
               onClick={() => onScreen(key)}
-              className={`rounded-md px-2.5 py-1 text-xs transition-colors ${screen === key ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+              className={`min-h-10 rounded-md px-3 text-sm font-medium transition-colors ${screen === key ? "bg-[#2563eb] text-white" : "text-foreground hover:bg-secondary"}`}
             >
               {label}
             </button>
           ))}
         </div>
         )}
-        <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
-          {paid ? "The button opens your real checkout link." : "Registering here doesn't save anything."}
+        <span className="min-w-0 flex-1 text-xs text-muted-foreground">
+          {paid ? "The button opens your real checkout link." : "This is a preview. Signing up here doesn't save anything."}
         </span>
         {publicUrl ? (
-          <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-foreground underline-offset-2 hover:underline">
-            Open live page <ExternalLink className="size-3" />
+          <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 shrink-0 items-center gap-1.5 text-sm font-semibold text-[#2563eb] underline underline-offset-2">
+            View your live page <ExternalLink className="size-4" aria-hidden="true" />
           </a>
         ) : null}
       </div>
-      {notice ? <div className="border-b border-border bg-amber-50/70 px-3 py-2 text-xs text-amber-900">{notice}</div> : null}
+      {notice ? <div className="border-b border-border bg-amber-50/70 px-3 py-2 text-sm text-amber-900">{notice}</div> : null}
       <div ref={scroller} className={`max-h-[calc(100vh-200px)] overflow-y-auto overflow-x-hidden ${device === "mobile" ? "bg-secondary/70 p-4" : "bg-secondary/40"}`}>
         {device === "mobile" ? (
           <div className="mx-auto w-[390px] max-w-full overflow-hidden rounded-[28px] border-[6px] border-foreground/85 bg-background shadow-lg">

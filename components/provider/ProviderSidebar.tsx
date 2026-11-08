@@ -35,20 +35,20 @@ function Items({ pathname, collapsed = false }: { pathname: string; collapsed?: 
               aria-current={active ? "page" : undefined}
               title={collapsed ? `${item.number ? `${item.number}. ` : ""}${item.label}` : item.description}
               className={`flex items-center rounded-xl text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 ${
-                collapsed ? "flex-col gap-1 px-1 py-2" : "gap-3 px-3 py-2.5"
+                collapsed ? "min-h-11 flex-col gap-1 px-1 py-2" : "min-h-12 gap-3 px-3 py-2.5"
               } ${active ? "bg-[#2563eb] text-white shadow-xs" : "text-[#334155] hover:bg-[#eaf1fd] hover:text-[#0f1f3a]"}`}
             >
               {item.number !== null ? (
                 <span
                   aria-hidden="true"
-                  className={`grid size-6 shrink-0 place-items-center rounded-md text-xs font-semibold ${
+                  className={`grid size-7 shrink-0 place-items-center rounded-md text-sm font-bold ${
                     active ? "bg-white/20 text-white" : "bg-[#eaf1fd] text-[#2563eb]"
                   }`}
                 >
                   {item.number}
                 </span>
               ) : null}
-              <Icon aria-hidden="true" className={`size-4 shrink-0 ${active ? "opacity-100" : "opacity-60"}`} />
+              <Icon aria-hidden="true" className={`size-5 shrink-0 ${active ? "" : "text-[#2563eb]"}`} />
               <span className={collapsed ? "sr-only" : "truncate"}>
                 {item.number !== null && <span className="sr-only">Step {item.number}: </span>}
                 {item.label}
@@ -115,7 +115,7 @@ export default function ProviderSidebar() {
     <>
       {/* Desktop sidebar */}
       <aside
-        className={`provider-nav sticky top-0 z-40 hidden h-dvh shrink-0 flex-col border-r border-[var(--nav-border)] bg-[var(--nav-surface)] md:flex ${
+        className={`provider-nav easy-read sticky top-0 z-40 hidden h-dvh shrink-0 flex-col border-r border-[var(--nav-border)] bg-[var(--nav-surface)] md:flex ${
           collapsed ? "w-[72px]" : "w-64"
         }`}
       >
@@ -126,9 +126,10 @@ export default function ProviderSidebar() {
             onClick={toggle}
             aria-label={collapsed ? "Expand side menu" : "Collapse side menu"}
             aria-expanded={!collapsed}
-            className="grid size-8 place-items-center rounded-lg text-[#64748b] transition-colors hover:bg-[#eaf1fd] hover:text-[#0f1f3a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+            title={collapsed ? "Show the menu labels" : "Make the menu narrow"}
+            className="grid size-11 place-items-center rounded-lg text-[#475569] transition-colors hover:bg-[#eaf1fd] hover:text-[#0f1f3a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
           >
-            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            {collapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
           </button>
         </div>
 
@@ -142,18 +143,19 @@ export default function ProviderSidebar() {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="provider-nav sticky top-0 z-50 shrink-0 border-b border-border bg-background md:hidden">
+      <header className="provider-nav easy-read sticky top-0 z-50 shrink-0 border-b border-border bg-background md:hidden">
         <div className="flex h-[65px] items-center gap-2.5 px-3 sm:px-6">
           <div className="mr-auto">{logo}</div>
           <UserProfileDropdown />
           <button
             type="button"
-            aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((open) => !open)}
-            className="grid size-9 place-items-center rounded-xl border border-border-strong bg-card text-muted-foreground transition-colors hover:text-foreground active:bg-muted"
+            className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-border-strong bg-card px-3 text-sm font-semibold text-foreground transition-colors active:bg-muted"
           >
-            {menuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+            {menuOpen ? <X className="size-5" aria-hidden="true" /> : <Menu className="size-5" aria-hidden="true" />}
+            <span aria-hidden="true">{menuOpen ? "Close" : "Menu"}</span>
           </button>
         </div>
 

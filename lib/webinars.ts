@@ -37,6 +37,7 @@ import { cleanCopy, type CopyKey } from "@/lib/training-copy";
 import { coerceAccess, type AccessType, type DeliveryType } from "@/lib/webinar-access";
 
 export { isValidPaymentUrl, isValidVideoUrl } from "@/lib/webinar-access";
+import { coercePages, coerceWatchRoom, safeHttpsUrl, toStoredPages, type PageBlocks, type WatchRoom } from "@/lib/page-blocks";
 
 export type WebinarStatus = "draft" | "published";
 
@@ -111,6 +112,14 @@ export type Webinar = {
   delivery_type: DeliveryType;
   /** YouTube or Vimeo link, shown after sign-up on free automated webinars. Never saved for paid ones. */
   video_url: string;
+  /** Drag-and-drop pages (lib/page-blocks.ts). An empty or missing page uses the template. */
+  pages: PageBlocks;
+  /** Settings for the watch room page attendees watch on. */
+  watch_room: WatchRoom;
+  /** Recording for the replay page (YouTube or Vimeo, https). */
+  replay_url: string;
+  /** Days after the session ends that the replay stays open; 0 = no expiry. */
+  replay_expires_days: number;
   created_at: string;
   updated_at: string;
 };
@@ -195,6 +204,10 @@ export function emptyWebinar(ownerId: string): Omit<Webinar, "id"> {
     page_copy: {},
     owner_timezone: browserTimezone(),
     ...coerceAccess({}),
+    pages: {},
+    watch_room: coerceWatchRoom({}),
+    replay_url: "",
+    replay_expires_days: 3,
     created_at: now,
     updated_at: now,
   };
@@ -253,6 +266,13 @@ function toWebinar(id: string, data: Record<string, unknown>): Webinar {
     page_copy: cleanCopy(data.page_copy),
     owner_timezone: str("owner_timezone"),
     ...coerceAccess(data),
+    pages: coercePages(data.pages),
+    watch_room: coerceWatchRoom(data.watch_room),
+    replay_url: safeHttpsUrl(data.replay_url),
+    replay_expires_days:
+      typeof data.replay_expires_days === "number" && Number.isFinite(data.replay_expires_days)
+        ? Math.max(0, Math.min(365, Math.round(data.replay_expires_days)))
+        : 3,
     created_at: str("created_at"),
     updated_at: str("updated_at"),
   };
@@ -326,6 +346,10 @@ export async function saveWebinar(webinar: Webinar, hostName = ""): Promise<void
       // shortcut: video_url is public on published free webinars, upgrade to a gated watch page if hosts need it private
       // A draft is owner-only and sends nothing, so it keeps both of these for switching back.
       video_url: paid && published ? "" : rest.video_url,
+      // The replay page is public too, so a paid recording isn't published with it.
+      replay_url: paid && published ? "" : rest.replay_url,
+      // Firestore rejects nested arrays, so columns are stored as [{ blocks }].
+      pages: toStoredPages(rest.pages),
       // The n8n confirmation and reminder emails go by this date alone.
       next_session_at: rest.delivery_type === "automated" && published ? "" : rest.next_session_at,
       updated_at: new Date().toISOString(),

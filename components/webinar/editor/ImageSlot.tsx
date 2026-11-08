@@ -23,7 +23,7 @@ type Props = {
 };
 
 const BTN =
-  "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-60";
+  "inline-flex min-h-11 items-center gap-2 rounded-xl border border-border-strong bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-60";
 
 /**
  * One image the host can upload, replace, remove and re-frame. The crop
@@ -65,8 +65,8 @@ export function ImageSlot({ webinarId, kind, label, hint, url, focusX = 50, focu
   return (
     <div className="rounded-2xl border border-border bg-card/60 p-3.5">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-xs font-semibold">{label}</p>
-        {has && onFocus ? <span className="text-[11px] text-muted-foreground">Click the photo to set the focus</span> : null}
+        <p className="text-sm font-semibold">{label}</p>
+        {has && onFocus ? <span className="text-[11px] text-muted-foreground">Click the photo to choose the part that shows</span> : null}
       </div>
       <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{hint}</p>
 

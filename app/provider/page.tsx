@@ -13,7 +13,7 @@ type Load = { state: "loading" } | { state: "error" } | { state: "ready"; latest
 
 const focus =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 focus-visible:ring-offset-background";
-const primaryBtn = `inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] ${focus}`;
+const primaryBtn = `inline-flex items-center justify-center gap-2 min-h-12 rounded-xl bg-[#2563eb] px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-[#1d4ed8] ${focus}`;
 
 export default function ProviderHomePage() {
   const { videoId } = useHomeContent();
@@ -39,7 +39,7 @@ export default function ProviderHomePage() {
   const editHref = latest ? `/provider/webinars/edit?id=${latest.id}` : "";
 
   let heading = "Create your first webinar";
-  let body = "Start here. Name it, pick a format, and build your registration page.";
+  let body = "Start here. Give it a name, choose free or paid, then make the page people sign up on.";
   let href = "/provider/webinars?new=1";
   let cta = "Create webinar";
   if (latest?.status === "draft") {
@@ -50,18 +50,18 @@ export default function ProviderHomePage() {
   } else if (latest) {
     heading = label;
     const phase = sessionPhase(latest);
-    body = phase === "ended" || phase === "closed" ? "This session has ended. Set a new date to run it again." : "Your webinar is live.";
+    body = phase === "ended" || phase === "closed" ? "This session has ended. Set a new date to run it again." : "Your webinar is published. People can sign up with your link.";
     href = editHref;
     cta = "Open webinar";
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-8">
+    <div className="easy-read mx-auto w-full max-w-4xl space-y-8">
       <header>
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           {firstName ? `Welcome, ${firstName}` : "Welcome"}
         </h1>
-        <p className="mt-1.5 text-sm text-muted-foreground sm:text-base">
+        <p className="mt-1.5 text-base text-muted-foreground sm:text-lg">
           Follow the steps below, starting with your webinar.
         </p>
       </header>
@@ -78,22 +78,22 @@ export default function ProviderHomePage() {
       )}
 
       <section aria-labelledby="next-step" className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7">
-        <p id="next-step" className="text-xs font-semibold uppercase tracking-wider text-[#2563eb]">
+        <p id="next-step" className="text-sm font-semibold uppercase tracking-wider text-[#2563eb]">
           Your next step
         </p>
         {load.state === "loading" ? (
           <div className="mt-3 min-h-[116px] space-y-3" aria-busy="true">
             <div className="h-7 w-2/3 rounded-lg bg-secondary" />
             <div className="h-4 w-1/2 rounded-lg bg-secondary" />
-            <div className="h-10 w-40 rounded-xl bg-secondary" />
+            <div className="h-12 w-44 rounded-xl bg-secondary" />
           </div>
         ) : (
           <div className="mt-3 min-h-[116px]">
             <h2 className="break-words text-xl font-bold tracking-tight text-foreground sm:text-2xl">{heading}</h2>
-            <p className="mt-1.5 text-sm text-muted-foreground">{body}</p>
+            <p className="mt-1.5 text-base text-muted-foreground">{body}</p>
             {load.state === "error" && (
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                We could not load your webinars just now, so this may not be up to date.
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                We couldn't load your webinars just now. Check your internet connection, then refresh the page.
               </p>
             )}
             <Link href={href} className={`${primaryBtn} mt-4`}>
@@ -122,11 +122,11 @@ export default function ProviderHomePage() {
                   </span>
                   <Icon className="hidden size-5 shrink-0 text-[#2563eb] sm:block" aria-hidden="true" />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-foreground">{step.label}</span>
+                    <span className="block text-base font-semibold text-foreground">{step.label}</span>
                     <span className="mt-0.5 block text-sm text-muted-foreground">{step.description}</span>
                   </span>
                   <ArrowRight
-                    className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[#2563eb]"
+                    className="size-5 shrink-0 text-muted-foreground transition-colors group-hover:text-[#2563eb]"
                     aria-hidden="true"
                   />
                 </Link>

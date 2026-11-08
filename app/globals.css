@@ -357,3 +357,23 @@
   .wt-float, .wt-sway, .wt-draw { animation: none; }
   .wt-draw { stroke-dasharray: none; }
 }
+
+/* Webinar screens (home, list, editor, builder, side menu): easier reading for
+   older, non-technical hosts. Small text steps up a notch and muted text is
+   darker (AA on every surface). The public page previews don't use these
+   utility classes, so they render exactly as visitors see them. */
+.easy-read {
+  --muted-foreground: #475569;
+  --nav-muted: #475569;
+}
+.easy-read .text-\[10px\],
+.easy-read .text-\[11px\] { font-size: 0.875rem; line-height: 1.35rem; }
+.easy-read .text-xs { font-size: 0.9375rem; line-height: 1.4rem; }
+.easy-read .text-sm { font-size: 1rem; line-height: 1.5rem; }
+@media (min-width: 640px) {
+  .easy-read .sm\:text-sm { font-size: 1rem; line-height: 1.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .easy-read .animate-spin,
+  .easy-read .animate-pulse { animation: none; }
+}

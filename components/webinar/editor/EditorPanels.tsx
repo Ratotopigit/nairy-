@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { Check, Plus, RotateCcw, X } from "lucide-react";
-import { Divider, Field, INPUT, Section } from "@/components/webinar/editor/controls";
+import { Divider, Field, INPUT, MoreOptions, Section } from "@/components/webinar/editor/controls";
 import { ImageSlot } from "@/components/webinar/editor/ImageSlot";
 import { FONT_PAIRS } from "@/lib/webinar-fonts";
 import { isHex } from "@/lib/color";
@@ -37,7 +37,7 @@ function toLocalInput(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function durationLabel(minutes: number): string {
+export function durationLabel(minutes: number): string {
   if (minutes < 60) return `${minutes} minutes`;
   const h = minutes / 60;
   return `${h} hour${h === 1 ? "" : "s"}`;
@@ -63,8 +63,65 @@ type ContentProps = PanelProps & {
   timezone: string;
 };
 
-export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, joinInvalid, joinState, timezone }: ContentProps) {
+/** Date, time and length of a live session. Used here and in the Watch step. */
+export function DateLengthFields({ w, update, timezone }: Pick<PanelProps, "w" | "update"> & { timezone: string }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+      <Field label="Date and time" hint={`In your timezone (${timezone}). Visitors see it in theirs.`}>
+        <input
+          type="datetime-local"
+          value={toLocalInput(w.next_session_at)}
+          onChange={(e) => update("next_session_at", e.target.value ? new Date(e.target.value).toISOString() : "")}
+          className={INPUT}
+        />
+      </Field>
+      <Field label="Length">
+        <select value={w.duration_minutes} onChange={(e) => update("duration_minutes", Number(e.target.value))} className={INPUT}>
+          {DURATION_OPTIONS.map((m) => (
+            <option key={m} value={m}>
+              {durationLabel(m)}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </div>
+  );
+}
+
+type JoinProps = Pick<ContentProps, "joinUrl" | "setJoinUrl" | "joinInvalid" | "joinState">;
+
+/** The private meeting link (webinars/{id}/private/session); the editor page holds its state and saves it. */
+export function JoinLinkField({ joinUrl, setJoinUrl, joinInvalid, joinState }: JoinProps) {
   const joinHintId = useId();
+  return (
+    <Field
+      label="Meeting link (Zoom, Google Meet or Teams)"
+      hintId={joinHintId}
+      hint={
+        joinInvalid
+          ? "That doesn't look like a link. It should start with https://"
+          : joinState === "error"
+            ? "Your meeting link and notes couldn't be saved. Check your internet connection and try again."
+            : joinState === "saving"
+              ? "Saving…"
+              : "Paste the link your guests use to join, not your own “start meeting” link."
+      }
+    >
+      <input
+        value={joinUrl}
+        onChange={(e) => setJoinUrl(e.target.value)}
+        maxLength={WEBINAR_LIMITS.joinUrl}
+        inputMode="url"
+        placeholder="https://zoom.us/j/…"
+        aria-invalid={joinInvalid}
+        aria-describedby={joinInvalid ? joinHintId : undefined}
+        className={`${INPUT} ${joinInvalid ? "border-red-300" : ""}`}
+      />
+    </Field>
+  );
+}
+
+export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, joinInvalid, joinState, timezone }: ContentProps) {
   return (
     <div className="space-y-7">
       <Section title="Your webinar">
@@ -74,27 +131,7 @@ export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, 
         <Field label="Short description" right={<Counter value={w.subtitle} max={WEBINAR_LIMITS.subtitle} />}>
           <textarea value={w.subtitle} onChange={(e) => update("subtitle", e.target.value)} maxLength={WEBINAR_LIMITS.subtitle} rows={3} className={`${INPUT} resize-none`} />
         </Field>
-        {w.delivery_type !== "automated" ? (
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-          <Field label="Date and time" hint={`In your timezone (${timezone}). Visitors see it in theirs.`}>
-            <input
-              type="datetime-local"
-              value={toLocalInput(w.next_session_at)}
-              onChange={(e) => update("next_session_at", e.target.value ? new Date(e.target.value).toISOString() : "")}
-              className={INPUT}
-            />
-          </Field>
-          <Field label="Length">
-            <select value={w.duration_minutes} onChange={(e) => update("duration_minutes", Number(e.target.value))} className={INPUT}>
-              {DURATION_OPTIONS.map((m) => (
-                <option key={m} value={m}>
-                  {durationLabel(m)}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        ) : null}
+        {w.delivery_type !== "automated" ? <DateLengthFields w={w} update={update} timezone={timezone} /> : null}
       </Section>
 
       <Divider />
@@ -114,16 +151,17 @@ export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, 
                 type="button"
                 onClick={() => update("bullets", w.bullets.filter((_, j) => j !== i))}
                 aria-label={`Remove outcome ${i + 1}`}
-                className="grid size-10 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-secondary"
+                title="Remove this line"
+                className="grid size-11 shrink-0 place-items-center rounded-xl border border-border-strong text-muted-foreground transition-colors hover:bg-secondary"
               >
-                <X className="size-4" />
+                <X className="size-5" aria-hidden="true" />
               </button>
             </div>
           ))}
           {w.bullets.length < WEBINAR_LIMITS.bullets ? (
-            <button type="button" onClick={() => update("bullets", [...w.bullets, ""])} className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
-              <Plus className="size-3.5" />
-              Add an outcome
+            <button type="button" onClick={() => update("bullets", [...w.bullets, ""])} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border-strong bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary">
+              <Plus className="size-4" aria-hidden="true" />
+              Add another line
             </button>
           ) : null}
         </div>
@@ -140,20 +178,6 @@ export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, 
             <input value={w.presenter_title} onChange={(e) => update("presenter_title", e.target.value)} maxLength={WEBINAR_LIMITS.hostTitle} placeholder="Founder, Harlow & Co." className={INPUT} />
           </Field>
         </div>
-        <Field label="Short bio" hint="Optional. Hidden on the page while empty." right={<Counter value={w.host_bio} max={WEBINAR_LIMITS.hostBio} />}>
-          <textarea value={w.host_bio} onChange={(e) => update("host_bio", e.target.value)} maxLength={WEBINAR_LIMITS.hostBio} rows={3} className={`${INPUT} resize-none`} />
-        </Field>
-        <Field label="One line of social proof" hint="Optional and genuine, e.g. “Trusted by 1,200 founders”. Hidden while empty." right={<Counter value={w.social_proof} max={WEBINAR_LIMITS.socialProof} />}>
-          <input value={w.social_proof} onChange={(e) => update("social_proof", e.target.value)} maxLength={WEBINAR_LIMITS.socialProof} className={INPUT} />
-        </Field>
-      </Section>
-
-      <Divider />
-
-      <Section title="Registration">
-        <Field label="Button text">
-          <input value={w.cta_label} onChange={(e) => update("cta_label", e.target.value)} maxLength={40} className={INPUT} />
-        </Field>
       </Section>
 
       <Divider />
@@ -164,40 +188,27 @@ export function ContentPanel({ w, update, joinUrl, setJoinUrl, notes, setNotes, 
           w.delivery_type === "automated"
             ? "Visitors never see this."
             : w.access_type === "paid"
-            ? "Visitors never see these. Buyers don't get the session link from us: send it from your checkout confirmation."
-            : "Visitors never see these. Only people who register get the session link, in their confirmation email, reminders and calendar invite."
+            ? "Visitors never see this. Buyers don't get the meeting link from us: send it from your checkout confirmation."
+            : "Visitors never see this. Only people who sign up get the meeting link, in their confirmation email, reminders and calendar invite."
         }
       >
-        {w.delivery_type !== "automated" ? (
-        <Field
-          label="Session link (Zoom, Meet, Teams)"
-          hintId={joinHintId}
-          hint={
-            joinInvalid
-              ? "That doesn't look like a link. It should start with https://"
-              : joinState === "error"
-                ? "Your session link and notes couldn't be saved. Check your connection, or that the latest database rules are published."
-                : joinState === "saving"
-                  ? "Saving…"
-                  : "Paste the link attendees use to join, not your host “start meeting” link."
-          }
-        >
-          <input
-            value={joinUrl}
-            onChange={(e) => setJoinUrl(e.target.value)}
-            maxLength={WEBINAR_LIMITS.joinUrl}
-            inputMode="url"
-            placeholder="https://zoom.us/j/…"
-            aria-invalid={joinInvalid}
-            aria-describedby={joinInvalid ? joinHintId : undefined}
-            className={`${INPUT} ${joinInvalid ? "border-red-300" : ""}`}
-          />
+        {w.delivery_type !== "automated" ? <JoinLinkField joinUrl={joinUrl} setJoinUrl={setJoinUrl} joinInvalid={joinInvalid} joinState={joinState} /> : null}
+      </Section>
+
+      <MoreOptions label="More options: bio, button text and notes">
+        <Field label="Short bio" hint="Optional. Hidden on the page while empty." right={<Counter value={w.host_bio} max={WEBINAR_LIMITS.hostBio} />}>
+          <textarea value={w.host_bio} onChange={(e) => update("host_bio", e.target.value)} maxLength={WEBINAR_LIMITS.hostBio} rows={3} className={`${INPUT} resize-none`} />
         </Field>
-        ) : null}
-        <Field label="Notes for you" hint="What this webinar is for. It also helps when you @mention it in Webinar Chat.">
+        <Field label="One line of social proof" hint="Optional and genuine, e.g. “Trusted by 1,200 founders”. Hidden while empty." right={<Counter value={w.social_proof} max={WEBINAR_LIMITS.socialProof} />}>
+          <input value={w.social_proof} onChange={(e) => update("social_proof", e.target.value)} maxLength={WEBINAR_LIMITS.socialProof} className={INPUT} />
+        </Field>
+        <Field label="Sign-up button text">
+          <input value={w.cta_label} onChange={(e) => update("cta_label", e.target.value)} maxLength={40} className={INPUT} />
+        </Field>
+        <Field label="Notes for you" hint="Only you see these. Say what this webinar is for; it also helps when you @mention it in AI Chat.">
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={WEBINAR_LIMITS.notes} rows={2} className={`${INPUT} resize-none`} />
         </Field>
-      </Section>
+      </MoreOptions>
     </div>
   );
 }
@@ -226,8 +237,8 @@ function ColorField({
         <input type="color" value={shown} onChange={(e) => onChange(e.target.value.toLowerCase())} aria-label={label} className="absolute inset-0 size-full cursor-pointer opacity-0" />
       </label>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium">{label}</p>
-        <p className="truncate text-[11px] text-muted-foreground">{hint}</p>
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="truncate text-xs text-muted-foreground">{hint}</p>
       </div>
       <input
         value={draft}
@@ -240,7 +251,7 @@ function ColorField({
         maxLength={7}
         spellCheck={false}
         aria-label={`${label} hex code`}
-        className="w-[5.5rem] rounded-lg border border-input bg-card px-2 py-1.5 font-mono text-xs uppercase outline-none focus:border-primary"
+        className="h-11 w-[6rem] rounded-lg border border-border-strong bg-card px-2 font-mono text-sm uppercase outline-none focus:border-primary"
       />
       <button
         type="button"
@@ -248,9 +259,9 @@ function ColorField({
         disabled={!value}
         aria-label={`Reset ${label} to the template colour`}
         title="Reset to the template colour"
-        className="grid size-8 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-30"
+        className="grid size-11 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-30"
       >
-        <RotateCcw className="size-3.5" />
+        <RotateCcw className="size-4" aria-hidden="true" />
       </button>
     </div>
   );
@@ -292,8 +303,7 @@ export function BrandPanel({ w, update, notify, onError }: BrandProps) {
         />
       </Section>
 
-      <Divider />
-
+      <MoreOptions label="More options: colours and fonts">
       <Section title="Colours" hint="Start from a palette, or set your own. Text and buttons adjust automatically so everything stays readable.">
         <div className="grid grid-cols-2 gap-2">
           {COLOR_PRESETS.map((p) => {
@@ -304,7 +314,7 @@ export function BrandPanel({ w, update, notify, onError }: BrandProps) {
                 type="button"
                 onClick={() => applyPreset(p)}
                 aria-pressed={selected}
-                className={`flex items-center gap-2.5 rounded-xl border p-2 text-left transition-colors hover:bg-secondary ${selected ? "border-foreground ring-1 ring-foreground" : "border-border"}`}
+                className={`flex min-h-12 items-center gap-2.5 rounded-xl border p-2 text-left transition-colors hover:bg-secondary ${selected ? "border-[#2563eb] ring-2 ring-[#2563eb]" : "border-border"}`}
               >
                 <span className="grid size-9 shrink-0 grid-cols-2 grid-rows-2 overflow-hidden rounded-md border border-border-strong">
                   <span style={{ background: p.bg }} />
@@ -312,7 +322,7 @@ export function BrandPanel({ w, update, notify, onError }: BrandProps) {
                   <span style={{ background: p.ink }} />
                   <span style={{ background: p.accent }} />
                 </span>
-                <span className="min-w-0 text-[11px] font-medium leading-tight">{p.name}</span>
+                <span className="min-w-0 text-sm font-medium leading-tight">{p.name}</span>
                 {selected ? <Check className="ml-auto size-3.5 shrink-0" /> : null}
               </button>
             );
@@ -334,9 +344,9 @@ export function BrandPanel({ w, update, notify, onError }: BrandProps) {
               update("theme_brand", "");
               update("theme_accent", "");
             }}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-foreground underline underline-offset-2"
           >
-            <RotateCcw className="size-3.5" />
+            <RotateCcw className="size-4" aria-hidden="true" />
             Back to this template&apos;s own colours
           </button>
         ) : null}
@@ -344,8 +354,8 @@ export function BrandPanel({ w, update, notify, onError }: BrandProps) {
 
       <Divider />
 
-      <Section title="Typography" hint="Curated pairings of a headline and body font that are known to work together.">
-        <div className="grid gap-2">
+      <Section title="Fonts" hint="Each choice pairs a headline font with a text font that look good together.">
+        <div className="grid grid-cols-1 gap-2">
           {FONT_PAIR_IDS.map((id) => {
             const selected = id === active;
             const isTemplateDefault = id === t.fonts;
@@ -355,7 +365,7 @@ export function BrandPanel({ w, update, notify, onError }: BrandProps) {
                 type="button"
                 onClick={() => update("font_pair", id === t.fonts ? "" : id)}
                 aria-pressed={selected}
-                className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-secondary ${selected ? "border-foreground ring-1 ring-foreground" : "border-border"}`}
+                className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-secondary ${selected ? "border-[#2563eb] ring-2 ring-[#2563eb]" : "border-border"}`}
               >
                 <span className="w-12 shrink-0 text-3xl leading-none" style={{ fontFamily: FONT_PAIRS[id].heading, fontWeight: FONT_PAIRS[id].headingWeight }}>
                   Aa
@@ -363,9 +373,9 @@ export function BrandPanel({ w, update, notify, onError }: BrandProps) {
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium">
                     {FONT_PAIR_CATALOG[id].label}
-                    {isTemplateDefault ? <span className="ml-2 text-[10px] font-normal uppercase tracking-wider text-muted-foreground">Template</span> : null}
+                    {isTemplateDefault ? <span className="ml-2 text-xs font-normal text-muted-foreground">(design default)</span> : null}
                   </span>
-                  <span className="block truncate text-[11px] text-muted-foreground" style={{ fontFamily: FONT_PAIRS[id].body }}>
+                  <span className="block truncate text-xs text-muted-foreground" style={{ fontFamily: FONT_PAIRS[id].body }}>
                     {FONT_PAIR_CATALOG[id].note}
                   </span>
                 </span>
@@ -375,6 +385,7 @@ export function BrandPanel({ w, update, notify, onError }: BrandProps) {
           })}
         </div>
       </Section>
+      </MoreOptions>
     </div>
   );
 }
@@ -455,7 +466,7 @@ export function ImagesPanel({ w, update, onFind, onSuggest, suggesting, onError 
         }}
         onError={onError}
       />
-      <p className="text-[11px] leading-5 text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Your own portrait is uploaded, not searched: a stock photo can&apos;t be you. Images are resized and saved to your account, so they stay put when you switch templates or publish. Photos from search are free for commercial use.
       </p>
     </div>
@@ -485,7 +496,7 @@ export function LayoutPanel({ w, update, onBrowse, thanks = false }: PanelProps 
 
       {!thanks ? null : (
       <Section title="Thank-you page" hint="What people see right after they register. It works with every template.">
-        <div className="grid gap-2">
+        <div className="grid grid-cols-1 gap-2">
           {(
             [
               { id: "", name: "Simple confirmation", blurb: w.delivery_type === "automated" ? "A short “You're registered” card with your video." : "A short “You're registered” card with calendar buttons." },
@@ -515,7 +526,7 @@ export function LayoutPanel({ w, update, onBrowse, thanks = false }: PanelProps 
 
       {thanks ? null : (
       <Section title={`More in ${t.category}`} hint="Different compositions, in colours chosen for this kind of business.">
-        <div className="grid gap-2">
+        <div className="grid grid-cols-1 gap-2">
           {siblings.map((s) => {
             const selected = s.id === t.id;
             return (
@@ -561,7 +572,7 @@ export function TextPanel({ w, update, thanks = false }: PanelProps & { thanks?:
   );
   return (
     <div className="space-y-6">
-      <p className="text-xs leading-5 text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         Every line is yours to change. Leave a box empty to hide that part of the page, or reset it to bring the original wording back.
       </p>
       {groups.map((g, i) => (
@@ -585,9 +596,10 @@ export function TextPanel({ w, update, thanks = false }: PanelProps & { thanks?:
                           void _drop;
                           update("page_copy", rest);
                         }}
-                        className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                        title="Bring back the original wording"
+                        className="inline-flex min-h-8 items-center gap-1 text-xs font-medium text-foreground underline underline-offset-2"
                       >
-                        <RotateCcw className="size-3" />
+                        <RotateCcw className="size-3.5" aria-hidden="true" />
                         Reset
                       </button>
                     ) : (

@@ -14,7 +14,7 @@ export const PROVIDER_STEPS: ProviderStep[] = [
     number: 1,
     href: "/provider/webinars",
     label: "Your Webinar",
-    description: "Name it, choose free or paid and live or automated, then build your registration and thank-you pages.",
+    description: "Name it, choose free or paid and live or recorded, then make your sign-up and thank-you pages.",
     icon: Video,
   },
   {

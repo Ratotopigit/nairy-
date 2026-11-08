@@ -139,7 +139,7 @@ export function ImagePicker({ open, webinarId, mode, context, onClose, onPicked 
                 : "Choose one and it's saved to your account and shown on your page straight away."}
             </p>
           </div>
-          <button type="button" onClick={onClose} disabled={importing !== null} aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-xl border border-border hover:bg-secondary">
+          <button type="button" onClick={onClose} disabled={importing !== null} aria-label="Close" title="Close" className="grid size-11 shrink-0 place-items-center rounded-xl border border-border hover:bg-secondary">
             <X className="size-4" />
           </button>
         </div>
@@ -163,11 +163,11 @@ export function ImagePicker({ open, webinarId, mode, context, onClose, onPicked 
               className="w-full rounded-xl border border-input bg-card py-2.5 pl-10 pr-3.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
             />
           </label>
-          <button type="submit" disabled={loading || !query.trim()} className="rounded-xl bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50">
+          <button type="submit" disabled={loading || !query.trim()} className="min-h-11 rounded-xl bg-[#2563eb] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50">
             Search
           </button>
           {mode === "search" ? null : (
-            <button type="button" onClick={() => void runSuggest()} disabled={loading} className="hidden rounded-xl border border-border px-3.5 py-2.5 text-sm transition-colors hover:bg-secondary sm:block">
+            <button type="button" onClick={() => void runSuggest()} disabled={loading} className="hidden min-h-11 rounded-xl border border-border-strong px-4 py-2.5 text-sm transition-colors hover:bg-secondary sm:block">
               More ideas
             </button>
           )}
@@ -183,7 +183,7 @@ export function ImagePicker({ open, webinarId, mode, context, onClose, onPicked 
           {loading ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-busy="true" aria-label="Loading photos">
               {Array.from({ length: 9 }, (_, i) => (
-                <div key={i} className="aspect-[3/2] animate-pulse rounded-xl bg-secondary" />
+                <div key={i} className="aspect-[3/2] rounded-xl bg-secondary" />
               ))}
             </div>
           ) : photos === null ? (

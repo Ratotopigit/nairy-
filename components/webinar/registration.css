@@ -2956,3 +2956,250 @@ a.wp-btn:hover {
 .wp-t-back {
   justify-self: center;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   PAGE BUILDER BLOCKS (components/webinar/blocks/BlockPage.tsx)
+   Same variables and container queries as the templates. Each block is a
+   full-width band; its style (bg, color, align, pad) is set inline.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.wpb {
+  display: grid;
+  padding-block: clamp(16px, 4cqi, 48px);
+}
+
+.wpb-block {
+  padding-inline: var(--g);
+  min-width: 0;
+}
+
+.wpb-block[data-nested] {
+  padding-inline: 0;
+}
+
+.wpb-block[data-nested][data-has-bg] {
+  padding-inline: clamp(14px, 2.4cqi, 24px);
+  border-radius: var(--radius);
+}
+
+.wpb-in {
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+.wpb-in[data-wide] {
+  max-width: 1240px;
+}
+
+.wpb-h {
+  overflow-wrap: break-word;
+  white-space: pre-line;
+}
+
+.wpb-h[data-level="1"] {
+  font-size: clamp(2.25rem, 7cqi, 4.25rem);
+}
+
+.wpb-h[data-level="2"] {
+  font-size: clamp(1.75rem, 4.6cqi, 2.75rem);
+  line-height: 1.12;
+}
+
+.wpb-h[data-level="3"] {
+  font-size: clamp(1.25rem, 3cqi, 1.625rem);
+  line-height: 1.2;
+}
+
+.wpb-text,
+.wpb-pre {
+  white-space: pre-line;
+  overflow-wrap: break-word;
+}
+
+.wpb-text {
+  font-size: clamp(1.0625rem, 2.1cqi, 1.1875rem);
+  line-height: 1.6;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.wpb-img {
+  height: auto;
+  border-radius: var(--radius);
+  margin-inline: auto;
+}
+
+.wpb-block[data-align="left"] .wpb-img {
+  margin-inline: 0 auto;
+}
+
+.wpb-block[data-align="right"] .wpb-img {
+  margin-inline: auto 0;
+}
+
+.wp .wpb-btn {
+  width: auto;
+  min-width: min(100%, 15rem);
+  max-width: 100%;
+  text-decoration: none;
+}
+
+.wpb-form {
+  max-width: 30rem;
+  margin-inline: auto;
+  text-align: left;
+}
+
+.wpb-block[data-align="left"] .wpb-form {
+  margin-inline: 0 auto;
+}
+
+.wpb-block[data-align="right"] .wpb-form {
+  margin-inline: auto 0;
+}
+
+.wpb-timer,
+.wpb-stack {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: var(--jc, center);
+}
+
+.wpb-timer .wp-count {
+  justify-content: var(--jc, center);
+  font-size: clamp(1.75rem, 5.4cqi, 2.75rem);
+}
+
+.wpb-actions .wp-cal-row {
+  width: 100%;
+  max-width: 30rem;
+}
+
+.wpb-presenter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: var(--jc, center);
+  gap: 1rem 1.25rem;
+}
+
+.wpb-avatar {
+  width: 88px;
+  height: 88px;
+  font-size: 1.5rem;
+}
+
+.wpb-presenter-copy {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  flex: 1 1 16rem;
+  max-width: 34rem;
+}
+
+.wpb-presenter-name {
+  font-family: var(--font-head), serif;
+  font-weight: var(--head-w);
+  font-size: 1.25rem;
+}
+
+.wpb-presenter .wp-bio {
+  margin-top: 0.35rem;
+}
+
+.wpb-list {
+  display: grid;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  text-align: left;
+}
+
+.wpb-block[data-align="left"] .wpb-list {
+  margin-inline: 0 auto;
+}
+
+.wpb-block[data-align="right"] .wpb-list {
+  margin-inline: auto 0;
+}
+
+.wpb-list li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  align-items: baseline;
+  padding-block: 0.5rem;
+  font-size: 1.0625rem;
+  line-height: 1.45;
+  overflow-wrap: break-word;
+}
+
+.wpb-marker {
+  font-family: var(--font-head), serif;
+  font-size: 0.95rem;
+  line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--brand-text);
+}
+
+.wpb-marker svg {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  translate: 0 0.12em;
+}
+
+.wpb-list[data-marker="dot"] .wpb-marker::before {
+  content: "";
+  display: block;
+  width: 0.8rem;
+  height: 2px;
+  background: currentColor;
+  translate: 0 -0.3em;
+}
+
+.wpb-divider {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.wpb-html {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.wpb-note {
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--lineStrong);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Columns stack on narrow containers, sit side by side from 720px. */
+.wpb-cols {
+  display: grid;
+  gap: clamp(20px, 3.4cqi, 48px);
+}
+
+.wpb-col {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+.wpb[data-preview] .wpb-col:empty {
+  min-height: 4rem;
+  border: 1px dashed var(--lineStrong);
+  border-radius: var(--radius);
+}
+
+@container wp (min-width: 720px) {
+  .wpb-cols {
+    grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  }
+}

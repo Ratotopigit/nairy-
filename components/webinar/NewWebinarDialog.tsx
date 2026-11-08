@@ -55,16 +55,16 @@ export function NewWebinarDialog({ open, busy, onClose, onCreate }: Props) {
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 id="new-webinar-title" className="text-lg font-semibold tracking-[-0.02em]">New webinar</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Give it a name you&apos;ll recognise. You can change everything later.</p>
+            <h2 id="new-webinar-title" className="text-lg font-semibold tracking-[-0.02em]">Create a webinar</h2>
+            <p className="mt-1 text-base text-muted-foreground">Answer three quick questions. You can change everything later.</p>
           </div>
-          <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-xl border border-border hover:bg-secondary">
-            <X className="size-4" />
+          <button type="button" onClick={onClose} disabled={busy} aria-label="Close" title="Close" className="grid size-11 shrink-0 place-items-center rounded-xl border border-border hover:bg-secondary">
+            <X className="size-5" aria-hidden="true" />
           </button>
         </div>
 
         <label className="mt-5 block">
-          <span className="text-xs font-medium">Webinar name</span>
+          <span className="text-base font-semibold">Webinar name</span>
           <input
             ref={nameRef}
             value={name}
@@ -72,10 +72,10 @@ export function NewWebinarDialog({ open, busy, onClose, onCreate }: Props) {
             maxLength={WEBINAR_LIMITS.name}
             required
             placeholder="e.g. October AI marketing masterclass"
-            className="mt-1.5 w-full rounded-xl border border-input bg-card px-3.5 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+            className="mt-1.5 min-h-12 w-full rounded-xl border border-border-strong bg-card px-3.5 py-2.5 text-base outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
           />
-          <span className="mt-1 block text-[11px] text-muted-foreground">
-            Shown in your dashboard and when you @mention it in Webinar Chat. It also starts as the page headline.
+          <span className="mt-1 block text-xs text-muted-foreground">
+            Only you see this name in your list. It is also used as your first page headline, which you can change.
           </span>
         </label>
 
@@ -85,7 +85,7 @@ export function NewWebinarDialog({ open, busy, onClose, onCreate }: Props) {
         </div>
 
         <label className="mt-4 block">
-          <span className="text-xs font-medium">
+          <span className="text-base font-semibold">
             What&apos;s it about? <span className="font-normal text-muted-foreground">(optional, only you see this)</span>
           </span>
           <textarea
@@ -99,13 +99,13 @@ export function NewWebinarDialog({ open, busy, onClose, onCreate }: Props) {
         </label>
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl border border-border px-4 py-2.5 text-sm transition-colors hover:bg-secondary">
+          <button type="button" onClick={onClose} disabled={busy} className="min-h-12 rounded-xl border border-border-strong px-5 py-3 text-base font-medium transition-colors hover:bg-secondary">
             Cancel
           </button>
           <button
             type="submit"
             disabled={busy || !name.trim()}
-            className="inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#2563eb] px-5 py-3 text-base font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
           >
             {busy ? <Loader2 className="size-4 animate-spin" /> : null}
             Create webinar
