@@ -35,3 +35,9 @@ Sister repo: the marketing site `info.webinarstackai.com` lives in `A:\PROJECT K
 - Never test against live Stripe or write test data into `nirey-f2faf` production. Use `npm run verify:billing` / the emulator tests.
 - Never rename n8n webhook paths (`avatar-iq`, `offer-iq`, `content-maker`) — the live site calls them.
 - Never re-import an `n8n/*.json` export over a live workflow.
+
+## Content changes without code: WebinarStack MCP
+Text, FAQ, pricing-page copy, countdown, footer (promo site) and customer webinar content / app home settings (app)
+can be changed live through the `webinarstack` MCP server (https://mcp.webinarstackai.com/mcp), with history and undo.
+Full guide with every field path: `A:\PROJECT KHATAM\webinarstack-mcp\TOOLS.md` (or call the MCP `guide` tool).
+Use the MCP for content; use this repo for layout, new features, prices/plans and anything the MCP refuses.
