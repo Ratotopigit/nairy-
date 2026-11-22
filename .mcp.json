@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": { "Authorization": "Bearer ${GITHUB_PAT}" }
+    },
+    "firebase": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "firebase-tools@latest", "mcp"]
+    },
+    "cloudflare-observability": {
+      "type": "http",
+      "url": "https://observability.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-bindings": {
+      "type": "http",
+      "url": "https://bindings.mcp.cloudflare.com/mcp"
+    },
+    "n8n": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "n8n-mcp"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true",
+        "N8N_API_URL": "https://explosionmarketing.app.n8n.cloud",
+        "N8N_API_KEY": "${N8N_API_KEY}"
+      }
+    }
+  }
+}
